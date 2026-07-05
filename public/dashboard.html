@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Dashboard - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-red': '#E02126',
+                        'primary-dark': '#1F2937',
+                        'secondary-dark': '#121212',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f5f5f5; }
+        .course-card {
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            transition: all .25s ease;
+            background: #fff;
+            overflow: hidden;
+        }
+        .course-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.12); }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-6 text-gray-700 font-medium">
+                <a href="home.html" class="hover:text-primary-red transition duration-150">Home</a>
+                <a href="courses.html" class="hover:text-primary-red transition duration-150">Courses</a>
+                <a href="dashboard.html" class="text-primary-red border-b-2 border-primary-red pb-1">Dashboard</a>
+                <a id="admin-link" href="/admin" class="hidden hover:text-primary-red transition duration-150">Admin</a>
+                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-red">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-primary-red text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">0</span>
+                </button>
+                <button id="logout-btn" class="ml-2 inline-flex items-center justify-center px-6 py-2 bg-primary-dark text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 transition duration-150">
+                    <i class="fa-solid fa-right-from-bracket mr-2"></i> Log Out
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <div class="bg-primary-red pt-14 pb-20 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 id="welcome-heading" class="text-4xl font-extrabold text-white mb-2">Welcome back</h1>
+            <p id="welcome-sub" class="text-red-100 text-lg"></p>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 pb-20">
+        <div id="notif-panel" class="hidden bg-white rounded-xl shadow-lg p-6 mb-6 max-w-md">
+            <h3 class="font-bold text-gray-800 mb-3">Notifications</h3>
+            <div id="notif-list" class="space-y-2 text-sm text-gray-600"></div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-lg p-5 flex items-center gap-3">
+                <i class="fa-solid fa-fire text-2xl text-orange-500"></i>
+                <div>
+                    <p id="streak-count" class="text-2xl font-extrabold text-gray-800">0</p>
+                    <p class="text-xs text-gray-500">Day streak</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-5 sm:col-span-2">
+                <p class="text-xs font-semibold text-gray-500 mb-2">BADGES</p>
+                <div id="badges-list" class="flex flex-wrap gap-2 text-sm text-gray-600">
+                    <span class="text-gray-400">Keep learning to earn badges.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 text-white" style="background: linear-gradient(135deg, #7e0e14, #E02126);">
+                <i class="fa-solid fa-chalkboard-user absolute -right-3 -bottom-3 text-8xl text-white/10"></i>
+                <div class="relative">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h3 class="font-extrabold text-lg">Tutoring</h3>
+                        <span id="tutor-status-badge" class="hidden text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white/20"></span>
+                    </div>
+                    <p id="tutor-status" class="text-sm text-red-100 mb-4">Share your qualifications and get matched with students.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <a id="tutor-action-btn" href="/become-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-red font-bold rounded-lg text-sm shadow-md hover:bg-red-50 transition">
+                            Become a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </a>
+                        <a id="manage-quizzes-btn" href="/manage-quizzes" class="hidden inline-flex items-center justify-center px-4 py-2 bg-white/10 border border-white/40 text-white font-bold rounded-lg text-sm hover:bg-white/20 transition">
+                            Manage Course Quizzes <i class="fa-solid fa-clipboard-question ml-2"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 text-white" style="background: linear-gradient(135deg, #1F2937, #374151);">
+                <i class="fa-solid fa-magnifying-glass absolute -right-3 -bottom-3 text-8xl text-white/10"></i>
+                <div class="relative">
+                    <h3 class="font-extrabold text-lg mb-2">Need a Tutor?</h3>
+                    <p class="text-sm text-gray-300 mb-4">Browse approved tutors near you or online, and compare their rates.</p>
+                    <a href="/find-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-dark font-bold rounded-lg text-sm shadow-md hover:bg-gray-100 transition">
+                        Find a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div id="my-tutor-section" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-graduation-cap text-primary-red mr-2"></i>Your Tutor(s)</h2>
+            <div id="my-tutor-list" class="grid sm:grid-cols-2 gap-4"></div>
+        </div>
+
+        <div id="my-students-section" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-people-group text-primary-red mr-2"></i>Your Students</h2>
+            <div id="my-students-list" class="grid sm:grid-cols-2 gap-4"></div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">My Courses</h2>
+
+            <div id="enrolled-loading" class="text-gray-500">Loading your courses...</div>
+
+            <div id="enrolled-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+            <div id="empty-state" class="hidden text-center py-12">
+                <i class="fa-solid fa-music text-primary-red text-4xl mb-4"></i>
+                <p class="text-gray-600 text-lg mb-6">You haven't enrolled in any courses yet.</p>
+                <a href="courses.html" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                    Browse Courses
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.classList.add('show');
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        function courseCardHtml(course) {
+            return `
+                <div class="course-card">
+                    <div class="p-5">
+                        <span class="block text-xs font-semibold uppercase tracking-wide text-primary-red mb-1">${course.category} &middot; ${course.level}</span>
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">${course.title}</h3>
+                        <a href="/video/${course.slug}" class="inline-flex items-center justify-center w-full py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow hover:bg-red-700 transition duration-150">
+                            <i class="fa-solid fa-play mr-2"></i> Continue Learning
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadDashboard() {
+            const res = await fetch('/api/dashboard');
+            if (res.status === 401) {
+                window.location.href = '/login?redirect=' + encodeURIComponent('/dashboard');
+                return;
+            }
+            const data = await res.json();
+
+            document.getElementById('welcome-heading').textContent = `Welcome back, ${data.user.name.split(' ')[0]}`;
+            document.getElementById('welcome-sub').textContent = data.user.email;
+
+            if (data.user.role === 'admin') {
+                document.getElementById('admin-link').classList.remove('hidden');
+            }
+
+            document.getElementById('streak-count').textContent = (data.streak && data.streak.count) || 0;
+
+            const badgesList = document.getElementById('badges-list');
+            if (data.badges && data.badges.length) {
+                badgesList.innerHTML = data.badges.map((b) => `
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-primary-red rounded-full font-semibold">
+                        <i class="fa-solid ${b.icon}"></i> ${b.label}
+                    </span>
+                `).join('');
+            }
+
+            document.getElementById('enrolled-loading').classList.add('hidden');
+
+            if (data.enrolledCourses.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+            } else {
+                const grid = document.getElementById('enrolled-grid');
+                grid.innerHTML = data.enrolledCourses.map(courseCardHtml).join('');
+                grid.classList.remove('hidden');
+            }
+        }
+
+        async function loadNotifications() {
+            const res = await fetch('/api/notifications');
+            const data = await res.json();
+            const unread = data.notifications.filter((n) => !n.read).length;
+            const badge = document.getElementById('notif-badge');
+            if (unread > 0) {
+                badge.textContent = unread;
+                badge.classList.remove('hidden');
+            }
+
+            const list = document.getElementById('notif-list');
+            list.innerHTML = data.notifications.length
+                ? data.notifications.map((n) => `<div class="p-2 rounded ${n.read ? '' : 'bg-red-50'}">${escapeHtml(n.message)}</div>`).join('')
+                : '<p class="text-gray-400">No notifications yet.</p>';
+        }
+
+        document.getElementById('notif-btn').addEventListener('click', async () => {
+            const panel = document.getElementById('notif-panel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                await fetch('/api/notifications/read-all', { method: 'POST' });
+                document.getElementById('notif-badge').classList.add('hidden');
+                loadNotifications();
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/home';
+        });
+
+        function initials(name) {
+            return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        }
+
+        async function loadTutoring() {
+            const res = await fetch('/api/my-assignments');
+            const data = await res.json();
+
+            const statusEl = document.getElementById('tutor-status');
+            const actionBtn = document.getElementById('tutor-action-btn');
+            const badgeEl = document.getElementById('tutor-status-badge');
+            if (data.tutorProfile) {
+                const labels = {
+                    pending: ['Your tutor application is awaiting review.', 'View Status'],
+                    approved: ["You're an approved tutor - visible to students now.", 'View Status'],
+                    rejected: ['Your tutor application was not approved.', 'View Status'],
+                };
+                const [msg, btnText] = labels[data.tutorProfile.status] || labels.pending;
+                statusEl.textContent = msg;
+                actionBtn.innerHTML = `${btnText} <i class="fa-solid fa-arrow-right ml-2"></i>`;
+                badgeEl.textContent = data.tutorProfile.status;
+                badgeEl.classList.remove('hidden');
+                if (data.tutorProfile.status === 'approved') {
+                    document.getElementById('manage-quizzes-btn').classList.remove('hidden');
+                }
+            }
+
+            if (data.asStudent && data.asStudent.length) {
+                const active = data.asStudent.filter((r) => r.status !== 'ended');
+                if (active.length) {
+                    document.getElementById('my-tutor-section').classList.remove('hidden');
+                    document.getElementById('my-tutor-list').innerHTML = active.map((r) => `
+                        <div class="rounded-xl border border-gray-100 p-4 flex gap-3 ${r.status === 'active' ? 'bg-gradient-to-br from-red-50 to-white' : 'bg-gray-50'}">
+                            <div class="w-11 h-11 shrink-0 rounded-full bg-primary-red text-white font-bold flex items-center justify-center">
+                                ${r.status === 'active' ? initials(r.tutorName) : '<i class="fa-solid fa-hourglass-half text-sm"></i>'}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-gray-800">${escapeHtml(r.category)}</p>
+                                <p class="text-xs text-gray-400 mb-1">${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' &middot; ' : ''}${r.online ? 'Online' : ''}</p>
+                                ${r.status === 'active'
+                                    ? `<p class="text-sm text-gray-600">Matched with <strong>${escapeHtml(r.tutorName)}</strong><br>${escapeHtml(r.tutorEmail)}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</p>`
+                                    : `<p class="text-sm text-gray-400 italic">Awaiting admin match...</p>`}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            if (data.tutorProfile && data.tutorProfile.status === 'approved' && data.asTutor && data.asTutor.length) {
+                const active = data.asTutor.filter((r) => r.status === 'active');
+                if (active.length) {
+                    document.getElementById('my-students-section').classList.remove('hidden');
+                    document.getElementById('my-students-list').innerHTML = active.map((r) => `
+                        <div class="rounded-xl border border-gray-100 p-4 flex gap-3 bg-gradient-to-br from-gray-50 to-white">
+                            <div class="w-11 h-11 shrink-0 rounded-full bg-primary-dark text-white font-bold flex items-center justify-center">
+                                ${initials(r.studentName)}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-gray-800">${escapeHtml(r.studentName)}</p>
+                                <p class="text-xs text-primary-red font-semibold uppercase mb-1">${escapeHtml(r.category)}</p>
+                                <p class="text-sm text-gray-600">${escapeHtml(r.studentEmail)}${r.phone ? ' &middot; ' + escapeHtml(r.phone) : ''}</p>
+                                ${r.notes ? `<p class="text-sm text-gray-500 mt-1 italic">"${escapeHtml(r.notes)}"</p>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        loadDashboard().catch(() => showAlert('Could not load your dashboard.', 'error'));
+        loadNotifications().catch(() => {});
+        loadTutoring().catch(() => {});
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

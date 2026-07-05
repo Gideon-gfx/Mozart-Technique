@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson Player - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-red': '#E02126',
+                        'primary-dark': '#1F2937',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f7f9fa; }
+
+        .lesson-item.active {
+            background: #fdf1f1;
+            border-left: 3px solid #E02126;
+        }
+        .lesson-item.completed .lesson-check {
+            background: #E02126;
+            border-color: #E02126;
+            color: #fff;
+        }
+        .tab-btn {
+            padding: 0.9rem 1.1rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #6B7280;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            color: #111827;
+            border-bottom-color: #E02126;
+        }
+        .video-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+        }
+        .video-wrap iframe, .video-wrap video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .sidebar-scroll { max-height: calc(100vh - 64px); overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <!-- Coursera-style slim top bar -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-200 h-16 flex items-center">
+        <div class="w-full px-4 sm:px-6 flex items-center justify-between">
+            <div class="flex items-center min-w-0 space-x-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-primary-red transition" title="Back to Dashboard">
+                    <i class="fa-solid fa-arrow-left text-lg"></i>
+                </a>
+                <div class="min-w-0">
+                    <p id="crumb-course" class="text-xs text-gray-400 truncate">Course</p>
+                    <p id="crumb-lesson" class="text-sm font-semibold text-gray-800 truncate">Lesson</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="streak-badge" class="hidden items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full">
+                    <i class="fa-solid fa-fire"></i> <span id="streak-count">0</span> day streak
+                </span>
+                <button id="complete-btn" class="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:border-primary-red hover:text-primary-red transition">
+                    <i class="fa-regular fa-circle-check"></i>
+                    <span id="complete-label">Mark as completed</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-col lg:flex-row">
+        <!-- Main content -->
+        <main class="flex-1 min-w-0">
+            <div class="video-wrap">
+                <iframe id="video-frame" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
+                <video id="video-file" class="hidden" controls></video>
+            </div>
+
+            <div class="px-6 py-5 bg-white border-b border-gray-200">
+                <h1 id="lesson-title" class="text-xl font-bold text-gray-900 mb-1">Loading lesson...</h1>
+                <p id="lesson-course" class="text-sm text-gray-500"></p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 bg-white px-4 overflow-x-auto">
+                <div class="tab-btn active" data-tab="transcript">Transcript</div>
+                <div class="tab-btn" data-tab="downloads">Downloads</div>
+                <div class="tab-btn" data-tab="discussion">Discussion</div>
+                <div class="tab-btn" data-tab="coach">AI Coach</div>
+            </div>
+
+            <div class="bg-white px-6 py-6 min-h-[220px]">
+                <div id="tab-transcript" class="tab-panel text-gray-600 leading-relaxed">
+                    <p id="transcript-text">A full transcript for this lesson will appear here as it's recorded. Use it to follow along with technique callouts and timestamps while you practice.</p>
+                </div>
+                <div id="tab-downloads" class="tab-panel hidden text-gray-600">
+                    <ul class="space-y-2">
+                        <li><i class="fa-solid fa-file-pdf text-primary-red mr-2"></i>Lesson worksheet (PDF)</li>
+                        <li><i class="fa-solid fa-file-audio text-primary-red mr-2"></i>Practice backing track (MP3)</li>
+                    </ul>
+                </div>
+                <div id="tab-discussion" class="tab-panel hidden text-gray-600">
+                    <form id="qna-form" class="mb-6 flex gap-2">
+                        <input id="qna-question" type="text" placeholder="Ask a question about this course..."
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <button type="submit" class="px-4 py-2 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Post</button>
+                    </form>
+                    <div id="qna-list" class="space-y-4"></div>
+                </div>
+                <div id="tab-coach" class="tab-panel hidden text-gray-600">
+                    <p class="mb-3">Describe what you practiced or how a take went, and get quick feedback.</p>
+                    <textarea id="coach-notes" rows="4" placeholder="e.g. Practiced the second phrase at 80bpm, kept rushing the last beat..."
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3"></textarea>
+                    <button id="coach-submit" class="px-4 py-2 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Get Feedback</button>
+                    <div id="coach-feedback" class="mt-4 hidden p-4 bg-gray-50 rounded-lg text-sm whitespace-pre-wrap"></div>
+                </div>
+            </div>
+
+            <!-- Prev / Next -->
+            <div class="flex items-center justify-between px-6 py-5 bg-white border-t border-gray-200">
+                <button id="prev-btn" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600 font-semibold hover:border-primary-red hover:text-primary-red transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-chevron-left mr-2"></i>Previous
+                </button>
+                <button id="next-btn" class="px-5 py-2.5 rounded-lg bg-primary-red text-white font-semibold hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    Next<i class="fa-solid fa-chevron-right ml-2"></i>
+                </button>
+            </div>
+        </main>
+
+        <!-- Sidebar: course outline -->
+        <aside class="w-full lg:w-80 shrink-0 bg-white border-l border-gray-200 sidebar-scroll">
+            <div class="px-5 py-4 border-b border-gray-200">
+                <h2 class="font-bold text-gray-800">Course Content</h2>
+                <p id="progress-label" class="text-xs text-gray-500 mt-1">0 of 0 completed</p>
+                <div class="w-full h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-primary-red" style="width:0%"></div>
+                </div>
+            </div>
+            <ul id="lesson-list" class="divide-y divide-gray-100"></ul>
+        </aside>
+    </div>
+
+    <!-- Completion / quiz modal -->
+    <div id="completion-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+        <div id="completion-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 max-h-[85vh] overflow-y-auto"></div>
+    </div>
+
+    <script>
+        const courseId = window.location.pathname.split('/').filter(Boolean).pop();
+
+        let course = null;
+        let lessons = [];
+        let completed = [];
+        let activeIndex = 0;
+
+        function showAlert(message, type = 'info') {
+            const box = document.getElementById('alert-box');
+            document.getElementById('alert-message').textContent = message;
+            box.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            box.style.opacity = '1';
+            setTimeout(() => { box.style.opacity = '0'; }, 4000);
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('lesson-list');
+            list.innerHTML = lessons.map((lesson, i) => `
+                <li class="lesson-item ${i === activeIndex ? 'active' : ''} ${completed.includes(i) ? 'completed' : ''} flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition" data-index="${i}">
+                    <span class="lesson-check w-6 h-6 shrink-0 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">
+                        ${completed.includes(i) ? '<i class="fa-solid fa-check"></i>' : (i + 1)}
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-800 truncate">${lesson.title}</p>
+                        <p class="text-xs text-gray-400">Lesson ${i + 1}</p>
+                    </div>
+                </li>
+            `).join('');
+
+            list.querySelectorAll('.lesson-item').forEach((el) => {
+                el.addEventListener('click', () => {
+                    activeIndex = Number(el.dataset.index);
+                    renderMain();
+                    renderSidebar();
+                });
+            });
+
+            const pct = lessons.length ? Math.round((completed.length / lessons.length) * 100) : 0;
+            document.getElementById('progress-label').textContent = `${completed.length} of ${lessons.length} completed`;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+        }
+
+        function renderMain() {
+            const lesson = lessons[activeIndex];
+
+            document.getElementById('crumb-course').textContent = course.title;
+            document.getElementById('crumb-lesson').textContent = lesson.title;
+            document.getElementById('lesson-title').textContent = lesson.title;
+            document.getElementById('lesson-course').textContent = `${course.title} • ${course.category} • ${course.level}`;
+            const frameEl = document.getElementById('video-frame');
+            const fileEl = document.getElementById('video-file');
+            if (lesson.videoUrl) {
+                frameEl.src = '';
+                frameEl.classList.add('hidden');
+                fileEl.src = lesson.videoUrl;
+                fileEl.classList.remove('hidden');
+            } else {
+                fileEl.pause();
+                fileEl.src = '';
+                fileEl.classList.add('hidden');
+                frameEl.src = `https://www.youtube.com/embed/${lesson.videoId}`;
+                frameEl.classList.remove('hidden');
+            }
+            document.getElementById('transcript-text').textContent = lesson.text && lesson.text.trim()
+                ? lesson.text
+                : "A full transcript for this lesson will appear here as it's recorded. Use it to follow along with technique callouts and timestamps while you practice.";
+
+            document.getElementById('prev-btn').disabled = activeIndex === 0;
+            document.getElementById('next-btn').disabled = activeIndex === lessons.length - 1;
+
+            const isDone = completed.includes(activeIndex);
+            document.getElementById('complete-label').textContent = isDone ? 'Completed' : 'Mark as completed';
+            document.getElementById('complete-btn').classList.toggle('text-primary-red', isDone);
+            document.getElementById('complete-btn').classList.toggle('border-primary-red', isDone);
+        }
+
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach((p) => p.classList.add('hidden'));
+                btn.classList.add('active');
+                document.getElementById(`tab-${btn.dataset.tab}`).classList.remove('hidden');
+                if (btn.dataset.tab === 'discussion') loadQna();
+            });
+        });
+
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (activeIndex > 0) { activeIndex--; renderMain(); renderSidebar(); }
+        });
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (activeIndex < lessons.length - 1) { activeIndex++; renderMain(); renderSidebar(); }
+        });
+
+        document.getElementById('complete-btn').addEventListener('click', async () => {
+            const wasAlreadyComplete = completed.length >= lessons.length;
+            const nowCompleted = !completed.includes(activeIndex);
+            const res = await fetch(`/api/progress/${courseId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lessonIndex: activeIndex, completed: nowCompleted }),
+            });
+            const data = await res.json();
+            if (!data.success) return;
+            completed = data.completedLessons;
+            updateStreak(data.streak);
+            renderMain();
+            renderSidebar();
+
+            // Only trigger the completion flow the moment the course goes
+            // from incomplete to fully complete, not on every re-check.
+            if (!wasAlreadyComplete && data.allLessonsComplete) {
+                if (data.hasQuiz) {
+                    showQuizPrompt();
+                } else {
+                    showCongratulations();
+                }
+            }
+        });
+
+        // --- Completion modal: congratulations / quiz ---
+        const modal = document.getElementById('completion-modal');
+        const modalBody = document.getElementById('completion-modal-body');
+
+        function openModal(html) {
+            modalBody.innerHTML = html;
+            modal.classList.remove('hidden');
+        }
+        function closeModal() {
+            modal.classList.add('hidden');
+        }
+
+        async function showCongratulations() {
+            const res = await fetch(`/api/courses/${courseId}/suggestions`);
+            const data = await res.json();
+            const suggestions = data.success ? data.suggestions : [];
+
+            openModal(`
+                <div class="text-center mb-6">
+                    <i class="fa-solid fa-trophy text-5xl text-yellow-400 mb-3"></i>
+                    <h2 class="text-2xl font-extrabold text-gray-900">Congratulations!</h2>
+                    <p class="text-gray-500 mt-1">You've completed <strong>${course.title}</strong>.</p>
+                </div>
+                ${suggestions.length ? `
+                    <p class="text-sm font-semibold text-gray-600 mb-3">Keep the momentum going:</p>
+                    <div class="space-y-3 mb-6">
+                        ${suggestions.map((s) => `
+                            <a href="/courses/${s.slug}" class="flex items-center justify-between border border-gray-100 rounded-lg p-3 hover:border-primary-red transition">
+                                <div>
+                                    <p class="font-semibold text-gray-800">${s.title}</p>
+                                    <p class="text-xs text-gray-400">${s.level}</p>
+                                </div>
+                                <span class="text-primary-red font-bold">${s.symbol}${s.localPrice}/mo</span>
+                            </a>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                <div class="flex gap-3">
+                    <a href="/courses" class="flex-1 text-center py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">Browse Courses</a>
+                    <button onclick="closeModal()" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Keep Watching</button>
+                </div>
+            `);
+        }
+        window.closeModal = closeModal;
+
+        function showQuizPrompt() {
+            openModal(`
+                <div class="text-center">
+                    <i class="fa-solid fa-circle-question text-5xl text-primary-red mb-3"></i>
+                    <h2 class="text-2xl font-extrabold text-gray-900 mb-2">Final Quiz Time</h2>
+                    <p class="text-gray-500 mb-6">You've finished all the lessons in <strong>${course.title}</strong>. Pass the quiz to complete the course - if you don't pass, you'll need to rewatch the lessons before trying again.</p>
+                    <button onclick="loadQuiz()" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Start Quiz</button>
+                </div>
+            `);
+        }
+
+        async function loadQuiz() {
+            const res = await fetch(`/api/courses/${courseId}/quiz`);
+            const data = await res.json();
+            if (!data.success || !data.questions.length) { closeModal(); return; }
+
+            openModal(`
+                <h2 class="text-xl font-extrabold text-gray-900 mb-4">Final Quiz</h2>
+                <form id="quiz-form" class="space-y-5">
+                    ${data.questions.map((q) => `
+                        <div>
+                            <p class="font-semibold text-gray-800 mb-2">${q.index + 1}. ${escapeHtml(q.question)}</p>
+                            <div class="space-y-1.5">
+                                ${q.options.map((opt, i) => `
+                                    <label class="flex items-center gap-2 text-sm text-gray-600">
+                                        <input type="radio" name="q${q.index}" value="${i}" required class="text-primary-red">
+                                        ${escapeHtml(opt)}
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                    <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Submit Answers</button>
+                </form>
+            `);
+
+            document.getElementById('quiz-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const answers = data.questions.map((q) => {
+                    const checked = document.querySelector(`input[name="q${q.index}"]:checked`);
+                    return checked ? Number(checked.value) : -1;
+                });
+
+                const submitRes = await fetch(`/api/courses/${courseId}/quiz/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers }),
+                });
+                const result = await submitRes.json();
+                if (!result.success) return;
+
+                if (result.passed) {
+                    showCongratulations();
+                } else {
+                    completed = [];
+                    renderSidebar();
+                    renderMain();
+                    openModal(`
+                        <div class="text-center">
+                            <i class="fa-solid fa-circle-xmark text-5xl text-gray-400 mb-3"></i>
+                            <h2 class="text-2xl font-extrabold text-gray-900 mb-2">Not Quite Yet</h2>
+                            <p class="text-gray-500 mb-6">You scored ${Math.round(result.score * 100)}%. Rewatch the lessons and try the quiz again when you're ready - your lesson progress has been reset.</p>
+                            <button onclick="closeModal()" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Back to Lessons</button>
+                        </div>
+                    `);
+                }
+            });
+        }
+        window.loadQuiz = loadQuiz;
+
+        function updateStreak(streak) {
+            if (!streak || !streak.count) return;
+            const badge = document.getElementById('streak-badge');
+            badge.classList.remove('hidden');
+            badge.classList.add('inline-flex');
+            document.getElementById('streak-count').textContent = streak.count;
+        }
+
+        // --- Q&A ---
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        async function loadQna() {
+            const res = await fetch(`/api/courses/${courseId}/qna`);
+            const data = await res.json();
+            const list = document.getElementById('qna-list');
+            if (!data.threads.length) {
+                list.innerHTML = '<p class="text-gray-400 text-sm">No questions yet - be the first to ask.</p>';
+                return;
+            }
+            list.innerHTML = data.threads.map((t) => `
+                <div class="border border-gray-100 rounded-lg p-4">
+                    <p class="font-semibold text-gray-800 text-sm">${escapeHtml(t.userName)}</p>
+                    <p class="text-gray-600 text-sm mb-2">${escapeHtml(t.question)}</p>
+                    ${t.replies.map((r) => `
+                        <div class="ml-4 mt-2 pl-3 border-l-2 border-gray-200">
+                            <p class="text-xs font-semibold ${r.isInstructor ? 'text-primary-red' : 'text-gray-700'}">
+                                ${escapeHtml(r.userName)} ${r.isInstructor ? '<span class="ml-1 px-1.5 py-0.5 bg-red-50 rounded text-[10px]">INSTRUCTOR</span>' : ''}
+                            </p>
+                            <p class="text-sm text-gray-600">${escapeHtml(r.text)}</p>
+                        </div>
+                    `).join('')}
+                    <form class="reply-form flex gap-2 mt-3 ml-4" data-thread-id="${t.id}">
+                        <input type="text" placeholder="Reply..." class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm">
+                        <button type="submit" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm font-semibold">Reply</button>
+                    </form>
+                </div>
+            `).join('');
+
+            list.querySelectorAll('.reply-form').forEach((form) => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const input = form.querySelector('input');
+                    if (!input.value.trim()) return;
+                    await fetch(`/api/qna/${form.dataset.threadId}/reply`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: input.value.trim() }),
+                    });
+                    loadQna();
+                });
+            });
+        }
+
+        document.getElementById('qna-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('qna-question');
+            if (!input.value.trim()) return;
+            await fetch(`/api/courses/${courseId}/qna`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: input.value.trim() }),
+            });
+            input.value = '';
+            loadQna();
+        });
+
+        // --- AI Coach ---
+        document.getElementById('coach-submit').addEventListener('click', async () => {
+            const notes = document.getElementById('coach-notes').value.trim();
+            if (!notes) return;
+            const btn = document.getElementById('coach-submit');
+            btn.disabled = true;
+            btn.textContent = 'Thinking...';
+            try {
+                const res = await fetch('/api/practice-feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courseId, notes }),
+                });
+                const data = await res.json();
+                const box = document.getElementById('coach-feedback');
+                box.textContent = data.feedback;
+                box.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Get Feedback';
+            }
+        });
+
+        async function init() {
+            const res = await fetch(`/api/video/${courseId}`);
+            if (res.status === 401) {
+                window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+                return;
+            }
+            if (res.status === 403) {
+                window.location.href = `/payment/${courseId}`;
+                return;
+            }
+            const data = await res.json();
+            if (!data.success) {
+                window.location.href = '/courses';
+                return;
+            }
+            course = data.course;
+            lessons = data.lessons;
+            completed = data.completedLessons || [];
+            updateStreak(data.streak);
+            renderMain();
+            renderSidebar();
+        }
+
+        init();
+    </script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

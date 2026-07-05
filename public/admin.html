@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        .admin-tab {
+            padding: .75rem 1.25rem;
+            font-weight: 600;
+            color: #6B7280;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+        }
+        .admin-tab.active { color: #111827; border-bottom-color: #E02126; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid #eee; font-size: .875rem; }
+        th { color: #6B7280; text-transform: uppercase; font-size: .7rem; letter-spacing: .04em; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="bg-white shadow-sm">
+        <nav class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="M logo" class="w-9 h-9 rounded-full object-cover">
+                <span class="text-xl font-extrabold text-primary-red">Mozart Technique - Admin</span>
+            </div>
+            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
+        </nav>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <div class="flex border-b border-gray-200 mb-6">
+            <div class="admin-tab active" data-panel="content">Course Content</div>
+            <div class="admin-tab" data-panel="users">Applicants / Users</div>
+            <div class="admin-tab" data-panel="tutors">Tutors &amp; Matching</div>
+        </div>
+
+        <!-- Course content panel -->
+        <div id="panel-content" class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Course Content Manager</h1>
+            <p class="text-gray-500 mb-6">Pick a course and edit its lesson video IDs and written notes. Changes apply immediately for students.</p>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Course</label>
+            <select id="course-select" class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></select>
+
+            <div id="lessons-editor" class="space-y-6"></div>
+
+            <button id="save-btn" class="mt-6 px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                Save Content
+            </button>
+
+            <div class="border-t border-gray-200 mt-10 pt-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Final Quiz</h2>
+                <p class="text-gray-500 mb-4">Optional. If a course has questions here, students must pass (70%+) after finishing the lessons to complete it - failing resets their lesson progress. Leave empty for no quiz gate.</p>
+
+                <div id="quiz-editor" class="space-y-4 mb-4"></div>
+                <button id="add-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Add Question
+                </button>
+                <button id="save-quiz-btn" class="px-6 py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150 ml-2">
+                    Save Quiz
+                </button>
+            </div>
+        </div>
+
+        <!-- Users / applicants panel -->
+        <div id="panel-users" class="hidden bg-white rounded-xl shadow-lg p-6 sm:p-8">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">Applicants &amp; Users</h1>
+                    <p class="text-gray-500">Every signed-up user, their enrollment status, and role.</p>
+                </div>
+                <div class="relative w-72">
+                    <input id="user-search" type="text" placeholder="Search name or email..."
+                           class="w-full px-4 py-2.5 pl-10 border border-gray-300 rounded-lg">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Joined</th>
+                            <th>Role</th>
+                            <th>Enrolled Courses (payment status)</th>
+                            <th>Grant Course</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tutors & matching panel -->
+        <div id="panel-tutors" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor Applications</h1>
+                <p class="text-gray-500 mb-4">Review qualifications and approve or reject. Approved tutors become visible to students.</p>
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Subjects</th>
+                                <th>Location</th>
+                                <th>Rate</th>
+                                <th>Experience</th>
+                                <th>Qualifications</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tutors-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Student Requests &amp; Matching</h1>
+                <p class="text-gray-500 mb-4">Match pending requests to an approved tutor in the same subject - same city first, online otherwise.</p>
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Subject</th>
+                                <th>Location</th>
+                                <th>Notes</th>
+                                <th>Status</th>
+                                <th>Match</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requests-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        // --- Tabs ---
+        document.querySelectorAll('.admin-tab').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.admin-tab').forEach((t) => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('panel-content').classList.toggle('hidden', tab.dataset.panel !== 'content');
+                document.getElementById('panel-users').classList.toggle('hidden', tab.dataset.panel !== 'users');
+                document.getElementById('panel-tutors').classList.toggle('hidden', tab.dataset.panel !== 'tutors');
+                if (tab.dataset.panel === 'users') loadUsers();
+                if (tab.dataset.panel === 'tutors') loadTutorsAndRequests();
+            });
+        });
+
+        // --- Course content management ---
+        const courseSelect = document.getElementById('course-select');
+        const lessonsEditor = document.getElementById('lessons-editor');
+        let currentLessons = [];
+        let allCourses = [];
+
+        function renderLessons(lessons) {
+            currentLessons = lessons;
+            lessonsEditor.innerHTML = lessons.map((lesson, i) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <p class="text-xs font-semibold text-gray-400 mb-2">LESSON ${i + 1}</p>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Title</label>
+                    <input type="text" data-field="title" data-index="${i}" value="${escapeHtml(lesson.title)}"
+                           class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+
+                    <label class="block text-sm font-medium text-gray-600 mb-1">YouTube Video ID</label>
+                    <input type="text" data-field="videoId" data-index="${i}" value="${lesson.videoId || ''}"
+                           class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg" placeholder="e.g. dQw4w9WgXcQ">
+
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Or upload a video file</label>
+                    <div class="flex items-center gap-3 mb-1">
+                        <input type="file" accept="video/*" data-video-upload="${i}" class="text-sm flex-1">
+                        <span data-upload-status="${i}" class="text-xs text-gray-400 shrink-0"></span>
+                    </div>
+                    <input type="hidden" data-field="videoUrl" data-index="${i}" value="${escapeHtml(lesson.videoUrl || '')}">
+                    <p class="text-xs text-gray-400 mb-3">${lesson.videoUrl ? `Uploaded video in use (overrides YouTube ID). <button type="button" class="clear-video-btn text-red-600 hover:underline" data-index="${i}">Remove</button>` : 'If both are set, the uploaded file is played instead of the YouTube video.'}</p>
+
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Lesson Notes / Text</label>
+                    <textarea data-field="text" data-index="${i}" rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg">${lesson.text || ''}</textarea>
+                </div>
+            `).join('');
+            wireLessonUploadEvents();
+        }
+
+        function wireLessonUploadEvents() {
+            lessonsEditor.querySelectorAll('[data-video-upload]').forEach((input) => {
+                input.addEventListener('change', async () => {
+                    const i = input.dataset.videoUpload;
+                    const file = input.files[0];
+                    if (!file) return;
+                    const statusEl = lessonsEditor.querySelector(`[data-upload-status="${i}"]`);
+                    statusEl.textContent = 'Uploading...';
+                    const formData = new FormData();
+                    formData.append('video', file);
+                    try {
+                        const res = await fetch('/api/admin/upload/video', { method: 'POST', body: formData });
+                        const data = await res.json();
+                        if (data.success) {
+                            const lessons = syncLessonsFromDom();
+                            lessons[i].videoUrl = data.url;
+                            statusEl.textContent = 'Uploaded.';
+                            renderLessons(lessons);
+                        } else {
+                            statusEl.textContent = '';
+                            showAlert(data.error || 'Upload failed.', 'error');
+                        }
+                    } catch {
+                        statusEl.textContent = '';
+                        showAlert('Upload failed.', 'error');
+                    }
+                });
+            });
+
+            lessonsEditor.querySelectorAll('.clear-video-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const lessons = syncLessonsFromDom();
+                    lessons[btn.dataset.index].videoUrl = '';
+                    renderLessons(lessons);
+                });
+            });
+        }
+
+        async function loadCourses() {
+            const res = await fetch('/api/admin/courses');
+            if (res.status === 403 || res.status === 401) {
+                showAlert('Admin access required.', 'error');
+                return;
+            }
+            const data = await res.json();
+            allCourses = data.courses;
+            courseSelect.innerHTML = allCourses.map((c) => `<option value="${c.id}">${c.title} (${c.category})</option>`).join('');
+            loadContent(courseSelect.value);
+        }
+
+        async function loadContent(courseId) {
+            const res = await fetch(`/api/admin/courses/${courseId}/content`);
+            const data = await res.json();
+            if (data.success) renderLessons(data.lessons);
+            loadQuiz(courseId);
+        }
+
+        courseSelect.addEventListener('change', () => loadContent(courseSelect.value));
+
+        // --- Final quiz editor ---
+        const quizEditor = document.getElementById('quiz-editor');
+        let currentQuestions = [];
+
+        function renderQuiz(questions) {
+            currentQuestions = questions;
+            quizEditor.innerHTML = questions.length
+                ? questions.map((q, qi) => questionRowHtml(q, qi)).join('')
+                : '<p class="text-gray-400 text-sm">No quiz questions yet - students skip straight to the congratulations screen.</p>';
+            wireQuizRowEvents();
+        }
+
+        function questionRowHtml(q, qi) {
+            const options = q.options && q.options.length ? q.options : ['', '', '', ''];
+            return `
+                <div class="border border-gray-200 rounded-lg p-4" data-qindex="${qi}">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-semibold text-gray-400">QUESTION ${qi + 1}</p>
+                        <button class="remove-question-btn text-xs text-red-600 hover:underline" data-qindex="${qi}">Remove</button>
+                    </div>
+                    <input type="text" data-qfield="question" data-qindex="${qi}" value="${escapeHtml(q.question || '')}"
+                           placeholder="Question text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <div class="space-y-2">
+                        ${options.map((opt, oi) => `
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="correct-${qi}" data-correct-index="${oi}" data-qindex="${qi}" ${Number(q.correctIndex) === oi ? 'checked' : ''} class="text-primary-red">
+                                <input type="text" data-ofield="option" data-qindex="${qi}" data-oindex="${oi}" value="${escapeHtml(opt || '')}"
+                                       placeholder="Option ${oi + 1}" class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function wireQuizRowEvents() {
+            quizEditor.querySelectorAll('.remove-question-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    currentQuestions.splice(Number(btn.dataset.qindex), 1);
+                    renderQuiz(currentQuestions);
+                });
+            });
+        }
+
+        document.getElementById('add-question-btn').addEventListener('click', () => {
+            currentQuestions.push({ question: '', options: ['', '', '', ''], correctIndex: 0 });
+            renderQuiz(currentQuestions);
+        });
+
+        document.getElementById('save-quiz-btn').addEventListener('click', async () => {
+            const questions = currentQuestions.map((_, qi) => {
+                const options = Array.from(quizEditor.querySelectorAll(`[data-ofield="option"][data-qindex="${qi}"]`)).map((el) => el.value);
+                const correctInput = quizEditor.querySelector(`[data-correct-index][data-qindex="${qi}"]:checked`);
+                return {
+                    question: quizEditor.querySelector(`[data-qfield="question"][data-qindex="${qi}"]`).value,
+                    options,
+                    correctIndex: correctInput ? Number(correctInput.dataset.correctIndex) : 0,
+                };
+            });
+
+            const res = await fetch(`/api/admin/courses/${courseSelect.value}/quiz`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questions }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Quiz saved.', 'success');
+                renderQuiz(data.questions);
+            } else {
+                showAlert(data.error || 'Save failed.', 'error');
+            }
+        });
+
+        async function loadQuiz(courseId) {
+            const res = await fetch(`/api/admin/courses/${courseId}/quiz`);
+            const data = await res.json();
+            if (data.success) renderQuiz(data.questions);
+        }
+
+        // Pulls every field's current DOM value back into currentLessons, so
+        // in-progress edits survive a re-render triggered by a video upload.
+        function syncLessonsFromDom() {
+            currentLessons = currentLessons.map((lesson, i) => ({
+                ...lesson,
+                title: lessonsEditor.querySelector(`[data-field="title"][data-index="${i}"]`).value,
+                videoId: lessonsEditor.querySelector(`[data-field="videoId"][data-index="${i}"]`).value,
+                videoUrl: lessonsEditor.querySelector(`[data-field="videoUrl"][data-index="${i}"]`).value,
+                text: lessonsEditor.querySelector(`[data-field="text"][data-index="${i}"]`).value,
+            }));
+            return currentLessons;
+        }
+
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            const lessons = syncLessonsFromDom();
+
+            const res = await fetch(`/api/admin/courses/${courseSelect.value}/content`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lessons }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Course content saved.', 'success');
+                renderLessons(data.lessons);
+            } else {
+                showAlert(data.error || 'Save failed.', 'error');
+            }
+        });
+
+        // --- Users / applicants management ---
+        function courseTitle(id) {
+            const c = allCourses.find((course) => course.id === id);
+            return c ? c.title : `#${id}`;
+        }
+
+        function userRowHtml(user) {
+            const enrolledHtml = user.purchasedCourses.length
+                ? user.purchasedCourses.map((id) => `
+                    <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded text-xs mr-1 mb-1">
+                        <i class="fa-solid fa-circle-check"></i> ${escapeHtml(courseTitle(id))}
+                        <button class="revoke-btn ml-1 text-green-700 hover:text-red-600" data-user-id="${user.id}" data-course-id="${id}" title="Revoke access">&times;</button>
+                    </span>
+                `).join('')
+                : '<span class="text-gray-400 text-xs">No payments yet</span>';
+
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(user.name)}</td>
+                    <td class="text-gray-600">${escapeHtml(user.email)}</td>
+                    <td class="text-gray-500">${new Date(user.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <select class="role-select border border-gray-300 rounded px-2 py-1 text-xs" data-user-id="${user.id}">
+                            <option value="user" ${user.role === 'user' ? 'selected' : ''}>user</option>
+                            <option value="demo" ${user.role === 'demo' ? 'selected' : ''}>demo</option>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>admin</option>
+                        </select>
+                    </td>
+                    <td class="max-w-xs">${enrolledHtml}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <select class="grant-select border border-gray-300 rounded px-2 py-1 text-xs" data-user-id="${user.id}">
+                                <option value="" disabled selected>Choose course...</option>
+                                ${allCourses.filter((c) => c.purchasable).map((c) => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('')}
+                            </select>
+                            <button class="grant-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-user-id="${user.id}">Grant</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function wireUserRowEvents() {
+            document.querySelectorAll('.role-select').forEach((sel) => {
+                sel.addEventListener('change', async () => {
+                    const res = await fetch(`/api/admin/users/${sel.dataset.userId}/role`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: sel.value }),
+                    });
+                    const data = await res.json();
+                    showAlert(data.success ? 'Role updated.' : (data.error || 'Failed.'), data.success ? 'success' : 'error');
+                });
+            });
+
+            document.querySelectorAll('.grant-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const sel = document.querySelector(`.grant-select[data-user-id="${btn.dataset.userId}"]`);
+                    if (!sel.value) return;
+                    const res = await fetch(`/api/admin/users/${btn.dataset.userId}/courses`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ courseId: Number(sel.value), action: 'grant' }),
+                    });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Course granted.', 'success'); loadUsers(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
+
+            document.querySelectorAll('.revoke-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/users/${btn.dataset.userId}/courses`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ courseId: Number(btn.dataset.courseId), action: 'revoke' }),
+                    });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Access revoked.', 'success'); loadUsers(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
+        }
+
+        async function loadUsers() {
+            const search = document.getElementById('user-search').value;
+            const res = await fetch(`/api/admin/users?search=${encodeURIComponent(search)}`);
+            const data = await res.json();
+            if (!data.success) return;
+            document.getElementById('users-tbody').innerHTML = data.users.map(userRowHtml).join('');
+            wireUserRowEvents();
+        }
+
+        let searchTimer;
+        document.getElementById('user-search').addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(loadUsers, 250);
+        });
+
+        // --- Tutors & matching ---
+        let allTutors = [];
+
+        function statusBadge(status) {
+            const colors = { pending: 'bg-yellow-50 text-yellow-700', approved: 'bg-green-50 text-green-700', rejected: 'bg-red-50 text-red-700', active: 'bg-green-50 text-green-700', ended: 'bg-gray-100 text-gray-500' };
+            return `<span class="px-2 py-1 rounded text-xs font-semibold ${colors[status] || ''}">${status}</span>`;
+        }
+
+        function tutorRowHtml(t) {
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}${t.phone ? ' &middot; ' + escapeHtml(t.phone) : ''}</span></td>
+                    <td>${t.categories.map(escapeHtml).join(', ')}</td>
+                    <td>${t.city ? escapeHtml(t.city) : ''}${t.city && t.teachesOnline ? ' + ' : ''}${t.teachesOnline ? 'Online' : ''}</td>
+                    <td>$${t.hourlyRateUsd || 0}/hr</td>
+                    <td>${t.experienceYears || 0} yrs</td>
+                    <td class="max-w-xs text-gray-600">${escapeHtml(t.qualifications)}</td>
+                    <td>${statusBadge(t.status)}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button class="tutor-status-btn px-2 py-1 bg-green-600 text-white rounded text-xs" data-id="${t.id}" data-status="approved">Approve</button>
+                            <button class="tutor-status-btn px-2 py-1 bg-red-600 text-white rounded text-xs" data-id="${t.id}" data-status="rejected">Reject</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function requestRowHtml(r) {
+            const matchOptions = allTutors
+                .filter((t) => t.status === 'approved' && t.categories.includes(r.category))
+                .sort((a, b) => {
+                    const aMatch = r.city && a.city && a.city.toLowerCase() === r.city.toLowerCase() ? 0 : 1;
+                    const bMatch = r.city && b.city && b.city.toLowerCase() === r.city.toLowerCase() ? 0 : 1;
+                    return aMatch - bMatch;
+                })
+                .map((t) => `<option value="${t.id}" ${String(t.id) === String(r.preferredTutorId) ? 'selected' : ''}>${escapeHtml(t.name)}${t.city ? ' (' + escapeHtml(t.city) + ')' : ''}${t.teachesOnline ? ' [online]' : ''}</option>`)
+                .join('');
+
+            const matchCell = r.status === 'pending'
+                ? `<div class="flex gap-1">
+                        <select class="match-select border border-gray-300 rounded px-2 py-1 text-xs" data-id="${r.id}">
+                            <option value="" disabled ${!r.preferredTutorId ? 'selected' : ''}>Choose tutor...</option>
+                            ${matchOptions}
+                        </select>
+                        <button class="assign-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${r.id}">Assign</button>
+                   </div>`
+                : r.status === 'active'
+                    ? `<span class="text-sm text-gray-600">${escapeHtml(r.tutorName)}<br><span class="text-xs text-gray-400">${escapeHtml(r.tutorEmail || '')}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</span></span> <button class="end-btn ml-2 text-xs text-red-600 hover:underline" data-id="${r.id}">End</button>`
+                    : '<span class="text-gray-400 text-xs">Ended</span>';
+
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(r.studentName)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(r.studentEmail)}${r.phone ? ' &middot; ' + escapeHtml(r.phone) : ''}</span></td>
+                    <td>${escapeHtml(r.category)}</td>
+                    <td>${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' + ' : ''}${r.online ? 'Online' : ''}</td>
+                    <td class="max-w-xs text-gray-600">${escapeHtml(r.notes || '')}</td>
+                    <td>${statusBadge(r.status)}</td>
+                    <td>${matchCell}</td>
+                </tr>
+            `;
+        }
+
+        function wireTutorEvents() {
+            document.querySelectorAll('.tutor-status-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/tutors/${btn.dataset.id}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: btn.dataset.status }),
+                    });
+                    const data = await res.json();
+                    if (data.success) { showAlert(`Application ${btn.dataset.status}.`, 'success'); loadTutorsAndRequests(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
+
+            document.querySelectorAll('.assign-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const sel = document.querySelector(`.match-select[data-id="${btn.dataset.id}"]`);
+                    if (!sel.value) { showAlert('Choose a tutor first.', 'error'); return; }
+                    const res = await fetch(`/api/admin/tutor-requests/${btn.dataset.id}/assign`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tutorId: Number(sel.value) }),
+                    });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Student matched with tutor.', 'success'); loadTutorsAndRequests(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
+
+            document.querySelectorAll('.end-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/tutor-requests/${btn.dataset.id}/end`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Assignment ended.', 'success'); loadTutorsAndRequests(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
+        }
+
+        async function loadTutorsAndRequests() {
+            const [tutorsRes, requestsRes] = await Promise.all([
+                fetch('/api/admin/tutors'),
+                fetch('/api/admin/tutor-requests'),
+            ]);
+            const tutorsData = await tutorsRes.json();
+            const requestsData = await requestsRes.json();
+            if (!tutorsData.success || !requestsData.success) return;
+
+            allTutors = tutorsData.tutors;
+            document.getElementById('tutors-tbody').innerHTML = allTutors.length
+                ? allTutors.map(tutorRowHtml).join('')
+                : '<tr><td colspan="8" class="text-gray-400 text-center py-4">No tutor applications yet.</td></tr>';
+
+            document.getElementById('requests-tbody').innerHTML = requestsData.requests.length
+                ? requestsData.requests.map(requestRowHtml).join('')
+                : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No student requests yet.</td></tr>';
+
+            wireTutorEvents();
+        }
+
+        loadCourses();
+    </script>
+</body>
+</html>

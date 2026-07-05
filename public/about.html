@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Mozart Technique</title>
+    <!-- Load Tailwind CSS (config must be set AFTER this script has loaded) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-red': 'var(--color-primary-red)',
+                        'dark-red': 'var(--color-dark-red)',
+                        'deep-red': 'var(--color-deep-red)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/site.css">
+
+    <style>
+        /*
+        * =================================================================
+        * CUSTOM STYLES
+        * =================================================================
+        */
+        :root {
+            --color-primary-red: #C41822;
+            --color-dark-red: #A3121A;
+            --color-deep-red: #8B0000;
+            --color-white: #FFFFFF;
+            --color-black: #000000;
+            --color-text-dark: #222222;
+            --color-text-light: #F0F0F0;
+        }
+
+        /* Base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            color: var(--color-text-dark);
+            background-color: var(--color-dark-red);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Custom Icon Styling (for the discipline cards) */
+        .icon-circle {
+            background-color: var(--color-primary-red);
+            color: var(--color-white);
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            font-size: 24px;
+            margin: 0 auto 10px auto;
+        }
+        
+        /* Instructor Circle Styling */
+        .instructor-circle {
+            width: 150px;
+            height: 150px;
+            background-color: var(--color-dark-red);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            font-size: 60px; /* Music note icon placeholder */
+        }
+        
+        .instructor-card h4 {
+            min-height: 48px; /* Ensures consistent vertical alignment */
+        }
+
+        /* Footer links styling */
+        .footer{
+            background-color:#F0F0F0;
+        }
+        .footer, div{
+            color: #222222;
+        }
+        .footer a {
+            color:#222222;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .footer a:hover {
+            color: var(--color-dark-red);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- =================================================================
+    HEADER / NAVIGATION (Tailwind used for structure and styling)
+    ================================================================== -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center">
+                <a href="/home" class="flex items-center text-xl font-bold text-primary-red">
+                    <!-- Placeholder Logo Image -->
+                    <img src="https://placehold.co/30x30/C41822/FFFFFF?text=M" alt="M logo" class="w-7 h-7 mr-2 rounded">
+                    Mozart Technique
+                </a>
+            </div>
+            <nav class="hidden md:flex space-x-8">
+                <a href="/home" class="text-gray-600 hover:text-primary-red transition duration-150">Home</a>
+                <a href="/courses" class="text-gray-600 hover:text-primary-red transition duration-150">Courses</a>
+                <a href="#" class="text-primary-red font-bold transition duration-150">About</a>
+                <a href="/contact" class="text-gray-600 hover:text-primary-red transition duration-150">Contact</a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
+    </header>
+
+    <!-- =================================================================
+    MAIN CONTENT
+    ================================================================== -->
+    <main class="flex-grow">
+        
+        <!-- SECTION 1: ABOUT & PHILOSOPHY -->
+        <section class="bg-primary-red text-white py-16 md:py-24 reveal">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h1 class="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
+                    About Mozart Technique
+                </h1>
+                <p class="text-xl md:text-2xl max-w-4xl mx-auto mb-12">
+                    Founded on the principle of making world-class arts education accessible to everyone, our institute brings together **master instructors** and **passionate students** from around the globe.
+                </p>
+
+                <!-- Mission, Story, Philosophy Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12 text-left">
+                    
+                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
+                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
+                            <!-- Icon for Mission -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-semibold mb-3">Our Mission</h3>
+                        <p class="text-gray-200">
+                            To provide the **tools, techniques, and inspiration** you need to unlock your creative potential and master your chosen craft, regardless of your location or background.
+                        </p>
+                    </div>
+
+                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
+                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
+                            <!-- Icon for Story -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.208 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.832 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.832 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.168 18 16.5 18s-3.332.477-4.5 1.253" />
+                            </svg>
+                       nu </div>
+                        <h3 class="text-2xl font-semibold mb-3">Our Story</h3>
+                        <p class="text-gray-200">
+                            From a single studio to a **global digital stage**. Mozart was born from a passion for performance art and a desire to share it with the world in the most engaging way possible.
+                        </p>
+                    </div>
+
+                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
+                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
+                            <!-- Icon for Philosophy -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-semibold mb-3">Our Philosophy</h3>
+                        <p class="text-gray-200">
+                            We believe structured learning is built on a foundation of **joy and expression**. Technique is the language; artistry is what you have to say. We teach both.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: DISCIPLINES -->
+        <section class="bg-white py-16 md:py-20 reveal">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl md:text-4xl font-extrabold mb-4 text-gray-900">
+                    Explore Our Disciplines
+                </h2>
+                <p class="text-lg text-gray-600 mb-12">
+                    A structured path from beginner to expert in every form of performance art.
+                </p>
+
+                <!-- Disciplines Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+                    
+                    <!-- Discipline Card 1: Voice -->
+                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
+                        <div class="icon-circle mx-auto">🎤</div>
+                        <h4 class="text-lg font-semibold mb-2">Voice</h4>
+                        <p class="text-sm text-gray-500">
+                            Classical, Pop, Musical Theatre, Jazz & Scat Singing.
+                        </p>
+                    </div>
+
+                    <!-- Discipline Card 2: Instruments -->
+                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
+                        <div class="icon-circle mx-auto">🎻</div>
+                        <h4 class="text-lg font-semibold mb-2">Instruments</h4>
+                        <p class="text-sm text-gray-500">
+                            Piano, Guitar, Violin, Drums, and all Brass instruments.
+                        </p>
+                    </div>
+
+                    <!-- Discipline Card 3: Dance -->
+                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
+                        <div class="icon-circle mx-auto">🩰</div>
+                        <h4 class="text-lg font-semibold mb-2">Dance</h4>
+                        <p class="text-sm text-gray-500">
+                            Ballet, Hip Hop, Tap & Salsa.
+                        </p>
+                    </div>
+
+                    <!-- Discipline Card 4: DJing -->
+                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
+                        <div class="icon-circle mx-auto">🎧</div>
+                        <h4 class="text-lg font-semibold mb-2">DJing</h4>
+                        <p class="text-sm text-gray-500">
+                            Beatmatching, Mixing, Scratching, and Digital DJ Software.
+                        </p>
+                    </div>
+
+                    <!-- Discipline Card 5: Production -->
+                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
+                        <div class="icon-circle mx-auto">🎛️</div>
+                        <h4 class="text-lg font-semibold mb-2">Production</h4>
+                        <p class="text-sm text-gray-500">
+                            Audio Engineering, Mixing, Mastering, and Acoustics.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SECTION 3: MEET OUR INSTRUCTORS -->
+        <section class="bg-primary-red text-white py-16 md:py-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl md:text-4xl font-extrabold mb-12 tracking-tight">
+                    Meet Our Instructors
+                </h2>
+
+                <!-- Instructors Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
+                    
+                    <!-- Instructor 1: Maestro Albeniz -->
+                    <div class="instructor-card">
+                        <div class="instructor-circle">🎵</div>
+                        <h4 class="text-xl font-semibold mt-4">Maestro Albeniz</h4>
+                        <p class="text-sm text-gray-200">Classical Piano</p>
+                    </div>
+
+                    <!-- Instructor 2: Leo Fender -->
+                    <div class="instructor-card">
+                        <div class="instructor-circle">🎵</div>
+                        <h4 class="text-xl font-semibold mt-4">Leo Fender</h4>
+                        <p class="text-sm text-gray-200">Guitar Virtuoso</p>
+                    </div>
+
+                    <!-- Instructor 3: Odette Swan -->
+                    <div class="instructor-card">
+                        <div class="instructor-circle">🎵</div>
+                        <h4 class="text-xl font-semibold mt-4">Odette Swan</h4>
+                        <p class="text-sm text-gray-200">Ballet & Choreography</p>
+                    </div>
+
+                    <!-- Instructor 4: Sofia Martinez -->
+                    <div class="instructor-card">
+                        <div class="instructor-circle">🎵</div>
+                        <h4 class="text-xl font-semibold mt-4">Sofia Martinez</h4>
+                        <p class="text-sm text-gray-200">Vocal Coach</p>
+                    </div>
+                </div>
+
+                <p class="text-lg mt-8 text-gray-200 italic">
+                    ...and dozens more experts across every discipline.
+                </p>
+                
+                <a href="/courses" class="inline-block mt-12 px-8 py-3 text-lg bg-white text-primary-red font-semibold rounded-full shadow-lg hover:bg-gray-100 transition duration-300 transform hover:scale-105">
+                    View All Instructors
+                </a>
+            </div>
+        </section>
+
+    </main>
+    
+    <script src="assets/nav-auth.js"></script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

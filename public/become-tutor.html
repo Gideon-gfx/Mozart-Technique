@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Become a Tutor - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        .chip-checkbox { display: none; }
+        .chip-label {
+            display: inline-flex; align-items: center; padding: .5rem 1rem;
+            border: 1px solid #d1d5db; border-radius: 999px; cursor: pointer;
+            font-size: .85rem; font-weight: 600; color: #374151; transition: all .15s ease;
+        }
+        .chip-checkbox:checked + .chip-label {
+            background: #E02126; border-color: #E02126; color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+            </div>
+            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
+        </nav>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+        <div id="already-applied" class="hidden bg-white rounded-2xl shadow-lg p-8 text-center">
+            <i class="fa-solid fa-chalkboard-user text-primary-red text-4xl mb-4"></i>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">You've Already Applied</h1>
+            <p id="applied-status" class="text-gray-500 mb-6"></p>
+            <a href="/dashboard" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                Back to Dashboard
+            </a>
+        </div>
+
+        <form id="tutor-form" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Become a Tutor</h1>
+            <p class="text-gray-500 mb-6">Tell us what you teach and where. An admin reviews every application before you're matched with students.</p>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-2">Subjects you can teach</label>
+            <div id="category-chips" class="flex flex-wrap gap-2 mb-5"></div>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-2">Levels you're comfortable teaching</label>
+            <div class="flex flex-wrap gap-2 mb-5">
+                <input type="checkbox" id="level-beginner" value="Beginner" class="chip-checkbox">
+                <label for="level-beginner" class="chip-label">Beginner</label>
+                <input type="checkbox" id="level-intermediate" value="Intermediate" class="chip-checkbox">
+                <label for="level-intermediate" class="chip-label">Intermediate</label>
+                <input type="checkbox" id="level-professional" value="Professional" class="chip-checkbox">
+                <label for="level-professional" class="chip-label">Professional</label>
+            </div>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-2">How do you teach?</label>
+            <p class="text-xs text-gray-400 mb-2">Fill in a city to offer in-person lessons there, check the box to also (or only) offer lessons online. At least one is required.</p>
+            <div class="grid sm:grid-cols-2 gap-4 mb-2">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">City (for in-person lessons)</label>
+                    <input id="city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
+                    <input id="phone" type="text" placeholder="Shown only to matched students" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 mb-5">
+                <input type="checkbox" id="teaches-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
+                <label for="teaches-online" class="text-sm text-gray-600">I offer online lessons</label>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4 mb-5">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Years of experience</label>
+                    <input id="experience" type="number" min="0" placeholder="e.g. 5" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Your hourly rate (USD)</label>
+                    <input id="rate" type="number" min="1" step="0.01" placeholder="e.g. 20" required class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Qualifications</label>
+            <textarea id="qualifications" rows="3" placeholder="Degrees, certifications, notable performances or students taught..."
+                      class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Short bio (shown to students)</label>
+            <textarea id="bio" rows="3" placeholder="Tell prospective students about your teaching style..."
+                      class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
+
+            <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+                Submit Application
+            </button>
+        </form>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+
+        async function loadCategories() {
+            const res = await fetch('/api/categories');
+            const data = await res.json();
+            document.getElementById('category-chips').innerHTML = data.categories.map((cat, i) => `
+                <input type="checkbox" id="cat-${i}" value="${cat}" class="chip-checkbox">
+                <label for="cat-${i}" class="chip-label">${cat}</label>
+            `).join('');
+        }
+
+        async function checkExisting() {
+            const res = await fetch('/api/tutors/me');
+            const data = await res.json();
+            if (data.profile) {
+                const statusText = {
+                    pending: 'Your application is awaiting admin review.',
+                    approved: "You're an approved tutor! Students can now be matched to you.",
+                    rejected: 'Your application was not approved this time.',
+                }[data.profile.status];
+                document.getElementById('applied-status').textContent = statusText;
+                document.getElementById('already-applied').classList.remove('hidden');
+            } else {
+                document.getElementById('tutor-form').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('tutor-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const categories = Array.from(document.querySelectorAll('#category-chips input:checked')).map((el) => el.value);
+            const levels = Array.from(document.querySelectorAll('#level-beginner:checked, #level-intermediate:checked, #level-professional:checked')).map((el) => el.value);
+
+            const res = await fetch('/api/tutors/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    categories, levels,
+                    city: document.getElementById('city').value.trim(),
+                    phone: document.getElementById('phone').value.trim(),
+                    teachesOnline: document.getElementById('teaches-online').checked,
+                    experienceYears: document.getElementById('experience').value,
+                    hourlyRateUsd: document.getElementById('rate').value,
+                    qualifications: document.getElementById('qualifications').value.trim(),
+                    bio: document.getElementById('bio').value.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
+                setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+            } else {
+                showAlert(data.error || 'Could not submit application.', 'error');
+            }
+        });
+
+        loadCategories();
+        checkExisting();
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

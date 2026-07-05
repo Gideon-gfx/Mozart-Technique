@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find a Tutor - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        .tutor-card { background: #fff; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,.1); padding: 1.25rem; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+            </div>
+            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
+        </nav>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <h1 class="text-2xl font-bold text-gray-800 mb-1">Find a Tutor</h1>
+        <p class="text-gray-500 mb-6">Browse approved tutors near you or online, or submit a general request and we'll match you.</p>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl shadow-lg p-5 mb-6 flex flex-wrap gap-3 items-end">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
+                <select id="filter-category" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All subjects</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">City</label>
+                <input id="filter-city" type="text" placeholder="e.g. Lagos" class="px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div class="flex items-center gap-2 pb-2">
+                <input type="checkbox" id="filter-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
+                <label for="filter-online" class="text-sm text-gray-600">Online only</label>
+            </div>
+            <button id="filter-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Search</button>
+        </div>
+
+        <div id="tutor-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10"></div>
+        <p id="no-tutors" class="hidden text-gray-400 text-center mb-10">No approved tutors match yet - try a general request below.</p>
+
+        <!-- General request -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-1">Submit a General Request</h2>
+            <p class="text-gray-500 mb-5">Can't find the right fit above? Tell us what you need and an admin will match you with a tutor.</p>
+            <form id="request-form">
+                <input type="hidden" id="preferred-tutor-id" value="">
+                <p id="preferred-tutor-note" class="hidden text-sm text-primary-red font-semibold mb-3"></p>
+
+                <div class="grid sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Subject</label>
+                        <select id="req-category" class="w-full px-4 py-3 border border-gray-300 rounded-lg" required></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Your city (for in-person lessons)</label>
+                        <input id="req-city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 mb-4">
+                    <input type="checkbox" id="req-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
+                    <label for="req-online" class="text-sm text-gray-600">I'd like online lessons instead (or as well)</label>
+                </div>
+
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
+                <input id="req-phone" type="text" placeholder="Shown only to your matched tutor" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Notes for your tutor</label>
+                <textarea id="req-notes" rows="3" placeholder="Your goals, schedule, experience level..."
+                          class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
+
+                <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+                    Submit Request
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        async function loadCategories() {
+            const res = await fetch('/api/categories');
+            const data = await res.json();
+            const filterSel = document.getElementById('filter-category');
+            const reqSel = document.getElementById('req-category');
+            data.categories.forEach((cat) => {
+                filterSel.innerHTML += `<option value="${cat}">${cat}</option>`;
+                reqSel.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+        }
+
+        function tutorCardHtml(t) {
+            const formatBadges = [
+                t.city ? `<span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold"><i class="fa-solid fa-location-dot"></i> In-Person &middot; ${escapeHtml(t.city)}</span>` : '',
+                t.teachesOnline ? `<span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold"><i class="fa-solid fa-globe"></i> Online</span>` : '',
+            ].filter(Boolean).join(' ');
+
+            return `
+                <div class="tutor-card flex flex-col">
+                    <div class="flex items-start justify-between mb-1">
+                        <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(t.name)}</h3>
+                        <span class="text-primary-red font-extrabold whitespace-nowrap">${t.symbol}${t.hourlyRateLocal}<span class="text-xs font-medium text-gray-400">/hr</span></span>
+                    </div>
+                    <p class="text-xs text-primary-red font-semibold uppercase mb-2">${t.categories.map(escapeHtml).join(', ')}</p>
+                    <div class="flex flex-wrap gap-1.5 mb-2">${formatBadges}</div>
+                    <p class="text-sm text-gray-600 mb-3 flex-1">${t.bio ? escapeHtml(t.bio) : `${t.experienceYears || 0} years experience`}</p>
+                    <button class="request-tutor-btn w-full py-2 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition"
+                            data-tutor-id="${t.id}" data-tutor-name="${escapeHtml(t.name)}" data-category="${escapeHtml(t.categories[0] || '')}">
+                        Request This Tutor
+                    </button>
+                </div>
+            `;
+        }
+
+        async function loadTutors() {
+            const category = document.getElementById('filter-category').value;
+            const city = document.getElementById('filter-city').value;
+            const online = document.getElementById('filter-online').checked;
+            const params = new URLSearchParams();
+            if (category) params.set('category', category);
+            if (city) params.set('city', city);
+            if (online) params.set('online', 'true');
+
+            const res = await fetch(`/api/tutors?${params}`);
+            const data = await res.json();
+            const grid = document.getElementById('tutor-grid');
+            const empty = document.getElementById('no-tutors');
+            if (!data.tutors.length) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            grid.innerHTML = data.tutors.map(tutorCardHtml).join('');
+
+            grid.querySelectorAll('.request-tutor-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    document.getElementById('preferred-tutor-id').value = btn.dataset.tutorId;
+                    document.getElementById('preferred-tutor-note').textContent = `Requesting: ${btn.dataset.tutorName}`;
+                    document.getElementById('preferred-tutor-note').classList.remove('hidden');
+                    document.getElementById('req-category').value = btn.dataset.category;
+                    document.getElementById('request-form').scrollIntoView({ behavior: 'smooth' });
+                });
+            });
+        }
+
+        document.getElementById('filter-btn').addEventListener('click', loadTutors);
+
+        document.getElementById('request-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const preferredTutorId = document.getElementById('preferred-tutor-id').value;
+            const res = await fetch('/api/tutor-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    category: document.getElementById('req-category').value,
+                    city: document.getElementById('req-city').value.trim(),
+                    online: document.getElementById('req-online').checked,
+                    phone: document.getElementById('req-phone').value.trim(),
+                    notes: document.getElementById('req-notes').value.trim(),
+                    preferredTutorId: preferredTutorId ? Number(preferredTutorId) : null,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Request submitted! We\'ll match you with a tutor soon.', 'success');
+                document.getElementById('request-form').reset();
+                document.getElementById('preferred-tutor-id').value = '';
+                document.getElementById('preferred-tutor-note').classList.add('hidden');
+            } else {
+                showAlert(data.error || 'Could not submit request.', 'error');
+            }
+        });
+
+        loadCategories();
+        loadTutors();
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>
