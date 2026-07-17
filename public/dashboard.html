@@ -52,6 +52,7 @@
                 <a href="courses.html" class="hover:text-primary-red transition duration-150">Courses</a>
                 <a href="dashboard.html" class="text-primary-red border-b-2 border-primary-red pb-1">Dashboard</a>
                 <a id="admin-link" href="/admin" class="hidden hover:text-primary-red transition duration-150">Admin</a>
+                <a href="/search" title="Search" class="text-gray-600 hover:text-primary-red transition duration-150"><i class="fa-solid fa-magnifying-glass text-lg"></i></a>
                 <button id="notif-btn" class="relative text-gray-600 hover:text-primary-red">
                     <i class="fa-solid fa-bell text-lg"></i>
                     <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-primary-red text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">0</span>
@@ -74,6 +75,11 @@
         <div id="notif-panel" class="hidden bg-white rounded-xl shadow-lg p-6 mb-6 max-w-md">
             <h3 class="font-bold text-gray-800 mb-3">Notifications</h3>
             <div id="notif-list" class="space-y-2 text-sm text-gray-600"></div>
+        </div>
+
+        <div id="flagged-banner" class="hidden bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl p-4 mb-6 text-sm">
+            <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+            <span id="flagged-banner-text"></span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -106,7 +112,7 @@
                             Become a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
                         </a>
                         <a id="manage-quizzes-btn" href="/manage-quizzes" class="hidden inline-flex items-center justify-center px-4 py-2 bg-white/10 border border-white/40 text-white font-bold rounded-lg text-sm hover:bg-white/20 transition">
-                            Manage Course Quizzes <i class="fa-solid fa-clipboard-question ml-2"></i>
+                            Manage Course Content <i class="fa-solid fa-clapperboard ml-2"></i>
                         </a>
                     </div>
                 </div>
@@ -116,9 +122,14 @@
                 <div class="relative">
                     <h3 class="font-extrabold text-lg mb-2">Need a Tutor?</h3>
                     <p class="text-sm text-gray-300 mb-4">Browse approved tutors near you or online, and compare their rates.</p>
-                    <a href="/find-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-dark font-bold rounded-lg text-sm shadow-md hover:bg-gray-100 transition">
-                        Find a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
-                    </a>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/find-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-dark font-bold rounded-lg text-sm shadow-md hover:bg-gray-100 transition">
+                            Find a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </a>
+                        <button id="edit-profile-btn" class="inline-flex items-center justify-center px-4 py-2 bg-white/10 border border-white/40 text-white font-bold rounded-lg text-sm hover:bg-white/20 transition">
+                            My Learning Profile <i class="fa-solid fa-user-pen ml-2"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -131,6 +142,11 @@
         <div id="my-students-section" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-people-group text-primary-red mr-2"></i>Your Students</h2>
             <div id="my-students-list" class="grid sm:grid-cols-2 gap-4"></div>
+        </div>
+
+        <div id="certificates-section" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-certificate text-yellow-500 mr-2"></i>Your Certificates</h2>
+            <div id="certificates-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         </div>
 
         <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
@@ -149,6 +165,10 @@
             </div>
         </div>
     </main>
+
+    <div id="action-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+        <div id="action-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 max-h-[85vh] overflow-y-auto"></div>
+    </div>
 
     <script>
         const alertBox = document.getElementById('alert-box');
@@ -215,6 +235,12 @@
                 grid.innerHTML = data.enrolledCourses.map(courseCardHtml).join('');
                 grid.classList.remove('hidden');
             }
+
+            if (data.rating && data.rating.flagged) {
+                document.getElementById('flagged-banner-text').textContent =
+                    "Your account has been flagged for review due to low ratings from tutors. If you believe this is a mistake, contact support - repeated issues can lead to your tutoring access being discontinued.";
+                document.getElementById('flagged-banner').classList.remove('hidden');
+            }
         }
 
         async function loadNotifications() {
@@ -252,9 +278,248 @@
             return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
         }
 
+        function openModal(html) {
+            document.getElementById('action-modal-body').innerHTML = html;
+            document.getElementById('action-modal').classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('action-modal').classList.add('hidden');
+            document.getElementById('action-modal-body').innerHTML = '';
+        }
+
+        function starSelectHtml(name, label) {
+            return `
+                <label class="block text-sm font-semibold text-gray-600 mb-1">${label}</label>
+                <select name="${name}" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Below average</option>
+                    <option value="1">1 - Poor</option>
+                </select>
+            `;
+        }
+
+        function openRateModal(requestId, session, role, counterpartName) {
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Rate ${escapeHtml(counterpartName)}</h2>
+                <p class="text-gray-500 text-sm mb-4">Lesson logged ${new Date(session.loggedAt).toLocaleDateString()}</p>
+                <form id="rate-form">
+                    ${starSelectHtml('score', role === 'student' ? 'Teaching quality' : 'Overall rating')}
+                    ${starSelectHtml('professionalism', 'Professionalism')}
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Comment (optional)</label>
+                    <textarea name="comment" rows="3" class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg"></textarea>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Submit Rating</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('rate-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const res = await fetch(`/api/assignments/${requestId}/sessions/${session.id}/rate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ score: fd.get('score'), professionalism: fd.get('professionalism'), comment: fd.get('comment') }),
+                });
+                const data = await res.json();
+                if (data.success) { showAlert('Rating submitted.', 'success'); closeModal(); loadTutoring(); }
+                else showAlert(data.error || 'Could not submit rating.', 'error');
+            });
+        }
+
+        async function openLogSessionModal(requestId, category) {
+            const [curriculumRes, reelsRes] = await Promise.all([
+                fetch(`/api/curriculum/${encodeURIComponent(category)}`),
+                fetch(`/api/reels?category=${encodeURIComponent(category)}`),
+            ]);
+            const curriculumData = await curriculumRes.json();
+            const reelsData = await reelsRes.json();
+            const opening = curriculumData.content;
+            const reelList = reelsData.reels || [];
+
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Log Completed Lesson</h2>
+                <p class="text-gray-500 text-sm mb-4">${category}</p>
+                ${opening ? `
+                    <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
+                        <p class="font-semibold text-gray-700 mb-1"><i class="fa-solid fa-clapperboard text-primary-red mr-1"></i> Opening segment (first 15 min): ${escapeHtml(opening.title)}</p>
+                        <p class="text-gray-500">${escapeHtml(opening.notes || '')}</p>
+                    </div>
+                ` : '<p class="text-gray-400 text-sm mb-4">No curated opening segment set for this subject yet - proceed with your own lesson plan.</p>'}
+                <form id="log-form">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Lesson notes</label>
+                    <textarea name="teacherNotes" rows="3" placeholder="What you covered after the opening segment..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg"></textarea>
+
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Assignment for student</label>
+                    <textarea name="assignmentText" id="assignment-text" rows="3" placeholder="What should they practice before next lesson?" class="w-full px-3 py-2 mb-2 border border-gray-300 rounded-lg"></textarea>
+
+                    ${reelList.length ? `
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Tag a technique reel (optional)</label>
+                        <div class="flex flex-wrap gap-2 mb-4" id="reel-tag-list">
+                            ${reelList.map((r) => `<button type="button" class="reel-tag-btn px-2 py-1 border border-gray-300 rounded-full text-xs text-gray-600 hover:border-primary-red hover:text-primary-red" data-id="${r.id}" data-title="${escapeHtml(r.title)}">@${escapeHtml(r.title)}</button>`).join('')}
+                        </div>
+                        <input type="hidden" name="reelIds" id="reel-ids" value="">
+                    ` : ''}
+
+                    <div class="flex gap-2 mt-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Log Lesson</button>
+                    </div>
+                </form>
+            `);
+
+            const taggedIds = new Set();
+            document.querySelectorAll('.reel-tag-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const textarea = document.getElementById('assignment-text');
+                    textarea.value += `${textarea.value ? ' ' : ''}@${btn.dataset.title}`;
+                    taggedIds.add(Number(btn.dataset.id));
+                    document.getElementById('reel-ids').value = JSON.stringify(Array.from(taggedIds));
+                    btn.classList.add('bg-red-50', 'border-primary-red', 'text-primary-red');
+                });
+            });
+
+            document.getElementById('log-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const reelIdsField = fd.get('reelIds');
+                const res = await fetch(`/api/assignments/${requestId}/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        teacherNotes: fd.get('teacherNotes'),
+                        assignmentText: fd.get('assignmentText'),
+                        reelIds: reelIdsField ? JSON.parse(reelIdsField) : [],
+                    }),
+                });
+                const data = await res.json();
+                if (data.success) { showAlert('Lesson logged.', 'success'); closeModal(); loadTutoring(); }
+                else showAlert(data.error || 'Could not log lesson.', 'error');
+            });
+        }
+
+        async function openSetLevelModal(requestId) {
+            const res = await fetch('/api/taxonomy');
+            const data = await res.json();
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Set Student's Level</h2>
+                <p class="text-gray-500 text-sm mb-4">Your first-lesson evaluation is the final word, overriding their online placement-quiz suggestion.</p>
+                <form id="level-form">
+                    <select name="level" class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg">
+                        ${data.levels.map((lvl) => `<option value="${lvl}">${lvl}</option>`).join('')}
+                    </select>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Save</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('level-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const level = new FormData(e.target).get('level');
+                const res2 = await fetch(`/api/assignments/${requestId}/placement`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ level }),
+                });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Level saved.', 'success'); closeModal(); }
+                else showAlert(data2.error || 'Could not save level.', 'error');
+            });
+        }
+
+        function openSetMeetingLinkModal(requestId, currentLink) {
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Meeting Link</h2>
+                <p class="text-gray-500 text-sm mb-4">Paste the Zoom/Google Meet/other link you created for this lesson - your student will see it here.</p>
+                <form id="meeting-link-form">
+                    <input type="url" name="meetingLink" value="${escapeHtml(currentLink || '')}" placeholder="https://zoom.us/j/..." required class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg">
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Save</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('meeting-link-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const meetingLink = new FormData(e.target).get('meetingLink');
+                const res = await fetch(`/api/assignments/${requestId}/meeting-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ meetingLink }),
+                });
+                const data = await res.json();
+                if (data.success) { showAlert('Meeting link saved.', 'success'); closeModal(); loadTutoring(); }
+                else showAlert(data.error || 'Could not save link.', 'error');
+            });
+        }
+
+        function sessionsListHtml(requestId, sessions, role, counterpartName) {
+            if (!sessions || !sessions.length) return '<p class="text-xs text-gray-400 mt-2">No lessons logged yet.</p>';
+            return `<div class="mt-2 space-y-1">${sessions.slice().reverse().map((s) => {
+                const myRating = role === 'student' ? s.studentRating : s.tutorRating;
+                const reelLinks = (s.reels && s.reels.length)
+                    ? s.reels.map((r) => `<a href="${escapeHtml(r.url)}" target="_blank" class="text-primary-red hover:underline">@${escapeHtml(r.title)}</a>`).join(' ')
+                    : '';
+                return `
+                    <div class="text-xs bg-gray-50 rounded px-2 py-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500">${new Date(s.loggedAt).toLocaleDateString()}${s.assignmentText ? ' - ' + escapeHtml(s.assignmentText.slice(0, 40)) + (s.assignmentText.length > 40 ? '...' : '') : ''}</span>
+                            ${myRating
+                                ? `<span class="text-amber-600 font-semibold shrink-0 ml-2"><i class="fa-solid fa-star"></i> ${myRating.score}</span>`
+                                : `<button class="rate-session-btn text-primary-red font-semibold shrink-0 ml-2 hover:underline" data-request-id="${requestId}" data-session-id="${s.id}" data-role="${role}" data-name="${escapeHtml(counterpartName)}">Rate</button>`}
+                        </div>
+                        ${reelLinks ? `<div class="mt-1">${reelLinks}</div>` : ''}
+                    </div>
+                `;
+            }).join('')}</div>`;
+        }
+
+        function findFirstUnratedSession() {
+            for (const r of (assignmentsCache.asStudent || []).filter((r) => r.status === 'active')) {
+                for (const s of (r.sessions || [])) {
+                    if (!s.studentRating) return { requestId: r.id, session: s, role: 'student', counterpartName: r.tutorName };
+                }
+            }
+            for (const r of (assignmentsCache.asTutor || []).filter((r) => r.status === 'active')) {
+                for (const s of (r.sessions || [])) {
+                    if (!s.tutorRating) return { requestId: r.id, session: s, role: 'tutor', counterpartName: r.studentName };
+                }
+            }
+            return null;
+        }
+
+        let assignmentsCache = { asStudent: [], asTutor: [] };
+
+        function wireSessionButtons() {
+            document.querySelectorAll('.rate-session-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const list = btn.dataset.role === 'student' ? assignmentsCache.asStudent : assignmentsCache.asTutor;
+                    const record = list.find((r) => String(r.id) === btn.dataset.requestId);
+                    const session = record && record.sessions.find((s) => String(s.id) === btn.dataset.sessionId);
+                    if (session) openRateModal(btn.dataset.requestId, session, btn.dataset.role, btn.dataset.name);
+                });
+            });
+            document.querySelectorAll('.log-session-btn').forEach((btn) => {
+                btn.addEventListener('click', () => openLogSessionModal(btn.dataset.requestId, btn.dataset.category));
+            });
+            document.querySelectorAll('.set-level-btn').forEach((btn) => {
+                btn.addEventListener('click', () => openSetLevelModal(btn.dataset.requestId));
+            });
+            document.querySelectorAll('.set-meeting-link-btn').forEach((btn) => {
+                btn.addEventListener('click', () => openSetMeetingLinkModal(btn.dataset.requestId, btn.dataset.link));
+            });
+            document.querySelectorAll('.placement-quiz-link').forEach((link) => {
+                link.addEventListener('click', (e) => { e.preventDefault(); window.location.href = `/placement-quiz?category=${encodeURIComponent(link.dataset.category)}`; });
+            });
+        }
+
         async function loadTutoring() {
             const res = await fetch('/api/my-assignments');
             const data = await res.json();
+            assignmentsCache = data;
 
             const statusEl = document.getElementById('tutor-status');
             const actionBtn = document.getElementById('tutor-action-btn');
@@ -273,6 +538,11 @@
                 if (data.tutorProfile.status === 'approved') {
                     document.getElementById('manage-quizzes-btn').classList.remove('hidden');
                 }
+                if (data.tutorProfile.flagged) {
+                    document.getElementById('flagged-banner-text').textContent =
+                        "Your tutor account has been flagged for review due to low student ratings. Contact support - repeated issues can lead to your tutor account being discontinued.";
+                    document.getElementById('flagged-banner').classList.remove('hidden');
+                }
             }
 
             if (data.asStudent && data.asStudent.length) {
@@ -284,11 +554,16 @@
                             <div class="w-11 h-11 shrink-0 rounded-full bg-primary-red text-white font-bold flex items-center justify-center">
                                 ${r.status === 'active' ? initials(r.tutorName) : '<i class="fa-solid fa-hourglass-half text-sm"></i>'}
                             </div>
-                            <div class="min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <p class="font-semibold text-gray-800">${escapeHtml(r.category)}</p>
-                                <p class="text-xs text-gray-400 mb-1">${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' &middot; ' : ''}${r.online ? 'Online' : ''}</p>
+                                <p class="text-xs text-gray-400 mb-1">${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' &middot; ' : ''}${r.online ? 'Online' : ''}${r.matchDistanceKm != null ? ' &middot; ' + r.matchDistanceKm + ' km' : ''}</p>
                                 ${r.status === 'active'
-                                    ? `<p class="text-sm text-gray-600">Matched with <strong>${escapeHtml(r.tutorName)}</strong><br>${escapeHtml(r.tutorEmail)}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</p>`
+                                    ? `<p class="text-sm text-gray-600">Matched with <strong>${escapeHtml(r.tutorName)}</strong><br>${escapeHtml(r.tutorEmail)}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</p>
+                                       ${r.online ? (r.meetingLink
+                                            ? `<a href="${escapeHtml(r.meetingLink)}" target="_blank" class="inline-flex items-center gap-1 text-xs font-semibold text-white bg-primary-red px-3 py-1.5 rounded-full mt-1 hover:bg-red-700"><i class="fa-solid fa-video"></i> Join Lesson</a>`
+                                            : `<p class="text-xs text-gray-400 italic mt-1">Waiting for your tutor to share a meeting link.</p>`) : ''}
+                                       <br><a href="#" class="placement-quiz-link text-xs text-primary-red font-semibold hover:underline" data-category="${escapeHtml(r.category)}">Take placement quiz</a>
+                                       ${sessionsListHtml(r.id, r.sessions, 'student', r.tutorName)}`
                                     : `<p class="text-sm text-gray-400 italic">Awaiting admin match...</p>`}
                             </div>
                         </div>
@@ -305,21 +580,110 @@
                             <div class="w-11 h-11 shrink-0 rounded-full bg-primary-dark text-white font-bold flex items-center justify-center">
                                 ${initials(r.studentName)}
                             </div>
-                            <div class="min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <p class="font-semibold text-gray-800">${escapeHtml(r.studentName)}</p>
                                 <p class="text-xs text-primary-red font-semibold uppercase mb-1">${escapeHtml(r.category)}</p>
                                 <p class="text-sm text-gray-600">${escapeHtml(r.studentEmail)}${r.phone ? ' &middot; ' + escapeHtml(r.phone) : ''}</p>
                                 ${r.notes ? `<p class="text-sm text-gray-500 mt-1 italic">"${escapeHtml(r.notes)}"</p>` : ''}
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <button class="log-session-btn text-xs font-semibold text-white bg-primary-red px-3 py-1.5 rounded-full hover:bg-red-700" data-request-id="${r.id}" data-category="${escapeHtml(r.category)}">
+                                        <i class="fa-solid fa-clipboard-check mr-1"></i> Log Lesson
+                                    </button>
+                                    <button class="set-level-btn text-xs font-semibold text-gray-600 border border-gray-300 px-3 py-1.5 rounded-full hover:border-primary-red hover:text-primary-red" data-request-id="${r.id}">
+                                        <i class="fa-solid fa-layer-group mr-1"></i> Set Level
+                                    </button>
+                                    ${r.online ? `
+                                        <button class="set-meeting-link-btn text-xs font-semibold text-gray-600 border border-gray-300 px-3 py-1.5 rounded-full hover:border-primary-red hover:text-primary-red" data-request-id="${r.id}" data-link="${escapeHtml(r.meetingLink || '')}">
+                                            <i class="fa-solid fa-video mr-1"></i> ${r.meetingLink ? 'Update' : 'Set'} Meeting Link
+                                        </button>
+                                    ` : ''}
+                                </div>
+                                ${sessionsListHtml(r.id, r.sessions, 'tutor', r.studentName)}
                             </div>
                         </div>
                     `).join('');
                 }
             }
+
+            wireSessionButtons();
+
+            // Automatically prompts for the oldest unrated lesson each time
+            // the dashboard loads (rather than waiting for a manual click),
+            // so rating a completed lesson is the default flow, not an
+            // easily-ignored option. It'll keep reappearing on future visits
+            // until rated.
+            const pending = findFirstUnratedSession();
+            if (pending) openRateModal(pending.requestId, pending.session, pending.role, pending.counterpartName);
+        }
+
+        // --- My Learning Profile ---
+        document.getElementById('edit-profile-btn').addEventListener('click', async () => {
+            const res = await fetch('/api/taxonomy');
+            const tax = await res.json();
+            const dashRes = await fetch('/api/dashboard');
+            const dash = await dashRes.json();
+            const p = dash.studentProfile || {};
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">My Learning Profile</h2>
+                <p class="text-gray-500 text-sm mb-4">Saved once, used to prefill your tutor matches next time.</p>
+                <form id="profile-form">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Age group</label>
+                    <select name="ageGroup" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                        <option value="">Not set</option>
+                        ${tax.ageGroups.map((a) => `<option value="${a.id}" ${p.ageGroup === a.id ? 'selected' : ''}>${a.label}</option>`).join('')}
+                    </select>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Preferred genre</label>
+                    <select name="genre" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                        <option value="">Not set</option>
+                        ${tax.genres.map((g) => `<option value="${g}" ${p.genres && p.genres[0] === g ? 'selected' : ''}>${g}</option>`).join('')}
+                    </select>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">City (for in-person matching)</label>
+                    <input type="text" name="city" value="${p.city ? escapeHtml(p.city) : ''}" placeholder="e.g. Lagos, Nigeria" class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg">
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Save</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('profile-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const genre = fd.get('genre');
+                const res2 = await fetch('/api/profile/student', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ageGroup: fd.get('ageGroup') || null,
+                        genres: genre ? [genre] : [],
+                        city: fd.get('city'),
+                    }),
+                });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Profile saved.', 'success'); closeModal(); }
+                else showAlert(data2.error || 'Could not save profile.', 'error');
+            });
+        });
+
+        async function loadCertificates() {
+            const res = await fetch('/api/my-certificates');
+            const data = await res.json();
+            if (!data.success || !data.certificates.length) return;
+            document.getElementById('certificates-section').classList.remove('hidden');
+            document.getElementById('certificates-list').innerHTML = data.certificates.map((c) => `
+                <a href="/certificate/${c.code}" target="_blank" class="flex items-center gap-3 rounded-xl border border-gray-100 p-4 hover:border-yellow-400 transition">
+                    <i class="fa-solid fa-certificate text-2xl text-yellow-500 shrink-0"></i>
+                    <div class="min-w-0">
+                        <p class="font-semibold text-gray-800 truncate">${escapeHtml(c.courseTitle)}</p>
+                        <p class="text-xs text-gray-400">${new Date(c.issuedAt).toLocaleDateString()}</p>
+                    </div>
+                </a>
+            `).join('');
         }
 
         loadDashboard().catch(() => showAlert('Could not load your dashboard.', 'error'));
         loadNotifications().catch(() => {});
         loadTutoring().catch(() => {});
+        loadCertificates().catch(() => {});
     </script>
     <script src="assets/mobile-nav.js"></script>
     <script src="assets/footer.js"></script>

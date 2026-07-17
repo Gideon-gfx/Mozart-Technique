@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { geocodeAddress } = require('./geocode');
 
 const DATA_FILE = path.join(__dirname, 'users.json');
+const MIN_RATINGS_BEFORE_FLAG = 3;
+const FLAG_THRESHOLD = 2.5; // out of 5
 
 function load() {
   if (!fs.existsSync(DATA_FILE)) return { users: [], nextId: 1 };
@@ -157,6 +160,91 @@ function setCountry(userId, countryCode) {
   return user;
 }
 
+// Profile details used for tutor matching: age band, preferred genres, and
+// (geocoded) location for in-person proximity matching.
+async function setStudentProfile(userId, { ageGroup, genres, city, address }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  const coords = address || city ? await geocodeAddress(address || city) : null;
+  user.studentProfile = {
+    ageGroup: ageGroup || null,
+    genres: Array.isArray(genres) ? genres : [],
+    city: city || null,
+    address: address || null,
+    lat: coords ? coords.lat : null,
+    lng: coords ? coords.lng : null,
+    locality: coords ? { city: coords.city, state: coords.state, country: coords.country } : null,
+  };
+  persist(db);
+  return user;
+}
+
+// A placement quiz gives a suggested level; a tutor's first-lesson
+// evaluation (finalizePlacement) can override it with the final say.
+function setPlacementSuggestion(userId, category, { score, level }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.placements) user.placements = {};
+  user.placements[category] = {
+    ...(user.placements[category] || {}),
+    suggestedScore: score,
+    suggestedLevel: level,
+    suggestedAt: new Date().toISOString(),
+  };
+  persist(db);
+  return user;
+}
+
+function finalizePlacement(userId, category, level, tutorId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.placements) user.placements = {};
+  user.placements[category] = {
+    ...(user.placements[category] || {}),
+    finalLevel: level,
+    finalizedBy: tutorId,
+    finalizedAt: new Date().toISOString(),
+  };
+  persist(db);
+  return user;
+}
+
+// Records a tutor's rating of a student after a lesson, flagging the
+// student for admin review once there's enough of a sample to be
+// meaningful and the rolling average is too low.
+function addStudentRating(userId, { score, professionalism }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.rating) user.rating = { sum: 0, count: 0, professionalismSum: 0, professionalismCount: 0, flagged: false, flaggedAt: null };
+  user.rating.sum += Number(score);
+  user.rating.count += 1;
+  if (professionalism != null) {
+    user.rating.professionalismSum += Number(professionalism);
+    user.rating.professionalismCount += 1;
+  }
+  const avg = user.rating.sum / user.rating.count;
+  if (user.rating.count >= MIN_RATINGS_BEFORE_FLAG && avg < FLAG_THRESHOLD && !user.rating.flagged) {
+    user.rating.flagged = true;
+    user.rating.flaggedAt = new Date().toISOString();
+  }
+  persist(db);
+  return user;
+}
+
+function clearStudentFlag(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user || !user.rating) return user;
+  user.rating.flagged = false;
+  user.rating.flaggedAt = null;
+  persist(db);
+  return user;
+}
+
 // Demo and admin accounts get every purchasable course unlocked without
 // ever going through payment.
 function hasFullAccess(user) {
@@ -242,4 +330,6 @@ module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, addPurchase, removePurchase, hasFullAccess, setCountry,
   setLessonProgress, getBadges, addNotification, markNotificationsRead, setRole, listUsers,
   createResetToken, findByResetToken, resetPassword, resetCourseProgress, setQuizResult,
+  setStudentProfile, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
+  MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

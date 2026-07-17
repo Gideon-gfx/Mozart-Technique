@@ -45,10 +45,13 @@
     </header>
 
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <div class="flex border-b border-gray-200 mb-6">
+        <div class="flex border-b border-gray-200 mb-6 flex-wrap">
             <div class="admin-tab active" data-panel="content">Course Content</div>
             <div class="admin-tab" data-panel="users">Applicants / Users</div>
             <div class="admin-tab" data-panel="tutors">Tutors &amp; Matching</div>
+            <div class="admin-tab" data-panel="educator">Educator Tools</div>
+            <div class="admin-tab" data-panel="activity">Activity &amp; Flags</div>
+            <div class="admin-tab" data-panel="analytics">Analytics</div>
         </div>
 
         <!-- Course content panel -->
@@ -120,11 +123,12 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
-                                <th>Subjects</th>
+                                <th>Subjects / Genres / Ages</th>
                                 <th>Location</th>
                                 <th>Rate</th>
-                                <th>Experience</th>
-                                <th>Qualifications</th>
+                                <th>Approved Levels</th>
+                                <th>Rating</th>
+                                <th>Orientation</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -154,6 +158,192 @@
                 </div>
             </div>
         </div>
+
+        <!-- Educator tools panel -->
+        <div id="panel-educator" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Subject Curriculum &amp; Evaluations</h1>
+                <p class="text-gray-500 mb-4">Pick a subject to edit its curated opening segment, tutor qualification evaluation, and student placement quiz.</p>
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Subject</label>
+                <select id="edu-category-select" class="w-full sm:w-80 px-4 py-3 mb-6 border border-gray-300 rounded-lg"></select>
+
+                <div class="border-t border-gray-200 pt-6 mb-6">
+                    <h2 class="font-bold text-gray-800 mb-1">First 15 Minutes (Curated Opening)</h2>
+                    <p class="text-gray-500 text-sm mb-3">Every lesson in this subject opens with this segment before the tutor's own plan.</p>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Title</label>
+                    <input id="curriculum-title" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Video URL (optional)</label>
+                    <input id="curriculum-video" type="text" placeholder="https://..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Notes</label>
+                    <textarea id="curriculum-notes" rows="3" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg"></textarea>
+                    <button id="save-curriculum-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Save Curriculum</button>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6 mb-6">
+                    <h2 class="font-bold text-gray-800 mb-1">Tutor Qualification Evaluation</h2>
+                    <p class="text-gray-500 text-sm mb-3">Score bands map to the level a tutor is approved to teach (0-39% Beginner ... 95%+ Virtuoso).</p>
+                    <div id="eval-editor" class="space-y-4 mb-3"></div>
+                    <button id="add-eval-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Question
+                    </button>
+                    <button id="save-eval-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition ml-2">Save Evaluation</button>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
+                    <h2 class="font-bold text-gray-800 mb-1">Student Placement Quiz</h2>
+                    <p class="text-gray-500 text-sm mb-3">Gives new students a suggested starting level before their tutor's first-lesson evaluation.</p>
+                    <div id="placement-editor" class="space-y-4 mb-3"></div>
+                    <button id="add-placement-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Question
+                    </button>
+                    <button id="save-placement-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition ml-2">Save Placement Quiz</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor Orientation</h1>
+                <p class="text-gray-500 mb-4">New tutors watch/read this primer and take the quiz; passing grants a one-time reward.</p>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Title</label>
+                <input id="orientation-title" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Video URL (optional)</label>
+                <input id="orientation-video" type="text" placeholder="https://..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Notes</label>
+                <textarea id="orientation-notes" rows="3" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg"></textarea>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Reward for completing</label>
+                <select id="orientation-reward" class="w-full sm:w-80 px-3 py-2 mb-4 border border-gray-300 rounded-lg">
+                    <option value="bonus_student">Bonus-matched student (priority on next match)</option>
+                    <option value="monetary">One-time monetary bonus (admin fulfills manually)</option>
+                </select>
+
+                <div id="orientation-quiz-editor" class="space-y-4 mb-3"></div>
+                <button id="add-orientation-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Add Question
+                </button>
+                <button id="save-orientation-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition ml-2">Save Orientation</button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Technique Reels Library</h1>
+                <p class="text-gray-500 mb-4">Links back to original creator posts only - never downloaded/rehosted copies. Swap in a replacement (your own footage or another live post) when one goes dead.</p>
+
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                    <input id="reel-title" type="text" placeholder="Title" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <input id="reel-url" type="text" placeholder="Link (TikTok/Instagram/etc)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <select id="reel-category" class="px-3 py-2 border border-gray-300 rounded-lg"><option value="">Any subject</option></select>
+                    <select id="reel-genre" class="px-3 py-2 border border-gray-300 rounded-lg"><option value="">Any genre</option></select>
+                </div>
+                <button id="add-reel-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Add Reel</button>
+
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Link</th>
+                                <th>Subject</th>
+                                <th>Genre</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reels-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity & flags panel -->
+        <div id="panel-activity" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Flagged Accounts</h1>
+                <p class="text-gray-500 mb-4">Accounts with a low rolling rating average. Query before deciding whether to clear the flag or discontinue the account.</p>
+                <h2 class="font-bold text-gray-700 mb-2">Tutors</h2>
+                <div class="overflow-x-auto mb-6">
+                    <table>
+                        <thead><tr><th>Name</th><th>Rating</th><th>Flagged Since</th><th>Action</th></tr></thead>
+                        <tbody id="flagged-tutors-tbody"></tbody>
+                    </table>
+                </div>
+                <h2 class="font-bold text-gray-700 mb-2">Students</h2>
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead><tr><th>Name</th><th>Rating</th><th>Flagged Since</th><th>Action</th></tr></thead>
+                        <tbody id="flagged-students-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">All Lesson Activity</h1>
+                <p class="text-gray-500 mb-4">Every lesson logged across every tutor/student pairing, newest first.</p>
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Subject</th>
+                                <th>Tutor</th>
+                                <th>Student</th>
+                                <th>Assignment</th>
+                                <th>Student Rated Tutor</th>
+                                <th>Tutor Rated Student</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activity-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics panel -->
+        <div id="panel-analytics" class="hidden space-y-6">
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white rounded-xl shadow-lg p-5">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Total revenue</p>
+                    <p id="stat-total-revenue" class="text-2xl font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-5">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Revenue (30d)</p>
+                    <p id="stat-revenue-30d" class="text-2xl font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-5">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Total users</p>
+                    <p id="stat-total-users" class="text-2xl font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-5">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Active tutors</p>
+                    <p id="stat-active-tutors" class="text-2xl font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-5">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Lessons logged</p>
+                    <p id="stat-lessons-logged" class="text-2xl font-semibold text-gray-800">-</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">Revenue - last 30 days</h2>
+                    <button type="button" id="revenue-table-toggle" class="text-xs font-semibold text-gray-500 hover:text-primary-red">View as table</button>
+                </div>
+                <div id="revenue-chart-wrap" class="relative"></div>
+                <div id="revenue-table-wrap" class="hidden overflow-x-auto">
+                    <table><thead><tr><th>Date</th><th>Revenue</th></tr></thead><tbody id="revenue-tbody"></tbody></table>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Top courses by enrollment</h2>
+                    <div id="top-courses-chart"></div>
+                    <p id="no-course-sales" class="hidden text-gray-400 text-sm">No purchases recorded yet.</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Tutor leaderboard</h2>
+                    <div id="tutor-leaderboard"></div>
+                    <p id="no-tutor-ratings" class="hidden text-gray-400 text-sm">No tutor ratings yet.</p>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -171,15 +361,17 @@
         }
 
         // --- Tabs ---
+        const PANELS = ['content', 'users', 'tutors', 'educator', 'activity', 'analytics'];
         document.querySelectorAll('.admin-tab').forEach((tab) => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.admin-tab').forEach((t) => t.classList.remove('active'));
                 tab.classList.add('active');
-                document.getElementById('panel-content').classList.toggle('hidden', tab.dataset.panel !== 'content');
-                document.getElementById('panel-users').classList.toggle('hidden', tab.dataset.panel !== 'users');
-                document.getElementById('panel-tutors').classList.toggle('hidden', tab.dataset.panel !== 'tutors');
+                PANELS.forEach((p) => document.getElementById(`panel-${p}`).classList.toggle('hidden', tab.dataset.panel !== p));
                 if (tab.dataset.panel === 'users') loadUsers();
                 if (tab.dataset.panel === 'tutors') loadTutorsAndRequests();
+                if (tab.dataset.panel === 'educator') loadEducatorTools();
+                if (tab.dataset.panel === 'activity') loadActivityAndFlags();
+                if (tab.dataset.panel === 'analytics') loadAnalytics();
             });
         });
 
@@ -494,20 +686,38 @@
             return `<span class="px-2 py-1 rounded text-xs font-semibold ${colors[status] || ''}">${status}</span>`;
         }
 
+        function approvedLevelsText(t) {
+            const entries = Object.entries(t.approvedLevelByCategory || {});
+            return entries.length ? entries.map(([cat, lvl]) => `${escapeHtml(cat)}: ${escapeHtml(lvl)}`).join('<br>') : '<span class="text-gray-400">Not yet evaluated</span>';
+        }
+
+        const venueLabels = { student_location: 'Travels to student', tutor_studio: 'At tutor studio', either: 'Either venue' };
+
         function tutorRowHtml(t) {
+            const avgRating = t.ratingCount ? (t.ratingSum / t.ratingCount).toFixed(1) : null;
+            const avgProfessionalism = t.professionalismCount ? (t.professionalismSum / t.professionalismCount).toFixed(1) : null;
+            const tagsLine = [
+                t.categories.join(', '),
+                t.genres && t.genres.length ? t.genres.join(', ') : null,
+                t.ageGroups && t.ageGroups.length ? t.ageGroups.join(', ') : null,
+            ].filter(Boolean).join('<br>');
             return `
                 <tr>
-                    <td class="font-semibold text-gray-800">${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}${t.phone ? ' &middot; ' + escapeHtml(t.phone) : ''}</span></td>
-                    <td>${t.categories.map(escapeHtml).join(', ')}</td>
-                    <td>${t.city ? escapeHtml(t.city) : ''}${t.city && t.teachesOnline ? ' + ' : ''}${t.teachesOnline ? 'Online' : ''}</td>
+                    <td class="font-semibold text-gray-800">${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}${t.phone ? ' &middot; ' + escapeHtml(t.phone) : ''}</span>${t.flagged ? '<br><span class="text-xs text-red-600 font-semibold">Flagged</span>' : ''}${t.expelled ? '<br><span class="text-xs text-gray-400 font-semibold">Expelled</span>' : ''}</td>
+                    <td class="text-xs">${tagsLine}</td>
+                    <td>${t.city ? escapeHtml(t.city) : ''}${t.city && t.teachesOnline ? ' + ' : ''}${t.teachesOnline ? 'Online' : ''}${t.commuteRadiusKm ? `<br><span class="text-xs text-gray-400">${t.commuteRadiusKm}km radius, ${venueLabels[t.inPersonVenue] || ''}</span>` : ''}</td>
                     <td>$${t.hourlyRateUsd || 0}/hr</td>
-                    <td>${t.experienceYears || 0} yrs</td>
-                    <td class="max-w-xs text-gray-600">${escapeHtml(t.qualifications)}</td>
+                    <td class="text-xs">${approvedLevelsText(t)}</td>
+                    <td>${avgRating ? `<i class="fa-solid fa-star text-amber-500"></i> ${avgRating} (${t.ratingCount})` : '<span class="text-gray-400 text-xs">No ratings</span>'}${avgProfessionalism ? `<br><span class="text-xs text-gray-500">Prof. ${avgProfessionalism}</span>` : ''}</td>
+                    <td>${t.orientationCompleted ? '<span class="text-green-600 text-xs font-semibold">Done</span>' : '<span class="text-gray-400 text-xs">Pending</span>'}</td>
                     <td>${statusBadge(t.status)}</td>
                     <td>
-                        <div class="flex gap-1">
-                            <button class="tutor-status-btn px-2 py-1 bg-green-600 text-white rounded text-xs" data-id="${t.id}" data-status="approved">Approve</button>
-                            <button class="tutor-status-btn px-2 py-1 bg-red-600 text-white rounded text-xs" data-id="${t.id}" data-status="rejected">Reject</button>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex gap-1">
+                                <button class="tutor-status-btn px-2 py-1 bg-green-600 text-white rounded text-xs" data-id="${t.id}" data-status="approved">Approve</button>
+                                <button class="tutor-status-btn px-2 py-1 bg-red-600 text-white rounded text-xs" data-id="${t.id}" data-status="rejected">Reject</button>
+                            </div>
+                            ${!t.expelled ? `<button class="tutor-expel-btn px-2 py-1 border border-red-300 text-red-600 rounded text-xs" data-id="${t.id}">Expel</button>` : ''}
                         </div>
                     </td>
                 </tr>
@@ -515,32 +725,36 @@
         }
 
         function requestRowHtml(r) {
+            const preferredIds = (r.preferredTutorIds || []).map(String);
             const matchOptions = allTutors
                 .filter((t) => t.status === 'approved' && t.categories.includes(r.category))
                 .sort((a, b) => {
+                    const aPreferred = preferredIds.includes(String(a.id)) ? 0 : 1;
+                    const bPreferred = preferredIds.includes(String(b.id)) ? 0 : 1;
+                    if (aPreferred !== bPreferred) return aPreferred - bPreferred;
                     const aMatch = r.city && a.city && a.city.toLowerCase() === r.city.toLowerCase() ? 0 : 1;
                     const bMatch = r.city && b.city && b.city.toLowerCase() === r.city.toLowerCase() ? 0 : 1;
                     return aMatch - bMatch;
                 })
-                .map((t) => `<option value="${t.id}" ${String(t.id) === String(r.preferredTutorId) ? 'selected' : ''}>${escapeHtml(t.name)}${t.city ? ' (' + escapeHtml(t.city) + ')' : ''}${t.teachesOnline ? ' [online]' : ''}</option>`)
+                .map((t) => `<option value="${t.id}" ${preferredIds[0] === String(t.id) ? 'selected' : ''}>${preferredIds.includes(String(t.id)) ? '★ ' : ''}${escapeHtml(t.name)}${t.city ? ' (' + escapeHtml(t.city) + ')' : ''}${t.teachesOnline ? ' [online]' : ''}</option>`)
                 .join('');
 
             const matchCell = r.status === 'pending'
                 ? `<div class="flex gap-1">
                         <select class="match-select border border-gray-300 rounded px-2 py-1 text-xs" data-id="${r.id}">
-                            <option value="" disabled ${!r.preferredTutorId ? 'selected' : ''}>Choose tutor...</option>
+                            <option value="" disabled ${!preferredIds.length ? 'selected' : ''}>Choose tutor...</option>
                             ${matchOptions}
                         </select>
                         <button class="assign-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${r.id}">Assign</button>
                    </div>`
                 : r.status === 'active'
-                    ? `<span class="text-sm text-gray-600">${escapeHtml(r.tutorName)}<br><span class="text-xs text-gray-400">${escapeHtml(r.tutorEmail || '')}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</span></span> <button class="end-btn ml-2 text-xs text-red-600 hover:underline" data-id="${r.id}">End</button>`
+                    ? `<span class="text-sm text-gray-600">${escapeHtml(r.tutorName)}<br><span class="text-xs text-gray-400">${escapeHtml(r.tutorEmail || '')}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}${r.matchDistanceKm != null ? ' &middot; ' + r.matchDistanceKm + 'km' : ''}</span></span> <button class="end-btn ml-2 text-xs text-red-600 hover:underline" data-id="${r.id}">End</button>`
                     : '<span class="text-gray-400 text-xs">Ended</span>';
 
             return `
                 <tr>
                     <td class="font-semibold text-gray-800">${escapeHtml(r.studentName)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(r.studentEmail)}${r.phone ? ' &middot; ' + escapeHtml(r.phone) : ''}</span></td>
-                    <td>${escapeHtml(r.category)}</td>
+                    <td>${escapeHtml(r.category)}${r.genre ? '<br><span class="text-xs text-gray-400">' + escapeHtml(r.genre) + '</span>' : ''}${r.desiredLevel ? '<br><span class="text-xs text-gray-400">' + escapeHtml(r.desiredLevel) + '</span>' : ''}</td>
                     <td>${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' + ' : ''}${r.online ? 'Online' : ''}</td>
                     <td class="max-w-xs text-gray-600">${escapeHtml(r.notes || '')}</td>
                     <td>${statusBadge(r.status)}</td>
@@ -586,6 +800,16 @@
                     else showAlert(data.error || 'Failed.', 'error');
                 });
             });
+
+            document.querySelectorAll('.tutor-expel-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('Discontinue this tutor and end all their active assignments?')) return;
+                    const res = await fetch(`/api/admin/tutors/${btn.dataset.id}/expel`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Tutor discontinued.', 'success'); loadTutorsAndRequests(); }
+                    else showAlert(data.error || 'Failed.', 'error');
+                });
+            });
         }
 
         async function loadTutorsAndRequests() {
@@ -600,13 +824,504 @@
             allTutors = tutorsData.tutors;
             document.getElementById('tutors-tbody').innerHTML = allTutors.length
                 ? allTutors.map(tutorRowHtml).join('')
-                : '<tr><td colspan="8" class="text-gray-400 text-center py-4">No tutor applications yet.</td></tr>';
+                : '<tr><td colspan="9" class="text-gray-400 text-center py-4">No tutor applications yet.</td></tr>';
 
             document.getElementById('requests-tbody').innerHTML = requestsData.requests.length
                 ? requestsData.requests.map(requestRowHtml).join('')
                 : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No student requests yet.</td></tr>';
 
             wireTutorEvents();
+        }
+
+        // --- Educator tools: curriculum, evaluations, orientation, reels ---
+        let eduCategories = [];
+
+        function genericQuestionRowHtml(q, qi, namespace) {
+            const options = q.options && q.options.length ? q.options : ['', '', '', ''];
+            return `
+                <div class="border border-gray-200 rounded-lg p-4" data-qindex="${qi}">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-semibold text-gray-400">QUESTION ${qi + 1}</p>
+                        <button class="remove-${namespace}-question-btn text-xs text-red-600 hover:underline" data-qindex="${qi}">Remove</button>
+                    </div>
+                    <input type="text" data-${namespace}field="question" data-qindex="${qi}" value="${escapeHtml(q.question || '')}"
+                           placeholder="Question text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <div class="space-y-2">
+                        ${options.map((opt, oi) => `
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="${namespace}-correct-${qi}" data-${namespace}-correct-index="${oi}" data-qindex="${qi}" ${Number(q.correctIndex) === oi ? 'checked' : ''} class="text-primary-red">
+                                <input type="text" data-${namespace}ofield="option" data-qindex="${qi}" data-oindex="${oi}" value="${escapeHtml(opt || '')}"
+                                       placeholder="Option ${oi + 1}" class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function makeQuizController(namespace, containerId, addBtnId) {
+            const container = document.getElementById(containerId);
+            let questions = [];
+            function render() {
+                container.innerHTML = questions.length
+                    ? questions.map((q, qi) => genericQuestionRowHtml(q, qi, namespace)).join('')
+                    : '<p class="text-gray-400 text-sm">No questions yet.</p>';
+                container.querySelectorAll(`.remove-${namespace}-question-btn`).forEach((btn) => {
+                    btn.addEventListener('click', () => { questions.splice(Number(btn.dataset.qindex), 1); render(); });
+                });
+            }
+            document.getElementById(addBtnId).addEventListener('click', () => {
+                questions.push({ question: '', options: ['', '', '', ''], correctIndex: 0 });
+                render();
+            });
+            return {
+                set: (qs) => { questions = qs; render(); },
+                collect: () => questions.map((_, qi) => {
+                    const options = Array.from(container.querySelectorAll(`[data-${namespace}ofield="option"][data-qindex="${qi}"]`)).map((el) => el.value);
+                    const correctInput = container.querySelector(`[data-${namespace}-correct-index][data-qindex="${qi}"]:checked`);
+                    return {
+                        question: container.querySelector(`[data-${namespace}field="question"][data-qindex="${qi}"]`).value,
+                        options,
+                        correctIndex: correctInput ? Number(correctInput.dataset[`${namespace}CorrectIndex`]) : 0,
+                    };
+                }),
+            };
+        }
+
+        const evalQuiz = makeQuizController('eval', 'eval-editor', 'add-eval-question-btn');
+        const placementQuiz = makeQuizController('placement', 'placement-editor', 'add-placement-question-btn');
+        const orientationQuiz = makeQuizController('orient', 'orientation-quiz-editor', 'add-orientation-question-btn');
+
+        async function loadEduCategory(category) {
+            const [curriculumRes, evalRes, placementRes] = await Promise.all([
+                fetch(`/api/admin/curriculum/${encodeURIComponent(category)}`),
+                fetch(`/api/admin/assessments/teacher-eval/${encodeURIComponent(category)}`),
+                fetch(`/api/admin/assessments/placement/${encodeURIComponent(category)}`),
+            ]);
+            const curriculumData = await curriculumRes.json();
+            const evalData = await evalRes.json();
+            const placementData = await placementRes.json();
+
+            const content = curriculumData.content;
+            document.getElementById('curriculum-title').value = content ? content.title : '';
+            document.getElementById('curriculum-video').value = content ? content.videoUrl : '';
+            document.getElementById('curriculum-notes').value = content ? content.notes : '';
+
+            evalQuiz.set(evalData.questions || []);
+            placementQuiz.set(placementData.questions || []);
+        }
+
+        document.getElementById('edu-category-select').addEventListener('change', (e) => loadEduCategory(e.target.value));
+
+        document.getElementById('save-curriculum-btn').addEventListener('click', async () => {
+            const category = document.getElementById('edu-category-select').value;
+            const res = await fetch(`/api/admin/curriculum/${encodeURIComponent(category)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('curriculum-title').value,
+                    videoUrl: document.getElementById('curriculum-video').value,
+                    notes: document.getElementById('curriculum-notes').value,
+                }),
+            });
+            const data = await res.json();
+            showAlert(data.success ? 'Curriculum saved.' : (data.error || 'Failed.'), data.success ? 'success' : 'error');
+        });
+
+        document.getElementById('save-eval-btn').addEventListener('click', async () => {
+            const category = document.getElementById('edu-category-select').value;
+            const res = await fetch(`/api/admin/assessments/teacher-eval/${encodeURIComponent(category)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questions: evalQuiz.collect() }),
+            });
+            const data = await res.json();
+            if (data.success) { showAlert('Evaluation saved.', 'success'); evalQuiz.set(data.questions); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        document.getElementById('save-placement-btn').addEventListener('click', async () => {
+            const category = document.getElementById('edu-category-select').value;
+            const res = await fetch(`/api/admin/assessments/placement/${encodeURIComponent(category)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questions: placementQuiz.collect() }),
+            });
+            const data = await res.json();
+            if (data.success) { showAlert('Placement quiz saved.', 'success'); placementQuiz.set(data.questions); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        async function loadOrientation() {
+            const res = await fetch('/api/admin/orientation');
+            const data = await res.json();
+            const content = data.content;
+            document.getElementById('orientation-title').value = content ? content.title : '';
+            document.getElementById('orientation-video').value = content ? content.videoUrl : '';
+            document.getElementById('orientation-notes').value = content ? content.notes : '';
+            document.getElementById('orientation-reward').value = (content && content.rewardType) || 'bonus_student';
+            orientationQuiz.set(data.questions || []);
+        }
+
+        document.getElementById('save-orientation-btn').addEventListener('click', async () => {
+            const res = await fetch('/api/admin/orientation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('orientation-title').value,
+                    videoUrl: document.getElementById('orientation-video').value,
+                    notes: document.getElementById('orientation-notes').value,
+                    rewardType: document.getElementById('orientation-reward').value,
+                    questions: orientationQuiz.collect(),
+                }),
+            });
+            const data = await res.json();
+            if (data.success) { showAlert('Orientation saved.', 'success'); orientationQuiz.set(data.questions); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        // --- Reels library ---
+        function reelRowHtml(r) {
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(r.title)}</td>
+                    <td class="max-w-xs truncate"><a href="${escapeHtml(r.url)}" target="_blank" class="text-primary-red hover:underline">${escapeHtml(r.url)}</a></td>
+                    <td>${r.category ? escapeHtml(r.category) : '<span class="text-gray-400">Any</span>'}</td>
+                    <td>${r.genre ? escapeHtml(r.genre) : '<span class="text-gray-400">Any</span>'}</td>
+                    <td>${r.status === 'active' ? '<span class="text-green-600 text-xs font-semibold">Active</span>' : '<span class="text-red-600 text-xs font-semibold">Broken</span>'}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button class="reel-replace-btn px-2 py-1 border border-gray-300 rounded text-xs" data-id="${r.id}">Replace Link</button>
+                            <button class="reel-status-btn px-2 py-1 rounded text-xs ${r.status === 'active' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}" data-id="${r.id}" data-status="${r.status === 'active' ? 'broken' : 'active'}">
+                                Mark ${r.status === 'active' ? 'Broken' : 'Active'}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function loadReels() {
+            const res = await fetch('/api/admin/reels');
+            const data = await res.json();
+            document.getElementById('reels-tbody').innerHTML = data.reels.length
+                ? data.reels.map(reelRowHtml).join('')
+                : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No reels added yet.</td></tr>';
+
+            document.querySelectorAll('.reel-status-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res2 = await fetch(`/api/admin/reels/${btn.dataset.id}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: btn.dataset.status }),
+                    });
+                    const data2 = await res2.json();
+                    if (data2.success) loadReels(); else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
+            document.querySelectorAll('.reel-replace-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const newUrl = prompt('New link for this reel:');
+                    if (!newUrl) return;
+                    const res2 = await fetch(`/api/admin/reels/${btn.dataset.id}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: newUrl }),
+                    });
+                    const data2 = await res2.json();
+                    if (data2.success) { showAlert('Link replaced.', 'success'); loadReels(); } else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
+        }
+
+        document.getElementById('add-reel-btn').addEventListener('click', async () => {
+            const title = document.getElementById('reel-title').value.trim();
+            const url = document.getElementById('reel-url').value.trim();
+            if (!title || !url) { showAlert('Title and link are required.', 'error'); return; }
+            const res = await fetch('/api/admin/reels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title, url,
+                    category: document.getElementById('reel-category').value || null,
+                    genre: document.getElementById('reel-genre').value || null,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Reel added.', 'success');
+                document.getElementById('reel-title').value = '';
+                document.getElementById('reel-url').value = '';
+                loadReels();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        async function loadEducatorTools() {
+            if (!eduCategories.length) {
+                const [catRes, taxRes] = await Promise.all([fetch('/api/categories'), fetch('/api/taxonomy')]);
+                const catData = await catRes.json();
+                const taxData = await taxRes.json();
+                eduCategories = catData.categories;
+                document.getElementById('edu-category-select').innerHTML = eduCategories.map((c) => `<option value="${c}">${c}</option>`).join('');
+                document.getElementById('reel-category').innerHTML += eduCategories.map((c) => `<option value="${c}">${c}</option>`).join('');
+                document.getElementById('reel-genre').innerHTML += taxData.genres.map((g) => `<option value="${g}">${g}</option>`).join('');
+                loadEduCategory(eduCategories[0]);
+                loadOrientation();
+            }
+            loadReels();
+        }
+
+        // --- Activity & flags ---
+        function flaggedTutorRowHtml(t) {
+            const avg = t.ratingCount ? (t.ratingSum / t.ratingCount).toFixed(1) : '-';
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}</span></td>
+                    <td>${avg} (${t.ratingCount})</td>
+                    <td>${t.flaggedAt ? new Date(t.flaggedAt).toLocaleDateString() : ''}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button class="clear-tutor-flag-btn px-2 py-1 border border-gray-300 rounded text-xs" data-id="${t.id}">Clear Flag</button>
+                            <button class="tutor-expel-btn px-2 py-1 border border-red-300 text-red-600 rounded text-xs" data-id="${t.id}">Expel</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function flaggedStudentRowHtml(u) {
+            const avg = u.rating.count ? (u.rating.sum / u.rating.count).toFixed(1) : '-';
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(u.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(u.email)}</span></td>
+                    <td>${avg} (${u.rating.count})</td>
+                    <td>${u.rating.flaggedAt ? new Date(u.rating.flaggedAt).toLocaleDateString() : ''}</td>
+                    <td><button class="clear-student-flag-btn px-2 py-1 border border-gray-300 rounded text-xs" data-id="${u.id}">Clear Flag</button></td>
+                </tr>
+            `;
+        }
+
+        function activityRowHtml(s) {
+            return `
+                <tr>
+                    <td class="text-gray-500">${new Date(s.loggedAt).toLocaleDateString()}</td>
+                    <td>${escapeHtml(s.category)}</td>
+                    <td>${escapeHtml(s.tutorName || '')}</td>
+                    <td>${escapeHtml(s.studentName || '')}</td>
+                    <td class="max-w-xs text-gray-600">${escapeHtml(s.assignmentText || '')}</td>
+                    <td>${s.studentRating ? `<i class="fa-solid fa-star text-amber-500"></i> ${s.studentRating.score}` : '<span class="text-gray-400 text-xs">Not yet</span>'}</td>
+                    <td>${s.tutorRating ? `<i class="fa-solid fa-star text-amber-500"></i> ${s.tutorRating.score}` : '<span class="text-gray-400 text-xs">Not yet</span>'}</td>
+                </tr>
+            `;
+        }
+
+        async function loadActivityAndFlags() {
+            const [flaggedRes, activityRes] = await Promise.all([
+                fetch('/api/admin/flagged'),
+                fetch('/api/admin/activity'),
+            ]);
+            const flaggedData = await flaggedRes.json();
+            const activityData = await activityRes.json();
+
+            document.getElementById('flagged-tutors-tbody').innerHTML = flaggedData.tutors.length
+                ? flaggedData.tutors.map(flaggedTutorRowHtml).join('')
+                : '<tr><td colspan="4" class="text-gray-400 text-center py-3">No flagged tutors.</td></tr>';
+            document.getElementById('flagged-students-tbody').innerHTML = flaggedData.students.length
+                ? flaggedData.students.map(flaggedStudentRowHtml).join('')
+                : '<tr><td colspan="4" class="text-gray-400 text-center py-3">No flagged students.</td></tr>';
+            document.getElementById('activity-tbody').innerHTML = activityData.sessions.length
+                ? activityData.sessions.map(activityRowHtml).join('')
+                : '<tr><td colspan="7" class="text-gray-400 text-center py-3">No lessons logged yet.</td></tr>';
+
+            document.querySelectorAll('.clear-tutor-flag-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/tutors/${btn.dataset.id}/clear-flag`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Flag cleared.', 'success'); loadActivityAndFlags(); }
+                });
+            });
+            document.querySelectorAll('.clear-student-flag-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/users/${btn.dataset.id}/clear-flag`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Flag cleared.', 'success'); loadActivityAndFlags(); }
+                });
+            });
+            document.querySelectorAll('.tutor-expel-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('Discontinue this tutor and end all their active assignments?')) return;
+                    const res = await fetch(`/api/admin/tutors/${btn.dataset.id}/expel`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Tutor discontinued.', 'success'); loadActivityAndFlags(); }
+                });
+            });
+        }
+
+        // --- Analytics ---
+        function formatUsd(n) {
+            return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        }
+        function compactUsd(n) {
+            if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+            if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'K';
+            return '$' + Math.round(n);
+        }
+        function truncateText(text, n) {
+            return text.length > n ? text.slice(0, n - 1) + '…' : text;
+        }
+        function niceCeil(v) {
+            if (v <= 0) return 10;
+            const mag = Math.pow(10, Math.floor(Math.log10(v)));
+            const norm = v / mag;
+            const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+            return niceNorm * mag;
+        }
+
+        function renderRevenueChart(revenueByDay) {
+            const wrap = document.getElementById('revenue-chart-wrap');
+            const W = 800, H = 220, padL = 54, padR = 20, padT = 20, padB = 24;
+            const plotW = W - padL - padR, plotH = H - padT - padB;
+            const values = revenueByDay.map((d) => d.amountUsd);
+            const niceMax = niceCeil(Math.max(...values));
+            const xFor = (i) => padL + (i / (revenueByDay.length - 1)) * plotW;
+            const yFor = (v) => padT + plotH - (v / niceMax) * plotH;
+            const points = revenueByDay.map((d, i) => [xFor(i), yFor(d.amountUsd)]);
+            const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+            const baseline = (padT + plotH).toFixed(1);
+            const areaPath = `${linePath} L${xFor(revenueByDay.length - 1).toFixed(1)},${baseline} L${xFor(0).toFixed(1)},${baseline} Z`;
+
+            let gridlines = '';
+            const steps = 4;
+            for (let s = 0; s <= steps; s++) {
+                const v = niceMax * s / steps;
+                const y = yFor(v);
+                gridlines += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>`;
+                gridlines += `<text x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#9ca3af">${escapeHtml(compactUsd(v))}</text>`;
+            }
+
+            const last = points[points.length - 1];
+            const lastVal = values[values.length - 1];
+
+            wrap.innerHTML = `
+                <svg viewBox="0 0 ${W} ${H}" class="w-full h-56" id="revenue-svg">
+                    ${gridlines}
+                    <path d="${areaPath}" fill="#E02126" opacity="0.1" stroke="none"/>
+                    <path d="${linePath}" fill="none" stroke="#E02126" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4" fill="#E02126" stroke="#fff" stroke-width="2"/>
+                    <text x="${(last[0] - 4).toFixed(1)}" y="${(last[1] - 10).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#1F2937">${escapeHtml(compactUsd(lastVal))}</text>
+                    <line id="crosshair" x1="0" y1="${padT}" x2="0" y2="${padT + plotH}" stroke="#9ca3af" stroke-width="1" style="display:none"/>
+                    <circle id="crosshair-dot" r="5" fill="#E02126" stroke="#fff" stroke-width="2" style="display:none"/>
+                    <rect id="hover-target" x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="transparent"/>
+                </svg>
+                <div id="revenue-tooltip" class="hidden absolute pointer-events-none bg-gray-900 text-white text-xs rounded px-2 py-1.5 whitespace-nowrap z-10" style="transform: translate(-50%, -130%);"></div>
+            `;
+
+            const svg = document.getElementById('revenue-svg');
+            const hoverTarget = document.getElementById('hover-target');
+            const crosshair = document.getElementById('crosshair');
+            const crosshairDot = document.getElementById('crosshair-dot');
+            const tooltip = document.getElementById('revenue-tooltip');
+
+            function handleMove(clientX) {
+                const rect = svg.getBoundingClientRect();
+                const svgX = (clientX - rect.left) * (W / rect.width);
+                let idx = Math.round(((svgX - padL) / plotW) * (revenueByDay.length - 1));
+                idx = Math.max(0, Math.min(revenueByDay.length - 1, idx));
+                const px = xFor(idx), py = yFor(values[idx]);
+                crosshair.setAttribute('x1', px); crosshair.setAttribute('x2', px);
+                crosshair.style.display = 'block';
+                crosshairDot.setAttribute('cx', px); crosshairDot.setAttribute('cy', py);
+                crosshairDot.style.display = 'block';
+                tooltip.style.left = `${(px / W) * 100}%`;
+                tooltip.style.top = `${(py / H) * 100}%`;
+                tooltip.textContent = `${revenueByDay[idx].date}: ${formatUsd(values[idx])}`;
+                tooltip.classList.remove('hidden');
+            }
+            hoverTarget.addEventListener('pointermove', (e) => handleMove(e.clientX));
+            hoverTarget.addEventListener('pointerleave', () => {
+                crosshair.style.display = 'none';
+                crosshairDot.style.display = 'none';
+                tooltip.classList.add('hidden');
+            });
+        }
+
+        function renderTopCoursesChart(topCourses) {
+            const container = document.getElementById('top-courses-chart');
+            const noData = document.getElementById('no-course-sales');
+            if (!topCourses.length) { container.innerHTML = ''; noData.classList.remove('hidden'); return; }
+            noData.classList.add('hidden');
+
+            const maxVal = Math.max(...topCourses.map((c) => c.enrollments));
+            const barH = 22, gap = 12, labelW = 150, chartW = 340;
+            const rowH = barH + gap;
+            const H = topCourses.length * rowH;
+            const W = labelW + chartW + 50;
+
+            const bars = topCourses.map((c, i) => {
+                const y = i * rowH;
+                const barW = Math.max(6, (c.enrollments / maxVal) * chartW);
+                return `
+                    <text x="${labelW - 8}" y="${y + barH / 2 + 4}" text-anchor="end" font-size="12" fill="#374151">${escapeHtml(truncateText(c.title, 20))}</text>
+                    <rect x="${labelW}" y="${y}" width="${barW.toFixed(1)}" height="${barH}" rx="4" fill="#E02126">
+                        <title>${escapeHtml(c.title)}: ${c.enrollments} enrollment${c.enrollments === 1 ? '' : 's'}</title>
+                    </rect>
+                    <text x="${labelW + barW + 8}" y="${y + barH / 2 + 4}" font-size="12" font-weight="600" fill="#1F2937">${c.enrollments}</text>
+                `;
+            }).join('');
+
+            container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="height:${H}px" class="w-full">${bars}</svg>`;
+        }
+
+        function renderTutorLeaderboard(list) {
+            const container = document.getElementById('tutor-leaderboard');
+            const noData = document.getElementById('no-tutor-ratings');
+            if (!list.length) { container.innerHTML = ''; noData.classList.remove('hidden'); return; }
+            noData.classList.add('hidden');
+
+            const maxLessons = Math.max(1, ...list.map((t) => t.lessonsCompletedCount));
+            container.innerHTML = list.map((t, i) => `
+                <div class="flex items-center gap-3 py-2.5 ${i < list.length - 1 ? 'border-b border-gray-100' : ''}">
+                    <span class="text-sm font-bold text-gray-400 w-5">${i + 1}</span>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between mb-1 gap-2">
+                            <p class="font-semibold text-gray-800 text-sm truncate">${escapeHtml(t.name)}</p>
+                            <span class="text-amber-600 text-xs font-semibold shrink-0"><i class="fa-solid fa-star"></i> ${t.avgRating.toFixed(1)} (${t.ratingCount})</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-primary-red rounded-full" style="width:${Math.max(4, (t.lessonsCompletedCount / maxLessons) * 100)}%"></div>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-400 shrink-0">${t.lessonsCompletedCount} lessons</span>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('revenue-table-toggle').addEventListener('click', () => {
+            const chart = document.getElementById('revenue-chart-wrap');
+            const table = document.getElementById('revenue-table-wrap');
+            const showingTable = table.classList.contains('hidden');
+            chart.classList.toggle('hidden', showingTable);
+            table.classList.toggle('hidden', !showingTable);
+            document.getElementById('revenue-table-toggle').textContent = showingTable ? 'View as chart' : 'View as table';
+        });
+
+        async function loadAnalytics() {
+            const res = await fetch('/api/admin/analytics');
+            const data = await res.json();
+            if (!data.success) return;
+
+            document.getElementById('stat-total-revenue').textContent = compactUsd(data.stats.totalRevenueUsd);
+            document.getElementById('stat-revenue-30d').textContent = compactUsd(data.stats.revenue30dUsd);
+            document.getElementById('stat-total-users').textContent = data.stats.totalUsers.toLocaleString();
+            document.getElementById('stat-active-tutors').textContent = data.stats.activeTutors.toLocaleString();
+            document.getElementById('stat-lessons-logged').textContent = data.stats.lessonsLogged.toLocaleString();
+
+            renderRevenueChart(data.revenueByDay);
+            renderTopCoursesChart(data.topCourses);
+            renderTutorLeaderboard(data.tutorLeaderboard);
+
+            document.getElementById('revenue-tbody').innerHTML = data.revenueByDay
+                .map((d) => `<tr><td>${d.date}</td><td>${formatUsd(d.amountUsd)}</td></tr>`).join('');
         }
 
         loadCourses();

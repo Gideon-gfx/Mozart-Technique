@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Profile - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        .chip { display: inline-flex; align-items: center; padding: .3rem .75rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+            </div>
+            <a href="/find-tutor" class="text-gray-600 hover:text-primary-red font-medium">Back to Find a Tutor</a>
+        </nav>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-start gap-6">
+                <div id="avatar" class="w-20 h-20 shrink-0 rounded-full bg-primary-red text-white font-bold text-2xl flex items-center justify-center"></div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <h1 id="tutor-name" class="text-2xl font-bold text-gray-800"></h1>
+                        <span id="tutor-rate" class="text-primary-red font-extrabold text-xl"></span>
+                    </div>
+                    <div id="tutor-rating" class="flex items-center gap-3 text-sm mb-3"></div>
+                    <div id="tutor-tags" class="flex flex-wrap gap-1.5 mb-4"></div>
+                    <p id="tutor-bio" class="text-gray-600 mb-4"></p>
+                    <button id="request-btn" class="inline-flex items-center justify-center px-6 py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                        Request This Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-2">Qualifications</h2>
+            <p id="tutor-qualifications" class="text-gray-600 whitespace-pre-wrap"></p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">Student Reviews</h2>
+            <div id="reviews-list" class="space-y-4"></div>
+            <p id="no-reviews" class="hidden text-gray-400 text-sm">No written reviews yet.</p>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+        function initials(name) {
+            return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        }
+
+        const venueLabels = { student_location: 'Travels to student', tutor_studio: "At tutor's studio", either: 'Either venue' };
+        const tutorId = window.location.pathname.split('/').filter(Boolean).pop();
+
+        async function load() {
+            const res = await fetch(`/api/tutors/${tutorId}/public`);
+            const data = await res.json();
+            if (!data.success) { showAlert(data.error || 'Tutor not found.', 'error'); return; }
+
+            const t = data.tutor;
+            document.title = `${t.name} - Mozart Technique`;
+            document.getElementById('avatar').textContent = initials(t.name);
+            document.getElementById('tutor-name').textContent = t.name;
+            document.getElementById('tutor-rate').textContent = `${t.symbol}${t.hourlyRateLocal}/hr`;
+
+            document.getElementById('tutor-rating').innerHTML = t.avgRating != null
+                ? `<span class="text-amber-600 font-semibold"><i class="fa-solid fa-star"></i> ${t.avgRating.toFixed(1)}</span>
+                   <span class="text-gray-400">(${t.ratingCount} rating${t.ratingCount === 1 ? '' : 's'})</span>
+                   ${t.avgProfessionalism != null ? `<span class="text-gray-500">Professionalism ${t.avgProfessionalism.toFixed(1)}/5</span>` : ''}
+                   <span class="text-gray-400">${t.lessonsCompletedCount || 0} lesson${t.lessonsCompletedCount === 1 ? '' : 's'} taught</span>`
+                : `<span class="text-gray-400">Not yet rated</span> <span class="text-gray-400">${t.lessonsCompletedCount || 0} lessons taught</span>`;
+
+            const tags = [
+                ...t.categories.map((c) => `<span class="chip bg-red-50 text-primary-red">${escapeHtml(c)}</span>`),
+                ...t.genres.map((g) => `<span class="chip bg-blue-50 text-blue-700">${escapeHtml(g)}</span>`),
+                t.city ? `<span class="chip bg-gray-100 text-gray-600"><i class="fa-solid fa-location-dot mr-1"></i>${escapeHtml(t.city)}${t.inPersonVenue ? ' · ' + venueLabels[t.inPersonVenue] : ''}</span>` : '',
+                t.teachesOnline ? `<span class="chip bg-green-50 text-green-700"><i class="fa-solid fa-globe mr-1"></i>Online</span>` : '',
+                t.orientationCompleted ? `<span class="chip bg-yellow-50 text-yellow-700"><i class="fa-solid fa-shield-check mr-1"></i>Onboarded</span>` : '',
+            ].filter(Boolean).join('');
+            document.getElementById('tutor-tags').innerHTML = tags;
+
+            document.getElementById('tutor-bio').textContent = t.bio || 'This tutor has not added a bio yet.';
+            document.getElementById('tutor-qualifications').textContent = t.qualifications || 'No qualifications listed.';
+
+            document.getElementById('request-btn').addEventListener('click', () => {
+                window.location.href = `/find-tutor?category=${encodeURIComponent(t.categories[0] || '')}&tutorId=${t.id}`;
+            });
+
+            const reviews = data.reviews || [];
+            if (!reviews.length) {
+                document.getElementById('no-reviews').classList.remove('hidden');
+            } else {
+                document.getElementById('reviews-list').innerHTML = reviews.map((r) => `
+                    <div class="border-b border-gray-100 pb-4">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="font-semibold text-gray-800">${escapeHtml(r.studentFirstName)} <span class="text-xs text-gray-400 font-normal">&middot; ${escapeHtml(r.category)}</span></p>
+                            <span class="text-amber-600 text-sm font-semibold"><i class="fa-solid fa-star"></i> ${r.score}</span>
+                        </div>
+                        <p class="text-gray-600 text-sm">${escapeHtml(r.comment)}</p>
+                        <p class="text-xs text-gray-400 mt-1">${new Date(r.ratedAt).toLocaleDateString()}</p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        load();
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

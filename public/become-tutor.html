@@ -48,6 +48,7 @@
             <i class="fa-solid fa-chalkboard-user text-primary-red text-4xl mb-4"></i>
             <h1 class="text-2xl font-bold text-gray-800 mb-2">You've Already Applied</h1>
             <p id="applied-status" class="text-gray-500 mb-6"></p>
+            <div id="applied-actions" class="flex flex-wrap gap-3 justify-center mb-4"></div>
             <a href="/dashboard" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
                 Back to Dashboard
             </a>
@@ -60,28 +61,47 @@
             <label class="block text-sm font-semibold text-gray-600 mb-2">Subjects you can teach</label>
             <div id="category-chips" class="flex flex-wrap gap-2 mb-5"></div>
 
+            <label class="block text-sm font-semibold text-gray-600 mb-2">Genres you teach</label>
+            <div id="genre-chips" class="flex flex-wrap gap-2 mb-5"></div>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-2">Age groups you teach</label>
+            <div id="age-group-chips" class="flex flex-wrap gap-2 mb-5"></div>
+
             <label class="block text-sm font-semibold text-gray-600 mb-2">Levels you're comfortable teaching</label>
-            <div class="flex flex-wrap gap-2 mb-5">
-                <input type="checkbox" id="level-beginner" value="Beginner" class="chip-checkbox">
-                <label for="level-beginner" class="chip-label">Beginner</label>
-                <input type="checkbox" id="level-intermediate" value="Intermediate" class="chip-checkbox">
-                <label for="level-intermediate" class="chip-label">Intermediate</label>
-                <input type="checkbox" id="level-professional" value="Professional" class="chip-checkbox">
-                <label for="level-professional" class="chip-label">Professional</label>
-            </div>
+            <p class="text-xs text-gray-400 mb-2">This is your starting point - after applying, you'll take a short qualification evaluation per subject that officially unlocks the levels you may teach.</p>
+            <div id="level-chips" class="flex flex-wrap gap-2 mb-5"></div>
 
             <label class="block text-sm font-semibold text-gray-600 mb-2">How do you teach?</label>
-            <p class="text-xs text-gray-400 mb-2">Fill in a city to offer in-person lessons there, check the box to also (or only) offer lessons online. At least one is required.</p>
+            <p class="text-xs text-gray-400 mb-2">Fill in your address to offer in-person lessons there, check the box to also (or only) offer lessons online. At least one is required.</p>
             <div class="grid sm:grid-cols-2 gap-4 mb-2">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">City (for in-person lessons)</label>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Address / City (for in-person lessons)</label>
+                    <input id="address" type="text" placeholder="e.g. 12 Allen Avenue, Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <p class="text-xs text-gray-400 mt-1">Used to match you with students within your commute radius - not shown publicly.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">City (shown to students)</label>
                     <input id="city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4 mb-2">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Commute radius (km)</label>
+                    <input id="commute-radius" type="number" min="1" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
                     <input id="phone" type="text" placeholder="Shown only to matched students" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
             </div>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">For in-person lessons, where do they happen?</label>
+            <select id="in-person-venue" class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg">
+                <option value="either">Either - student's home or my studio</option>
+                <option value="student_location">I travel to the student</option>
+                <option value="tutor_studio">Student comes to my studio</option>
+            </select>
 
             <div class="flex items-center gap-2 mb-5">
                 <input type="checkbox" id="teaches-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
@@ -102,6 +122,14 @@
             <label class="block text-sm font-semibold text-gray-600 mb-1">Qualifications</label>
             <textarea id="qualifications" rows="3" placeholder="Degrees, certifications, notable performances or students taught..."
                       class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Certificate (image or PDF, optional)</label>
+            <div class="flex items-center gap-3 mb-1">
+                <input type="file" id="certificate-file" accept="image/*,application/pdf" class="text-sm flex-1">
+                <span id="certificate-status" class="text-xs text-gray-400 shrink-0"></span>
+            </div>
+            <input type="hidden" id="certificate-url" value="">
+            <p class="text-xs text-gray-400 mb-5">Upload a degree, certification, or other proof of qualification for admin review.</p>
 
             <label class="block text-sm font-semibold text-gray-600 mb-1">Short bio (shown to students)</label>
             <textarea id="bio" rows="3" placeholder="Tell prospective students about your teaching style..."
@@ -132,6 +160,46 @@
             `).join('');
         }
 
+        async function loadTaxonomy() {
+            const res = await fetch('/api/taxonomy');
+            const data = await res.json();
+            document.getElementById('genre-chips').innerHTML = data.genres.map((g, i) => `
+                <input type="checkbox" id="genre-${i}" value="${g}" class="chip-checkbox">
+                <label for="genre-${i}" class="chip-label">${g}</label>
+            `).join('');
+            document.getElementById('age-group-chips').innerHTML = data.ageGroups.map((a, i) => `
+                <input type="checkbox" id="age-${i}" value="${a.id}" class="chip-checkbox">
+                <label for="age-${i}" class="chip-label">${a.label}</label>
+            `).join('');
+            document.getElementById('level-chips').innerHTML = data.levels.map((lvl, i) => `
+                <input type="checkbox" id="lvl-${i}" value="${lvl}" class="chip-checkbox">
+                <label for="lvl-${i}" class="chip-label">${lvl}</label>
+            `).join('');
+        }
+
+        document.getElementById('certificate-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('certificate-status');
+            statusEl.textContent = 'Uploading...';
+            const formData = new FormData();
+            formData.append('certificate', file);
+            try {
+                const res = await fetch('/api/uploads/certificate', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('certificate-url').value = data.url;
+                    statusEl.textContent = 'Uploaded.';
+                } else {
+                    statusEl.textContent = '';
+                    showAlert(data.error || 'Upload failed.', 'error');
+                }
+            } catch {
+                statusEl.textContent = '';
+                showAlert('Upload failed.', 'error');
+            }
+        });
+
         async function checkExisting() {
             const res = await fetch('/api/tutors/me');
             const data = await res.json();
@@ -142,6 +210,14 @@
                     rejected: 'Your application was not approved this time.',
                 }[data.profile.status];
                 document.getElementById('applied-status').textContent = statusText;
+                const actions = [];
+                if (!data.profile.orientationCompleted) {
+                    actions.push('<a href="/orientation" class="inline-flex items-center justify-center px-5 py-2.5 bg-primary-dark text-white font-semibold rounded-lg text-sm hover:bg-gray-700 transition">Complete Orientation</a>');
+                }
+                data.profile.categories.forEach((cat) => {
+                    actions.push(`<a href="/tutor-evaluation?category=${encodeURIComponent(cat)}" class="inline-flex items-center justify-center px-5 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-lg text-sm hover:border-primary-red hover:text-primary-red transition">Evaluation: ${cat}</a>`);
+                });
+                document.getElementById('applied-actions').innerHTML = actions.join('');
                 document.getElementById('already-applied').classList.remove('hidden');
             } else {
                 document.getElementById('tutor-form').classList.remove('hidden');
@@ -151,19 +227,25 @@
         document.getElementById('tutor-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const categories = Array.from(document.querySelectorAll('#category-chips input:checked')).map((el) => el.value);
-            const levels = Array.from(document.querySelectorAll('#level-beginner:checked, #level-intermediate:checked, #level-professional:checked')).map((el) => el.value);
+            const genres = Array.from(document.querySelectorAll('#genre-chips input:checked')).map((el) => el.value);
+            const ageGroups = Array.from(document.querySelectorAll('#age-group-chips input:checked')).map((el) => el.value);
+            const levels = Array.from(document.querySelectorAll('#level-chips input:checked')).map((el) => el.value);
 
             const res = await fetch('/api/tutors/apply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    categories, levels,
+                    categories, levels, genres, ageGroups,
                     city: document.getElementById('city').value.trim(),
+                    address: document.getElementById('address').value.trim(),
+                    commuteRadiusKm: document.getElementById('commute-radius').value,
+                    inPersonVenue: document.getElementById('in-person-venue').value,
                     phone: document.getElementById('phone').value.trim(),
                     teachesOnline: document.getElementById('teaches-online').checked,
                     experienceYears: document.getElementById('experience').value,
                     hourlyRateUsd: document.getElementById('rate').value,
                     qualifications: document.getElementById('qualifications').value.trim(),
+                    certificateUrl: document.getElementById('certificate-url').value,
                     bio: document.getElementById('bio').value.trim(),
                 }),
             });
@@ -177,6 +259,7 @@
         });
 
         loadCategories();
+        loadTaxonomy();
         checkExisting();
     </script>
     <script src="assets/mobile-nav.js"></script>

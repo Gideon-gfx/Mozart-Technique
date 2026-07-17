@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate - Mozart Technique</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937', 'gold': '#C9A227' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f0f0f0; }
+        .cert-frame {
+            background: #fff;
+            border: 10px solid #1F2937;
+            outline: 2px solid #C9A227;
+            outline-offset: -18px;
+            position: relative;
+        }
+        .cert-title { font-family: 'Playfair Display', serif; }
+        .cert-seal {
+            width: 90px; height: 90px; border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #E02126, #7e0e14);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.25);
+        }
+        @media print {
+            body { background: #fff; }
+            .no-print { display: none !important; }
+            .cert-frame { border-color: #1F2937 !important; box-shadow: none !important; margin: 0 !important; }
+            @page { size: landscape; margin: 0.4in; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="no-print sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+            </div>
+            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
+        </nav>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        <div id="not-found" class="hidden bg-white rounded-2xl shadow-lg p-10 text-center">
+            <i class="fa-solid fa-circle-question text-primary-red text-4xl mb-4"></i>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Certificate Not Found</h1>
+            <p class="text-gray-500">This verification code doesn't match any issued certificate.</p>
+        </div>
+
+        <div id="cert-section" class="hidden">
+            <div class="cert-frame rounded-lg shadow-2xl p-10 sm:p-16 text-center">
+                <p class="text-xs tracking-[0.3em] text-gray-400 font-semibold mb-6">MOZART TECHNIQUE &middot; CERTIFICATE OF COMPLETION</p>
+                <div class="cert-seal mx-auto mb-6">
+                    <i class="fa-solid fa-music text-2xl"></i>
+                </div>
+                <h1 class="cert-title text-2xl sm:text-4xl font-bold text-gray-800 mb-2">Certificate of Completion</h1>
+                <p class="text-gray-500 mb-8">This certifies that</p>
+                <p id="cert-name" class="cert-title text-3xl sm:text-5xl font-bold text-primary-red mb-8"></p>
+                <p class="text-gray-500 mb-2">has successfully completed</p>
+                <p id="cert-course" class="text-xl sm:text-2xl font-bold text-gray-800 mb-8"></p>
+                <div class="flex items-center justify-center gap-8 text-sm text-gray-500 mb-2">
+                    <span id="cert-date"></span>
+                    <span id="cert-level"></span>
+                </div>
+                <p class="text-xs text-gray-400 mt-6">Verification code: <span id="cert-code" class="font-mono"></span></p>
+            </div>
+
+            <div class="no-print flex justify-center gap-3 mt-6">
+                <button id="print-btn" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                    <i class="fa-solid fa-download mr-2"></i> Download / Print
+                </button>
+                <button id="copy-link-btn" class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-600 font-semibold rounded-lg hover:border-primary-red hover:text-primary-red transition duration-150">
+                    <i class="fa-solid fa-link mr-2"></i> Copy Verification Link
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        const code = window.location.pathname.split('/').filter(Boolean).pop();
+
+        async function load() {
+            const res = await fetch(`/api/certificate/${code}`);
+            const data = await res.json();
+            if (!data.success) {
+                document.getElementById('not-found').classList.remove('hidden');
+                return;
+            }
+            const c = data.certificate;
+            document.getElementById('cert-name').textContent = c.userName;
+            document.getElementById('cert-course').textContent = c.courseTitle;
+            document.getElementById('cert-date').textContent = new Date(c.issuedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('cert-level').textContent = `${c.category} · ${c.level}`;
+            document.getElementById('cert-code').textContent = c.code;
+            document.title = `${c.userName}'s Certificate - ${c.courseTitle}`;
+            document.getElementById('cert-section').classList.remove('hidden');
+        }
+
+        document.getElementById('print-btn').addEventListener('click', () => window.print());
+        document.getElementById('copy-link-btn').addEventListener('click', async () => {
+            await navigator.clipboard.writeText(window.location.href);
+            showAlert('Link copied.', 'success');
+        });
+
+        load();
+    </script>
+</body>
+</html>
