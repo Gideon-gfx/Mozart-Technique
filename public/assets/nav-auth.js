@@ -62,6 +62,21 @@
         transition: background-color .15s ease;
       }
       .mt-auth-menu a:hover, .mt-auth-menu button:hover { background: #f5f5f5; }
+
+      /* Unread-message indicators: a dot on the avatar (visible from any
+         page without opening the menu) and an exact count inside it. */
+      .mt-auth-avatar-btn { position: relative; }
+      .mt-unread-dot {
+        position: absolute; top: -1px; right: -1px;
+        width: 12px; height: 12px; border-radius: 999px;
+        background: #cc0000; border: 2px solid #fff;
+      }
+      .mt-unread-dot[hidden], .mt-unread-pill[hidden] { display: none; }
+      .mt-unread-pill {
+        margin-left: auto; min-width: 20px; padding: 1px 6px;
+        border-radius: 999px; background: #cc0000; color: #fff;
+        font-size: .72rem; font-weight: 700; text-align: center;
+      }
       .mt-auth-menu button[data-mt-logout] { color: #B91C1C; }
     `;
     document.head.appendChild(style);
@@ -89,10 +104,11 @@
 
     target.innerHTML = `
       <div class="mt-auth-wrap">
-        <button type="button" class="mt-auth-avatar-btn" data-mt-toggle aria-label="Account menu">${avatarInner}</button>
+        <button type="button" class="mt-auth-avatar-btn" data-mt-toggle aria-label="Account menu">${avatarInner}<span class="mt-unread-dot" data-mt-unread hidden></span></button>
         <div class="mt-auth-menu" data-mt-menu>
           <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+          <a href="/dashboard#messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${adminLink}
           ${tutorLink}
           <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
@@ -112,6 +128,40 @@
       await fetch('/api/logout', { method: 'POST' });
       window.location.href = '/home';
     });
+
+    startUnreadPolling(target);
+  }
+
+  // Keeps the unread badge honest across pages. Polled rather than pushed:
+  // the chat socket only exists on the chat page, and a 30s badge refresh
+  // is plenty for something the email notification already backstops. Skips
+  // work entirely while the tab is hidden.
+  function startUnreadPolling(target) {
+    const dot = target.querySelector('[data-mt-unread]');
+    const pill = target.querySelector('[data-mt-unread-count]');
+    const link = target.querySelector('[data-mt-messages]');
+    if (!dot || !pill) return;
+
+    async function refresh() {
+      if (document.hidden) return;
+      try {
+        const data = await fetch('/api/messages/unread-count').then((r) => r.json());
+        if (!data.success) return;
+        const total = data.total || 0;
+        dot.hidden = total === 0;
+        pill.hidden = total === 0;
+        pill.textContent = total > 99 ? '99+' : String(total);
+        // With exactly one unread thread, send them straight into it
+        // instead of to the dashboard to hunt for it.
+        if (link && data.threads && data.threads.length === 1) {
+          link.href = `/chat/${data.threads[0].assignmentId}`;
+        }
+      } catch (e) { /* offline - leave the badge as-is */ }
+    }
+
+    refresh();
+    setInterval(refresh, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   }
 
   // Once someone already has a tutor profile, every "Become a Tutor"

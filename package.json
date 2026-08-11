@@ -22,7 +22,8 @@
     "googleapis": "^174.0.1",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
-    "stripe": "^22.4.0"
+    "stripe": "^22.4.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

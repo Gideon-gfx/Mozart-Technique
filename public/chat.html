@@ -43,6 +43,7 @@
     <main class="max-w-3xl mx-auto px-4 sm:px-6 py-4">
         <div class="bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
             <div id="chat-body" class="chat-body overflow-y-auto p-4 space-y-3"></div>
+            <p id="typing-indicator" class="hidden px-4 pb-1 text-xs text-gray-400 italic" aria-live="polite"></p>
 
             <div id="library-panel" class="hidden border-t border-gray-100 p-3 max-h-40 overflow-y-auto"></div>
 
@@ -73,8 +74,16 @@
 
         const assignmentId = window.location.pathname.split('/').filter(Boolean).pop();
         let myRole = null;
+        let myName = '';
         let lastMessageId = 0;
         let pickedLibraryItem = null;
+
+        // Own display name, used only to label the typing indicator on the
+        // other side ("Gideon is typing…").
+        fetch('/api/session')
+            .then((r) => r.json())
+            .then((d) => { if (d.user) myName = (d.user.name || '').split(' ')[0]; })
+            .catch(() => { /* indicator falls back to "They" */ });
 
         async function loadCounterpart() {
             const res = await fetch('/api/my-assignments');
@@ -173,12 +182,71 @@
             }
         });
 
+        // --- Real-time delivery -----------------------------------------
+        // The socket only pushes messages that the REST layer already saved,
+        // so this is purely about latency. A slow poll stays running as a
+        // safety net for a dropped/blocked socket, which is why a missed
+        // push still surfaces within a few seconds instead of never.
+        let socket = null;
+        let reconnectDelay = 1000;
+        let typingTimer = null;
+
+        function showTyping(name, isTyping) {
+            const el = document.getElementById('typing-indicator');
+            if (!el) return;
+            el.textContent = isTyping ? `${name || 'They'} is typing…` : '';
+            el.classList.toggle('hidden', !isTyping);
+        }
+
+        function connectSocket() {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(`${proto}//${window.location.host}/ws/chat`);
+
+            socket.addEventListener('open', () => {
+                reconnectDelay = 1000;
+                socket.send(JSON.stringify({ type: 'join', assignmentId: Number(assignmentId) }));
+            });
+
+            socket.addEventListener('message', (event) => {
+                let msg;
+                try { msg = JSON.parse(event.data); } catch { return; }
+                if (msg.type === 'message' && String(msg.assignmentId) === String(assignmentId)) {
+                    // Re-fetch rather than appending the pushed object: that
+                    // keeps read-receipts/ordering owned by the server and
+                    // avoids rendering a duplicate of a message we just sent.
+                    loadMessages();
+                } else if (msg.type === 'typing') {
+                    showTyping(msg.name, msg.isTyping);
+                    clearTimeout(typingTimer);
+                    if (msg.isTyping) typingTimer = setTimeout(() => showTyping('', false), 4000);
+                }
+            });
+
+            // Exponential backoff, capped, so a server restart reconnects
+            // quickly but a sustained outage doesn't hammer it.
+            socket.addEventListener('close', () => {
+                setTimeout(connectSocket, reconnectDelay);
+                reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+            });
+            socket.addEventListener('error', () => { try { socket.close(); } catch (e) { /* already closing */ } });
+        }
+
+        let lastTypingSent = 0;
+        document.getElementById('message-input').addEventListener('input', () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+            const now = Date.now();
+            if (now - lastTypingSent < 1500) return; // throttle
+            lastTypingSent = now;
+            socket.send(JSON.stringify({ type: 'typing', isTyping: true, name: myName }));
+        });
+
         async function init() {
             const category = await loadCounterpart();
             await loadMessages();
             if (category) loadLibrary(category);
-            // Light polling keeps the thread feeling live without websockets.
-            setInterval(() => loadMessages(), 4000);
+            connectSocket();
+            // Fallback only - the socket handles the live case.
+            setInterval(() => loadMessages(), 15000);
         }
         init();
     </script>

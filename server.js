@@ -24,6 +24,7 @@ const allowedLocations = require('./data/allowed-locations');
 const organizations = require('./data/organizations');
 const mailer = require('./data/mailer');
 const stripeClient = require('./data/stripe-client');
+const realtime = require('./data/realtime');
 const googleCalendar = require('./data/google-calendar');
 const { geocodeAddress, reverseGeocode, distanceKm } = require('./data/geocode');
 
@@ -1722,8 +1723,47 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   const recipientId = role === 'student' ? tutors.findById(record.tutorId).userId : record.studentId;
   store.addNotification(recipientId, { type: 'chat', message: `New message from ${user.name} about your ${record.category} lesson.` });
 
+  // Push to anyone with the thread open. The message is already saved, so
+  // this is purely delivery speed - a failed/absent socket costs nothing.
+  realtime.broadcast(record.id, { type: 'message', assignmentId: record.id, message });
+
+  // Only email when the recipient isn't actually looking at the thread,
+  // otherwise every message in a live back-and-forth would send one.
+  if (!realtime.isWatching(record.id, recipientId)) {
+    const recipient = store.findById(recipientId);
+    if (recipient && recipient.email) {
+      const preview = (text || '').trim() || (libraryItem ? `Shared a clip: ${libraryItem.title}` : 'Sent you a message');
+      mailer.sendMail({
+        to: recipient.email,
+        subject: `New message from ${user.name} - ${record.category}`,
+        text: `${user.name} sent you a message about your ${record.category} lesson:\n\n"${preview}"\n\nReply here: ${req.protocol}://${req.get('host')}/chat/${record.id}`,
+      });
+    }
+  }
+
   res.json({ success: true, message });
 });
+
+// Total unread messages across every thread this user is part of - drives
+// the unread badge in the nav.
+app.get('/api/messages/unread-count', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutorProfile = tutors.findByUserId(user.id);
+  let total = 0;
+  const threads = [];
+  assignments.listAll().forEach((record) => {
+    const role = record.studentId === user.id
+      ? 'student'
+      : (tutorProfile && record.tutorId === tutorProfile.id ? 'tutor' : null);
+    if (!role) return;
+    const count = chat.unreadCountForRole(record.id, role);
+    if (count > 0) threads.push({ assignmentId: record.id, category: record.category, count });
+    total += count;
+  });
+  res.json({ success: true, total, threads });
+});
+
+
 
 // --- ADMIN: TUTOR REVIEW & MATCHING ---
 app.get('/api/admin/tutors', requireAdminApi, (req, res) => {
@@ -2074,6 +2114,24 @@ const PORT_RETRY_DELAY_MS = 400;
 function startServer(attempt = 1) {
   const httpServer = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+
+    // Attached only after the port is actually bound. Attaching earlier
+    // routes a failed bind through the WebSocketServer, which has no error
+    // listener of its own, so EADDRINUSE became an unhandled 'error' and
+    // killed the process instead of reaching the retry logic below.
+    //
+    // The authorization check is the same one the REST chat routes use,
+    // passed in so there's a single definition of "is this your
+    // conversation" rather than two that can drift apart.
+    realtime.attach(httpServer, {
+      canAccess(userId, assignmentId) {
+        const record = assignments.findById(assignmentId);
+        if (!record) return false;
+        if (record.studentId === userId) return true;
+        const tutorProfile = tutors.findByUserId(userId);
+        return Boolean(tutorProfile && record.tutorId === tutorProfile.id);
+      },
+    });
   });
   httpServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE' && attempt < PORT_RETRY_ATTEMPTS) {
