@@ -1,5 +1,5 @@
 // Admin-authored "first 15 minutes" curriculum per subject category. Every
-// lesson opens with this fixed, Mozart Technique-curated segment; whatever a
+// lesson opens with this fixed, Mozart Techniques-curated segment; whatever a
 // tutor teaches after that is their own plan. The platform can't enforce
 // timing on a lesson happening off-platform - its job is just to hand the
 // tutor the required opening material when they log a session.

@@ -1,9 +1,12 @@
-// Admin-curated library of technique reference clips. These are links back
-// to the original creator's post (TikTok/Instagram), never downloaded or
-// rehosted copies - that would violate both platforms' terms and copyright.
-// When a link goes dead, an admin swaps in a replacement they have the
-// rights to (another creator's still-live post, or Mozart Technique's own
-// footage) rather than any kind of automated re-scrape.
+// The technique video library - admin and tutor-uploaded reference clips
+// (e.g. "how to position your fingers on the strings") organized by subject,
+// taggable into a chat message so a tutor can point a student at one
+// mid-conversation. An entry is either a self-hosted uploaded file
+// (isFile: true, url is a local /uploads/videos path) or a link back to an
+// external creator's post - never a downloaded/rehosted copy of someone
+// else's content, which would violate platform terms and copyright. When an
+// external link goes dead, an admin swaps in a replacement they have the
+// rights to rather than any kind of automated re-scrape.
 const fs = require('fs');
 const path = require('path');
 
@@ -37,12 +40,13 @@ function findById(id) {
   return listAll().find((r) => r.id === Number(id)) || null;
 }
 
-function create({ title, url, category, genre, addedBy }) {
+function create({ title, url, category, genre, addedBy, isFile }) {
   const db = load();
   const reel = {
     id: db.nextId++,
     title,
     url,
+    isFile: Boolean(isFile),
     category: category || null,
     genre: genre || null,
     status: 'active',
@@ -57,7 +61,7 @@ function create({ title, url, category, genre, addedBy }) {
 
 // Used both to edit details and to swap in a replacement link/title when the
 // original goes dead - same operation, just re-pointing url/title.
-function update(id, { title, url, category, genre }) {
+function update(id, { title, url, category, genre, isFile }) {
   const db = load();
   const reel = db.reels.find((r) => r.id === Number(id));
   if (!reel) return null;
@@ -65,6 +69,7 @@ function update(id, { title, url, category, genre }) {
   if (url !== undefined) reel.url = url;
   if (category !== undefined) reel.category = category || null;
   if (genre !== undefined) reel.genre = genre || null;
+  if (isFile !== undefined) reel.isFile = Boolean(isFile);
   reel.updatedAt = new Date().toISOString();
   persist(db);
   return reel;

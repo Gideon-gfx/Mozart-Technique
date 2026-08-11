@@ -2,3 +2,13 @@ node_modules
 .env
 data/*.json
 public/uploads
+
+# Local scratch: smoke-test pages, editor backups, and unreferenced
+# design/reference images. Kept on disk, out of the repo.
+*.bak
+*-smoke.html
+tutor-static.html
+tutor-route.html
+Redesign/
+public/image*.png
+public/[0-9]*.png

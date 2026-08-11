@@ -1,8 +1,8 @@
-// A log of every successful course purchase. This didn't exist before -
-// data/store.js only tracks *that* a user owns a course (purchasedCourses),
-// not when they bought it or what it cost - so there was no way to compute
-// real revenue-over-time. Every payment is appended here in addition to
-// being recorded on the user.
+// A log of every released lesson payment (escrow held -> student confirms
+// -> released to tutor). data/tutors.js tracks each tutor's running balance;
+// this is the flat historical ledger admin analytics reads from to compute
+// real revenue-over-time, since there'd otherwise be no way to know when a
+// payment happened or what it was for.
 const fs = require('fs');
 const path = require('path');
 
@@ -21,17 +21,21 @@ function persist(db) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
-function record({ userId, userName, courseId, courseTitle, category, priceUsd, method }) {
+function record({ studentId, studentName, tutorId, tutorName, category, lessonType, priceUsd, platformFeeUsd, tutorPayoutUsd, assignmentId, sessionId }) {
   const db = load();
   const payment = {
     id: db.nextId++,
-    userId,
-    userName,
-    courseId,
-    courseTitle,
+    studentId,
+    studentName,
+    tutorId,
+    tutorName,
     category,
-    priceUsd,
-    method: method || 'card',
+    lessonType,
+    priceUsd, // total charged to the student (lesson + travel fee)
+    platformFeeUsd: platformFeeUsd || 0, // Mozart Techniques' 10% commission
+    tutorPayoutUsd: tutorPayoutUsd != null ? tutorPayoutUsd : priceUsd, // what actually lands in the tutor's balance
+    assignmentId,
+    sessionId,
     createdAt: new Date().toISOString(),
   };
   db.payments.push(payment);

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tutor Page - Mozart Techniques</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap">
+    <link rel="stylesheet" href="assets/site.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        .chip { display: inline-flex; align-items: center; padding: .35rem .85rem; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+        .field-underline { border: none; border-bottom: 1.5px solid #d6d2cd; background: transparent; border-radius: 0; padding: .75rem .75rem .5rem; width: 100%; transition: border-color .2s ease; }
+        .field-underline:focus { outline: none; border-color: #cc0000; }
+        .nav-links { display: flex; align-items: center; gap: 1rem; flex-wrap: nowrap; white-space: nowrap; }
+        .nav-links a { font-size: .82rem; font-weight: 700; color: #374151; }
+        .nav-links a:hover { color: #cc0000; }
+        .public-profile-head { align-items: center; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <div class="flex items-center gap-3">
+                <a href="/home" class="flex items-center gap-3">
+                    <img src="mozartLogo.jpg" alt="Mozart Techniques" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                    <div class="hidden sm:block">
+                        <p id="page-subtitle" class="text-sm text-gray-500 uppercase tracking-[0.2em]">Tutor dashboard</p>
+                        <h1 id="page-title" class="text-2xl font-bold text-gray-900">Mozart Techniques</h1>
+                    </div>
+                </a>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="hidden sm:flex nav-links mr-4">
+                    <a href="/home">Home</a>
+                    <a href="/find-tutor">Find a Tutor</a>
+                    <a href="/library">Library</a>
+                    <a href="/become-tutor">Become a Tutor</a>
+                    <a href="/become-sponsor">Sponsor</a>
+                    <a href="/contact">Contact</a>
+                </div>
+                <button id="mobile-nav-toggle" class="sm:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100" aria-label="Toggle navigation">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                <div id="auth-state"></div>
+            </div>
+        </nav>
+        <div id="mobile-nav" class="sm:hidden bg-white border-t border-gray-100 hidden">
+            <div class="px-4 py-3 space-y-2">
+                <a href="/home" class="block text-gray-700">Home</a>
+                <a href="/find-tutor" class="block text-gray-700">Find a Tutor</a>
+                <a href="/become-tutor" class="block text-gray-700">Become a Tutor</a>
+                <a href="/dashboard" class="block text-gray-700">Dashboard</a>
+                <a href="/search" class="block text-gray-700">Search</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-layout max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+        <main class="space-y-6">
+            <section id="public-profile-section" class="hidden bg-white rounded-3xl shadow-lg p-4 sm:p-6">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between public-profile-head">
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
+                            <img id="public-profile-photo" src="mozartLogo.jpg" alt="Tutor photo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase tracking-[0.15em]">Tutor profile</p>
+                            <h1 id="public-profile-name" class="text-xl font-bold text-gray-900">Tutor Name</h1>
+                            <p id="public-profile-meta" class="text-sm text-gray-500 mt-1">Experienced piano tutor • Online & in-person</p>
+                            <div class="mt-2 flex items-center gap-2">
+                                <div id="public-profile-rating" class="text-sm text-yellow-500 font-semibold">0.0 ★</div>
+                                <div id="public-profile-rating-count" class="text-xs text-gray-500">(0)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-gray-200 p-3 bg-gray-50 text-right">
+                        <p class="text-xs text-gray-500">Rate</p>
+                        <p id="public-profile-rate" class="text-lg font-bold text-primary-red mt-1">$0/hr</p>
+                        <p id="public-profile-location" class="text-xs text-gray-500 mt-1">Location</p>
+                    </div>
+                </div>
+                <div class="mt-8 grid md:grid-cols-3 gap-4">
+                    <div class="rounded-3xl border border-gray-200 p-4">
+                        <p class="text-xs text-gray-500">Experience</p>
+                        <p id="public-profile-experience" class="mt-2 font-semibold text-gray-900">0 years</p>
+                    </div>
+                    <div class="rounded-3xl border border-gray-200 p-4">
+                        <p class="text-xs text-gray-500">Teaching mode</p>
+                        <p id="public-profile-mode" class="mt-2 font-semibold text-gray-900">Online</p>
+                    </div>
+                    <div class="rounded-3xl border border-gray-200 p-4">
+                        <p class="text-xs text-gray-500">Subjects</p>
+                        <div id="public-profile-subjects" class="mt-2 flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                <div class="mt-8 rounded-3xl border border-gray-200 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900">About this tutor</h2>
+                    <p id="public-profile-bio" class="mt-4 text-gray-600"></p>
+                </div>
+            </section>
+
+        <section id="student-info-section" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8 hidden">
+            <h2 class="text-xl font-bold text-gray-900">Matched student information</h2>
+            <div class="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
+                <div class="rounded-3xl border border-gray-200 bg-gray-50 p-4">
+                    <img id="student-info-photo" src="mozartLogo.jpg" alt="Student photo" class="w-full h-56 object-cover rounded-3xl">
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Full name</p>
+                        <p id="student-info-name" class="text-lg font-semibold text-gray-900">Student Name</p>
+                    </div>
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Age</p>
+                            <p id="student-info-age" class="text-gray-800">Not provided</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Sex</p>
+                            <p id="student-info-sex" class="text-gray-800">Not provided</p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Location</p>
+                        <p id="student-info-location" class="text-gray-800">Not provided</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Contact</p>
+                        <p id="student-info-contact" class="text-gray-800">Not provided</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <label class="flex items-center gap-3 rounded-2xl border border-gray-200 p-4 bg-gray-50">
+                    <input type="checkbox" id="student-agreement-1" class="h-4 w-4 text-primary-red border-gray-300 rounded" />
+                    <span class="text-sm text-gray-700">I have reviewed the student's details and confirm they are ready to start classes.</span>
+                </label>
+                <label class="flex items-center gap-3 rounded-2xl border border-gray-200 p-4 bg-gray-50">
+                    <input type="checkbox" id="student-agreement-2" class="h-4 w-4 text-primary-red border-gray-300 rounded" />
+                    <span class="text-sm text-gray-700">I agree to follow Mozart Techniques teaching guidelines and respect the student.</span>
+                </label>
+            </div>
+        </section>
+        <section id="tutor-dashboard-sections" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8">
+            <h2 class="text-xl font-bold text-gray-900">Tutor dashboard</h2>
+            <div class="grid md:grid-cols-3 gap-6 mt-6">
+                <div class="col-span-2">
+                    <h3 class="font-semibold text-gray-700 mb-3">Students & Requests</h3>
+                    <div id="students-requests-list" class="space-y-3"></div>
+                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Schedule & Sessions</h3>
+                    <div id="sessions-list" class="space-y-3"></div>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-3">Wallet</h3>
+                    <div class="rounded-2xl border border-gray-200 p-5">
+                        <p class="text-sm text-gray-500">Available balance</p>
+                        <p id="wallet-balance" class="text-2xl font-bold text-primary-red mt-2">$0.00</p>
+                        <div class="mt-4">
+                            <button id="request-payout-btn" class="row-btn-primary w-full">Request Payout</button>
+                        </div>
+                    </div>
+                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Google Meet classes</h3>
+                    <div id="meet-classes" class="space-y-3"></div>
+                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Technique video uploads</h3>
+                    <div id="video-upload-card" class="rounded-2xl border border-gray-200 p-5 bg-gray-50 space-y-4">
+                        <p class="text-sm text-gray-500">Upload a short technique clip or paste a link for a course you teach.</p>
+                        <div class="grid gap-3">
+                            <select id="video-category-select" aria-label="Select subject" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
+                            <select id="video-genre-select" aria-label="Select genre" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
+                            <input id="video-title-input" type="text" placeholder="Video title" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <input id="video-link-input" type="url" placeholder="Video link (mp4, YouTube, etc.)" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <div class="flex gap-3 items-center">
+                                <input id="video-file-input" type="file" accept="video/*" aria-label="Upload a video file" class="w-full text-sm text-gray-700">
+                                <button id="video-upload-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg">Upload file</button>
+                            </div>
+                            <button id="video-submit-btn" class="w-full px-4 py-2 bg-primary-red text-white rounded-lg">Add to library</button>
+                            <p id="video-upload-status" class="text-xs text-gray-500"></p>
+                        </div>
+                    </div>
+                    <div id="tutor-library-list" class="mt-4 space-y-3"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="profile-summary-section" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8">
+            <h2 class="text-xl font-bold text-gray-900">Tutor profile summary</h2>
+            <div class="grid sm:grid-cols-2 gap-6 mt-6">
+                <div class="rounded-2xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-gray-700 mb-3">Subjects</h3>
+                    <div id="profile-categories" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div class="rounded-2xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-gray-700 mb-3">Your hourly rate</h3>
+                    <p id="profile-rate" class="text-2xl font-bold text-primary-red"></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    </div>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>'"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        let userProfile = null;
+
+        let pageMode = 'unknown'; // 'self' | 'public' | 'unknown'
+        let publicViewType = null; // 'slug' | 'id'
+        async function loadTutorPage() {
+            try {
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                // determine route: /tutor (self), /tutor/:slug (public by slug), /tutors/:id (public by id)
+                if (parts.length === 1 && parts[0] === 'tutor') {
+                    pageMode = 'self';
+                    publicViewType = null;
+                }
+                // /tutor -> current tutor (edit mode)
+                if (pageMode === 'self') {
+                    const [sessionRes, profileRes] = await Promise.all([
+                        fetch('/api/session'),
+                        fetch('/api/tutors/me'),
+                    ]);
+                    const sessionData = await sessionRes.json();
+                    const profileData = await profileRes.json();
+                    if (!sessionData.user || !profileData.success) {
+                        window.location.href = '/login?redirect=/tutor';
+                        return;
+                    }
+                    userProfile = profileData.profile || null;
+                    renderProfileSummary();
+                    const sidebarName = document.getElementById('sidebar-tutor-name');
+                    if (sidebarName) sidebarName.textContent = userProfile?.name || 'Tutor';
+                } else {
+                    // public views: either /tutor/:slug or /tutors/:id
+                    pageMode = 'public';
+                    const first = parts[0];
+                    const second = parts[1];
+                    let tutorId = null;
+                    if (first === 'tutor') {
+                        publicViewType = 'slug';
+                        const slug = second;
+                        const slugRes = await fetch(`/api/tutors/slug/${encodeURIComponent(slug)}`);
+                        const slugData = await slugRes.json();
+                        if (!slugData.success) {
+                            showAlert('Tutor not found.', 'error');
+                            return;
+                        }
+                        tutorId = slugData.profile.id;
+                    } else if (first === 'tutors') {
+                        publicViewType = 'id';
+                        tutorId = Number(second);
+                    } else {
+                        showAlert('Invalid tutor url.', 'error');
+                        return;
+                    }
+                    const publicRes = await fetch(`/api/tutors/${tutorId}/public`);
+                    const publicData = await publicRes.json();
+                    if (!publicData.success) {
+                        showAlert('Tutor not found.', 'error');
+                        return;
+                    }
+                    // show read-only profile info
+                    userProfile = publicData.tutor;
+                    // hide editor and dashboard controls on public profile
+                    const dash = document.getElementById('tutor-dashboard-sections'); if (dash) dash.style.display = 'none';
+                    document.getElementById('page-subtitle').textContent = 'Tutor profile';
+                    document.getElementById('page-title').textContent = userProfile.name || 'Tutor profile';
+                    document.getElementById('public-profile-section').classList.remove('hidden');
+                    if (document.getElementById('profile-summary-section')) document.getElementById('profile-summary-section').style.display = 'none';
+                    renderPublicProfile();
+                }
+            } catch (err) {
+                showAlert('Could not load tutor page. Try again in a moment.', 'error');
+            }
+        }
+
+        function renderProfileSummary() {
+            document.getElementById('profile-categories').innerHTML = (userProfile?.categories || []).map((cat) => `<span class="chip bg-red-50 text-primary-red">${escapeHtml(cat)}</span>`).join('');
+            document.getElementById('profile-rate').textContent = userProfile ? `$${userProfile.hourlyRateUsd}/hr` : 'Not set';
+        }
+
+        function renderPublicProfile() {
+            const photo = document.getElementById('public-profile-photo');
+            if (photo) photo.src = userProfile.photoUrl || 'mozartLogo.jpg';
+            const name = document.getElementById('public-profile-name');
+            if (name) name.textContent = userProfile.name || 'Tutor Name';
+            const meta = document.getElementById('public-profile-meta');
+            if (meta) meta.textContent = `${userProfile.categories?.slice(0, 3).join(' • ') || 'Tutor'}${userProfile.teachesOnline ? ' • Online' : ''}`;
+            const rate = document.getElementById('public-profile-rate');
+            if (rate) rate.textContent = userProfile.hourlyRateUsd ? `$${userProfile.hourlyRateUsd}/hr` : '$0/hr';
+            const location = document.getElementById('public-profile-location');
+            if (location) location.textContent = userProfile.city ? userProfile.city : 'Location not specified';
+            const experience = document.getElementById('public-profile-experience');
+            if (experience) experience.textContent = userProfile.experienceYears ? `${userProfile.experienceYears} years` : 'Not specified';
+            const mode = document.getElementById('public-profile-mode');
+            if (mode) mode.textContent = userProfile.teachesOnline ? 'Online & in-person' : 'In-person only';
+            const subjects = document.getElementById('public-profile-subjects');
+            if (subjects) subjects.innerHTML = (userProfile.categories || []).map((cat) => `<span class="chip bg-red-50 text-primary-red">${escapeHtml(cat)}</span>`).join('');
+            const bio = document.getElementById('public-profile-bio');
+            if (bio) bio.textContent = userProfile.bio || 'This tutor has not added a bio yet.';
+            const rating = userProfile.avgRating != null ? Number(userProfile.avgRating) : 0;
+            const count = userProfile.ratingCount || 0;
+            const ratingEl = document.getElementById('public-profile-rating');
+            const countEl = document.getElementById('public-profile-rating-count');
+            if (ratingEl) ratingEl.textContent = `${rating.toFixed(1)} ★`;
+            if (countEl) countEl.textContent = `(${count})`;
+        }
+
+        function renderMatchedStudent(assignment) {
+            const section = document.getElementById('student-info-section');
+            if (!section) return;
+            if (!assignment) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+            document.getElementById('student-info-photo').src = assignment.studentPhotoUrl || 'mozartLogo.jpg';
+            document.getElementById('student-info-name').textContent = assignment.studentName || `Student #${assignment.studentId}`;
+            document.getElementById('student-info-age').textContent = assignment.studentAgeGroup || 'Not provided';
+            document.getElementById('student-info-sex').textContent = assignment.studentSex || 'Not provided';
+            const locationText = assignment.lessonType === 'physical'
+                ? (assignment.studentFullAddress || assignment.studentProfile?.fullAddress || assignment.studentProfile?.city || 'Not provided')
+                : (assignment.lessonType === 'studio'
+                    ? (assignment.studentProfile?.city || 'Tutoring studio')
+                    : (assignment.studentProfile?.city || 'Online'));
+            document.getElementById('student-info-location').textContent = locationText;
+            document.getElementById('student-info-contact').textContent = assignment.studentEmail || 'Not provided';
+        }
+
+        // --- Google Meet / Calendar -------------------------------------
+        // The tutor connects their own Google Calendar once; after that,
+        // scheduling a lesson creates a real Calendar event with an
+        // auto-generated Meet link, invites the student, and lets Google
+        // send the reminders. Nothing here hosts video itself.
+        async function renderMeetClasses(asTutor) {
+            const host = document.getElementById('meet-classes');
+            if (!host) return;
+
+            let status = { configured: false, connected: false };
+            try { status = await fetch('/api/calendar/status').then((r) => r.json()); } catch (e) { /* offline */ }
+
+            if (!status.configured) {
+                host.innerHTML = '<div class="rounded-2xl border border-gray-200 p-5 text-sm text-gray-500">Google Calendar isn\'t configured on this server yet.</div>';
+                return;
+            }
+
+            if (!status.connected) {
+                host.innerHTML = `
+                    <div class="rounded-2xl border border-gray-200 p-5 space-y-3">
+                        <p class="text-sm text-gray-600">Connect your Google Calendar to schedule lessons with an automatic Google Meet link, a calendar invite for your student, and Google's own reminders.</p>
+                        <a href="/api/calendar/connect" class="inline-flex items-center gap-2 px-4 py-2 bg-primary-red text-white rounded-lg text-sm">
+                            <i class="fa-brands fa-google"></i> Connect Google Calendar
+                        </a>
+                    </div>`;
+                return;
+            }
+
+            const active = (asTutor || []).filter((r) => r.status === 'active');
+            const rows = active.map((r) => {
+                const when = r.scheduledAt ? new Date(r.scheduledAt).toLocaleString() : null;
+                const meet = r.meetingLink
+                    ? `<a href="${escapeHtml(r.meetingLink)}" target="_blank" rel="noopener" class="text-primary-red font-semibold text-sm break-all">Join Meet</a>`
+                    : '<span class="text-xs text-gray-400">Not scheduled yet</span>';
+                const recs = (r.recordings || []).map((v) => `
+                    <li class="text-xs text-gray-600 truncate"><a href="${escapeHtml(v.url)}" target="_blank" rel="noopener" class="hover:underline">${escapeHtml(v.title)}</a></li>`).join('');
+                return `
+                    <div class="rounded-2xl border border-gray-200 p-4 space-y-2">
+                        <p class="font-semibold text-gray-800">${escapeHtml(r.studentName || '')}</p>
+                        <p class="text-xs text-gray-500">${escapeHtml(r.category || '')} • ${when || 'no lesson scheduled'}</p>
+                        <div>${meet}</div>
+                        ${recs ? `<ul class="mt-2 space-y-1 border-t border-gray-100 pt-2">${recs}</ul>` : ''}
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button type="button" class="row-btn-outline text-xs schedule-meet-btn" data-request-id="${r.id}">Schedule lesson</button>
+                            <button type="button" class="row-btn-outline text-xs post-recording-btn" data-request-id="${r.id}">Post recording</button>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            host.innerHTML = `
+                <div class="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-800 flex items-center justify-between gap-2">
+                    <span><i class="fa-solid fa-circle-check mr-1"></i>Calendar connected</span>
+                    <button type="button" id="calendar-disconnect-btn" class="underline hover:no-underline">Disconnect</button>
+                </div>
+                ${rows || '<p class="text-gray-500 text-sm mt-3">No active students to schedule with yet.</p>'}`;
+
+            document.getElementById('calendar-disconnect-btn').addEventListener('click', async () => {
+                if (!confirm('Disconnect Google Calendar? Existing events stay on your calendar.')) return;
+                await fetch('/api/calendar/disconnect', { method: 'POST' });
+                showAlert('Google Calendar disconnected.', 'success');
+                loadTutorDashboardData();
+            });
+
+            host.querySelectorAll('.schedule-meet-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const local = prompt('Lesson date & time (YYYY-MM-DD HH:MM, your local time):', '');
+                    if (!local) return;
+                    const parsed = new Date(local.replace(' ', 'T'));
+                    if (Number.isNaN(parsed.getTime())) return showAlert('Could not read that date/time.', 'error');
+                    const mins = parseInt(prompt('Lesson length in minutes:', '60'), 10);
+                    if (!mins || mins <= 0) return showAlert('Invalid duration.', 'error');
+                    btn.disabled = true;
+                    try {
+                        const res = await fetch(`/api/assignments/${btn.dataset.requestId}/schedule`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ startISO: parsed.toISOString(), durationMinutes: mins }),
+                        });
+                        const data = await res.json();
+                        if (!data.success) return showAlert(data.error || 'Could not schedule.', 'error');
+                        showAlert('Lesson scheduled - Meet link sent to your student.', 'success');
+                        loadTutorDashboardData();
+                    } catch (e) { showAlert('Could not schedule the lesson.', 'error'); }
+                    finally { btn.disabled = false; }
+                });
+            });
+
+            host.querySelectorAll('.post-recording-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const url = prompt('Recording link (https://... or an uploaded /uploads/ path):', 'https://');
+                    if (!url) return;
+                    const title = prompt('Title for this recording:', 'Class recording') || 'Class recording';
+                    try {
+                        const res = await fetch(`/api/assignments/${btn.dataset.requestId}/recording`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ recordingUrl: url, title }),
+                        });
+                        const data = await res.json();
+                        if (!data.success) return showAlert(data.error || 'Could not post recording.', 'error');
+                        showAlert('Recording posted to your student.', 'success');
+                        loadTutorDashboardData();
+                    } catch (e) { showAlert('Could not post the recording.', 'error'); }
+                });
+            });
+        }
+
+        async function loadTutorDashboardData() {
+            try {
+                const res = await fetch('/api/my-assignments');
+                const data = await res.json();
+                if (!data.success) return;
+                const asTutor = data.asTutor || [];
+                const tutorProfile = data.tutorProfile || userProfile || {};
+                const activeMatch = asTutor.find((r) => r.status === 'active');
+                renderMatchedStudent(activeMatch);
+                renderMeetClasses(asTutor);
+                // Students & Requests
+                const list = document.getElementById('students-requests-list');
+                if (!asTutor.length) {
+                    list.innerHTML = '<p class="text-gray-500">No active requests or students yet.</p>';
+                } else {
+                    list.innerHTML = asTutor.map((r) => `
+                        <div class="rounded-2xl bg-white shadow-sm p-4 border border-gray-100 flex items-start justify-between">
+                            <div class="flex items-start gap-4">
+                                <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-lg text-gray-500">${(r.studentName||'').split(' ').map(n=>n[0]||'').slice(0,2).join('')}</div>
+                                <div>
+                                    <p class="font-semibold text-gray-800">${escapeHtml(r.studentName || ('Student #' + r.studentId))}</p>
+                                    <p class="text-sm text-gray-500 mt-1">${escapeHtml(r.category || '')} • ${r.lessonType}</p>
+                                    <span class="inline-block mt-2 text-xs font-semibold px-2 py-1 rounded-full ${r.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : r.status === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}">${escapeHtml(r.status || '')}</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-2">
+                                <button class="px-3 py-1.5 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50" onclick="window.location.href='/chat?assignment=${r.id}'">Messages</button>
+                                <button class="px-3 py-1.5 bg-primary-red text-white rounded-md text-sm hover:bg-red-700" onclick="window.location.href='/tutor?openRequest=${r.id}'">Open</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                // Sessions
+                const sessionsEl = document.getElementById('sessions-list');
+                const sessions = asTutor.flatMap((r) => (r.sessions || []).map((s) => ({ request: r, session: s })));
+                if (!sessions.length) {
+                    sessionsEl.innerHTML = '<p class="text-gray-500">No upcoming sessions.</p>';
+                } else {
+                    sessionsEl.innerHTML = sessions.map(({ request, session }) => `
+                            <div class="rounded-2xl border border-gray-200 p-4">
+                                <p class="font-semibold">${escapeHtml(request.studentName || '')}</p>
+                                <p class="text-sm text-gray-500">${session.scheduledAt ? new Date(session.scheduledAt).toLocaleString() : 'Unscheduled'} • ${escapeHtml(request.category || '')}</p>
+                                <div class="mt-3 flex gap-2">
+                                    <button class="row-btn-outline log-session-btn" data-request-id="${request.id}" data-session-id="${session.id}">Log Session</button>
+                                    <button class="row-btn-outline set-meeting-btn" data-request-id="${request.id}">Set Meet Link</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    // wire session buttons
+                    sessionsEl.querySelectorAll('.log-session-btn').forEach((btn) => {
+                        btn.addEventListener('click', async () => {
+                            const reqId = btn.dataset.requestId; const sessionId = btn.dataset.sessionId;
+                            const minutes = parseInt(prompt('Lesson duration in minutes (e.g. 60):', '60'), 10);
+                            if (!minutes || minutes <= 0) return showAlert('Invalid duration.', 'error');
+                            try {
+                                const res = await fetch(`/api/assignments/${reqId}/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ durationMinutes: minutes, teacherNotes: '' }) });
+                                const data = await res.json();
+                                if (!data.success) return showAlert(data.error || 'Could not log session.', 'error');
+                                showAlert('Session logged.', 'success');
+                                loadTutorDashboardData();
+                            } catch (e) { showAlert('Could not log session.', 'error'); }
+                        });
+                    });
+                    sessionsEl.querySelectorAll('.set-meeting-btn').forEach((btn) => {
+                        btn.addEventListener('click', async () => {
+                            const reqId = btn.dataset.requestId;
+                            const link = prompt('Meeting link (https://):', 'https://');
+                            if (!link) return;
+                            try {
+                                const res = await fetch(`/api/assignments/${reqId}/meeting-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetingLink: link }) });
+                                const data = await res.json();
+                                if (!data.success) return showAlert(data.error || 'Could not set meeting link.', 'error');
+                                showAlert('Meeting link saved.', 'success');
+                                loadTutorDashboardData();
+                            } catch (e) { showAlert('Could not set meeting link.', 'error'); }
+                        });
+                    });
+                }
+
+                // Wallet
+                document.getElementById('wallet-balance').textContent = `$${(tutorProfile.balanceUsd || 0).toFixed(2)}`;
+                document.getElementById('request-payout-btn').addEventListener('click', async () => {
+                    const amount = tutorProfile.balanceUsd || 0;
+                    if (!amount) return showAlert('No available balance to withdraw.', 'error');
+                    const ok = confirm(`Request payout of $${amount.toFixed(2)}?`);
+                    if (!ok) return;
+                    const res2 = await fetch('/api/tutors/me/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) });
+                    const data2 = await res2.json();
+                    if (data2.success) {
+                        showAlert('Payout requested. Admin will process it soon.', 'success');
+                    } else {
+                        showAlert(data2.error || 'Could not request payout.', 'error');
+                    }
+                });
+
+                // Meet classes
+                const meetEl = document.getElementById('meet-classes');
+                const meetings = asTutor.flatMap((r) => (r.meetingLink ? [{ request: r, link: r.meetingLink }] : []));
+                if (!meetings.length) meetEl.innerHTML = '<p class="text-gray-500">No scheduled Google Meet links yet.</p>';
+                else meetEl.innerHTML = meetings.map((m) => `
+                    <div class="rounded-2xl border border-gray-200 p-3"><a class="text-primary-red font-semibold" href="${escapeHtml(m.link)}" target="_blank">Join meeting</a><p class="text-sm text-gray-500">for ${escapeHtml(m.request.studentName || '')}</p></div>
+                `).join('');
+
+                await loadTutorLibraryOptions();
+                await loadTutorLibraryList();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadTutorLibraryOptions() {
+            const taxRes = await fetch('/api/taxonomy');
+            const tax = await taxRes.json();
+            const categorySelect = document.getElementById('video-category-select');
+            const genreSelect = document.getElementById('video-genre-select');
+            categorySelect.innerHTML = '<option value="">Select subject</option>' + tax.subjects.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            genreSelect.innerHTML = '<option value="">Select genre</option>' + tax.genres.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+            document.getElementById('video-upload-btn').addEventListener('click', async () => {
+                const fileInput = document.getElementById('video-file-input');
+                if (!fileInput.files.length) return showAlert('Choose a video file first.', 'error');
+                const status = document.getElementById('video-upload-status');
+                status.textContent = 'Uploading video...';
+                const formData = new FormData();
+                formData.append('video', fileInput.files[0]);
+                const res = await fetch('/api/library/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!data.success) {
+                    status.textContent = 'Upload failed.';
+                    return showAlert(data.error || 'Could not upload video.', 'error');
+                }
+                document.getElementById('video-link-input').value = data.url;
+                status.textContent = 'Video uploaded. Ready to add to library.';
+            });
+            document.getElementById('video-submit-btn').addEventListener('click', async () => {
+                const title = document.getElementById('video-title-input').value.trim();
+                const url = document.getElementById('video-link-input').value.trim();
+                const category = document.getElementById('video-category-select').value || null;
+                const genre = document.getElementById('video-genre-select').value || null;
+                const status = document.getElementById('video-upload-status');
+                if (!title || !url) return showAlert('Provide a title and a link or uploaded video.', 'error');
+                const res = await fetch('/api/library', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, url, category, genre, isFile: url.startsWith('/uploads/videos/') }),
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    return showAlert(data.error || 'Could not add to library.', 'error');
+                }
+                showAlert('Added to tutor library.', 'success');
+                document.getElementById('video-title-input').value = '';
+                document.getElementById('video-link-input').value = '';
+                document.getElementById('video-file-input').value = '';
+                status.textContent = '';
+                await loadTutorLibraryList();
+            });
+        }
+
+        async function loadTutorLibraryList() {
+            const category = document.getElementById('video-category-select').value;
+            const genre = document.getElementById('video-genre-select').value;
+            const query = new URLSearchParams();
+            if (category) query.set('category', category);
+            if (genre) query.set('genre', genre);
+            const res = await fetch(`/api/library?${query.toString()}`);
+            const data = await res.json();
+            const list = document.getElementById('tutor-library-list');
+            if (!data.success || !data.items.length) {
+                list.innerHTML = '<p class="text-gray-500">No uploaded videos found for your subjects yet.</p>';
+                return;
+            }
+            list.innerHTML = data.items.map((item) => `
+                <div class="rounded-2xl border border-gray-200 p-4 bg-white">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-gray-800">${escapeHtml(item.title)}</p>
+                            <p class="text-xs text-gray-500 mt-1">${item.category ? escapeHtml(item.category) + ' • ' : ''}${item.genre ? escapeHtml(item.genre) : 'Any subject'}</p>
+                        </div>
+                        ${item.isFile ? `<span class="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">Uploaded file</span>` : `<span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Link</span>`}
+                    </div>
+                    <div class="mt-3">
+                        ${item.isFile ? `<video src="${escapeHtml(item.url)}" class="w-full rounded-xl" controls></video>` : `<a href="${escapeHtml(item.url)}" target="_blank" class="text-primary-red hover:underline text-sm">Open video</a>`}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // load page; only load dashboard data when viewing own tutor dashboard
+        // Google bounces the browser back to /tutor?calendar=... after the
+        // consent screen; surface the outcome, then strip the param so a
+        // refresh doesn't repeat the message.
+        (function reportCalendarResult() {
+            const result = new URLSearchParams(window.location.search).get('calendar');
+            if (!result) return;
+            const messages = {
+                connected: ['Google Calendar connected - you can schedule Meet lessons now.', 'success'],
+                denied: ['Google Calendar access was declined.', 'error'],
+                error: ['Could not connect Google Calendar. Please try again.', 'error'],
+            };
+            const [msg, kind] = messages[result] || [];
+            if (msg) setTimeout(() => showAlert(msg, kind), 300);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('calendar');
+            window.history.replaceState({}, '', url);
+        })();
+
+        loadTutorPage().then(() => { if (pageMode === 'self') loadTutorDashboardData(); });
+    </script>
+    <script src="assets/nav-auth.js"></script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

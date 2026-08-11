@@ -1,9 +1,7 @@
 // One generic multiple-choice quiz engine backing three different flows:
 // student placement quizzes ('placement:<category>'), tutor qualification
 // evaluations ('teacher-eval:<category>'), and the tutor orientation quiz
-// ('orientation'). Same shape as data/quizzes.js (course-completion quizzes)
-// but keyed by a string instead of a course id, since these aren't tied to
-// the packaged video catalog.
+// ('orientation') - keyed by a string subject rather than a numeric id.
 const fs = require('fs');
 const path = require('path');
 

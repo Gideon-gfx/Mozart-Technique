@@ -9,22 +9,23 @@ const cookieSession = require('cookie-session');
 const { OAuth2Client } = require('google-auth-library');
 
 const store = require('./data/store');
-const { COURSES, getCourse, getCategories, getSuggestions } = require('./data/courses');
 const geo = require('./data/geo');
 const currency = require('./data/currency');
-const content = require('./data/content');
-const qna = require('./data/qna');
-const aiCoach = require('./data/ai-coach');
 const tutors = require('./data/tutors');
 const assignments = require('./data/assignments');
-const quizzes = require('./data/quizzes');
 const taxonomy = require('./data/taxonomy');
 const assessments = require('./data/assessments');
 const curriculum = require('./data/curriculum');
 const reels = require('./data/reels');
 const certificates = require('./data/certificates');
 const payments = require('./data/payments');
-const { geocodeAddress, distanceKm } = require('./data/geocode');
+const chat = require('./data/chat');
+const allowedLocations = require('./data/allowed-locations');
+const organizations = require('./data/organizations');
+const mailer = require('./data/mailer');
+const stripeClient = require('./data/stripe-client');
+const googleCalendar = require('./data/google-calendar');
+const { geocodeAddress, reverseGeocode, distanceKm } = require('./data/geocode');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,10 +34,20 @@ if (!process.env.SESSION_SECRET) {
   console.warn('SESSION_SECRET is not set - using an insecure development default. Set it in a .env file for production.');
 }
 
+// The web client ID is what the browser sign-in button uses. Native apps
+// get their own client IDs from Google (an Android app can't use the web
+// one), but they authenticate against this same backend - so token
+// verification has to accept any of our client IDs as a valid audience,
+// while the login page itself only ever advertises the web one.
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || null;
 if (!GOOGLE_CLIENT_ID) {
   console.warn('GOOGLE_CLIENT_ID is not set - Google sign-in will stay disabled on the login page.');
 }
+const GOOGLE_AUDIENCES = [
+  GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_ANDROID_CLIENT_ID,
+  process.env.GOOGLE_IOS_CLIENT_ID,
+].filter(Boolean);
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 app.use(express.json());
@@ -52,6 +63,17 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const VIDEO_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'videos');
 fs.mkdirSync(VIDEO_UPLOAD_DIR, { recursive: true });
 
+// Redirect removed placement-quiz routes to the dashboard so user-facing
+// direct access no longer exposes the legacy quiz flow.
+app.use((req, res, next) => {
+  if (req.path.toLowerCase() === '/placement-quiz' || req.path.toLowerCase() === '/placement-quiz.html') {
+    return res.redirect('/dashboard');
+  }
+  next();
+});
+
+// Used for post-recorded online classes, physical/studio lesson recordings,
+// and video-library clips - all the same "upload a video file" shape.
 const videoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, VIDEO_UPLOAD_DIR),
@@ -81,12 +103,32 @@ const certUpload = multer({
   },
 });
 
-// dashboard/payment/video/admin must only be reachable through the gated
-// routes below (which check auth, role, and purchase state), never by raw
-// filename. Path is lowercased since Windows/macOS filesystems are
-// case-insensitive - express.static would otherwise serve "/Dashboard.html"
-// even though this list only spells the lowercase form.
-const GATED_HTML_FILES = ['/dashboard.html', '/payment.html', '/video.html', '/admin.html', '/become-tutor.html', '/find-tutor.html', '/manage-quizzes.html', '/orientation.html', '/tutor-evaluation.html', '/placement-quiz.html'];
+const PHOTO_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'photos');
+fs.mkdirSync(PHOTO_UPLOAD_DIR, { recursive: true });
+
+// Tutor profile photos - shown on tutor cards/profiles across the site.
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, PHOTO_UPLOAD_DIR),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Please upload an image file.'));
+    cb(null, true);
+  },
+});
+
+// dashboard/admin/etc. must only be reachable through the gated routes
+// below (which check auth/role), never by raw filename. Path is lowercased
+// since Windows/macOS filesystems are case-insensitive - express.static
+// would otherwise serve "/Dashboard.html" even though this list only
+// spells the lowercase form.
+const GATED_HTML_FILES = [
+  '/dashboard.html', '/admin.html', '/become-tutor.html', '/become-sponsor.html',
+  '/orientation.html', '/tutor-evaluation.html',
+  '/chat.html', '/library.html',
+];
 app.use((req, res, next) => {
   if (GATED_HTML_FILES.includes(req.path.toLowerCase())) {
     return res.redirect('/login');
@@ -105,6 +147,18 @@ function currentUser(req) {
 function requireAuthPage(req, res, next) {
   if (!currentUser(req)) {
     return res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
+  }
+  next();
+}
+
+function requireTutorProfilePage(req, res, next) {
+  const user = currentUser(req);
+  if (!user) {
+    return res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
+  }
+  const profile = tutors.findByUserId(user.id);
+  if (!profile) {
+    return res.redirect('/become-tutor');
   }
   next();
 }
@@ -130,8 +184,8 @@ function requireAdminApi(req, res, next) {
   next();
 }
 
-// Approved tutors can author quiz questions, but only for courses in
-// subjects they're approved to teach - not the whole catalog like admin.
+// Approved tutors can manage content, but only for subjects they're
+// approved to teach.
 function requireApprovedTutorApi(req, res, next) {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
@@ -143,20 +197,44 @@ function requireApprovedTutorApi(req, res, next) {
   next();
 }
 
+// Any signed-up user with a tutor profile, approved or not - qualification
+// evaluation and orientation happen before/around approval, not just after.
+function requireTutorProfileApi(req, res, next) {
+  const user = currentUser(req);
+  if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
+  const profile = tutors.findByUserId(user.id);
+  if (!profile) return res.status(403).json({ success: false, error: 'No tutor application on file.' });
+  req.tutorProfile = profile;
+  next();
+}
+
 function publicUser(user) {
+  const tutorProfile = tutors.findByUserId(user.id);
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role || 'user',
     countryCode: user.countryCode || null,
-    purchasedCourses: user.purchasedCourses,
+    photoUrl: user.photoUrl || (tutorProfile && tutorProfile.photoUrl) || null,
+    hasTutorProfile: Boolean(tutorProfile),
+    tutorProfileId: tutorProfile ? tutorProfile.id : null,
+    tutorStatus: tutorProfile ? tutorProfile.status : null,
   };
 }
 
-// Demo/admin accounts can reach every purchasable course without paying.
-function canAccessCourse(user, courseId) {
-  return store.hasFullAccess(user) || user.purchasedCourses.includes(courseId);
+// Notifies every admin of a new tutor/org/student request - both in-app
+// (the bell icon) and by real email, so an admin can see it land in their
+// inbox before they even open the admin panel. excludeUserId keeps an
+// admin from getting an alert about their own submission (e.g. an admin
+// account applying to tutor).
+function notifyAdmins({ type, message, subject, excludeUserId }) {
+  store.listUsers()
+    .filter((u) => u.role === 'admin' && u.id !== excludeUserId)
+    .forEach((admin) => {
+      store.addNotification(admin.id, { type, message });
+      mailer.sendMail({ to: admin.email, subject: subject || 'Mozart Techniques - New request', text: message });
+    });
 }
 
 // Country resolution order: signed-in user's saved preference, then a
@@ -169,31 +247,42 @@ async function resolveCountryCode(req) {
   return fromIp || geo.DEFAULT_COUNTRY;
 }
 
+// A GPS-verified location (see /api/geo/set-location below) always wins
+// over IP/profile-based resolution when present - it's the same
+// reverse-geocoding source as a tutor's own location, so comparing names
+// directly is more reliable than round-tripping through an ISO code. Stored
+// on the session, not the account, so it works for anonymous visitors too.
 async function getGeoInfo(req) {
+  if (req.session && req.session.gpsCountry) {
+    const name = req.session.gpsCountry;
+    const code = geo.countryCodeForName(name) || await resolveCountryCode(req);
+    const info = geo.getCountryInfo(code);
+    return { countryCode: code, name, currency: info.currency, symbol: info.symbol };
+  }
   const countryCode = await resolveCountryCode(req);
   const info = geo.getCountryInfo(countryCode);
   return { countryCode, name: info.name, currency: info.currency, symbol: info.symbol };
 }
 
-async function localizeCourse(req, course) {
-  const geoInfo = await getGeoInfo(req);
-  const localPrice = await currency.convertFromUsd(course.price, geoInfo.currency);
-  return {
-    ...course,
-    countryCode: geoInfo.countryCode,
-    currency: geoInfo.currency,
-    symbol: geoInfo.symbol,
-    localPrice: Math.round(localPrice * 100) / 100,
-  };
+// Location bridge: a visitor only sees tutors located in their own country.
+// Tutor country comes from the geocoded address they applied with
+// (locality.country - a full name, e.g. "Nigeria"); the viewer's country
+// comes from the same IP/profile resolution already used for currency. A
+// tutor with no geocoded country (legacy/incomplete data) is never hidden -
+// there's nothing to compare against, so excluding them would just be a
+// silent data-gap bug, not a real boundary.
+function sameCountry(a, b) {
+  return Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+function inViewerCountry(tutor, viewerCountryName) {
+  const tutorCountry = tutor.locality && tutor.locality.country;
+  if (!tutorCountry) return true;
+  return sameCountry(tutorCountry, viewerCountryName);
 }
 
 // --- PAGE ROUTES ---
 app.get(['/', '/home'], (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'home.html'));
-});
-
-app.get('/courses', (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'courses.html'));
 });
 
 app.get('/search', (req, res) => {
@@ -224,24 +313,44 @@ app.get('/dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
 });
 
+app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
+});
+
 app.get('/admin', requireAdminPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'admin.html'));
 });
 
 app.get('/become-tutor', requireAuthPage, (req, res) => {
+  const user = currentUser(req);
+  if (user && tutors.findByUserId(user.id)) {
+    return res.redirect('/tutor');
+  }
   res.sendFile(path.join(PUBLIC_DIR, 'become-tutor.html'));
 });
 
-app.get('/find-tutor', requireAuthPage, (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'find-tutor.html'));
+app.get('/tutor', requireTutorProfilePage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
 });
 
-app.get('/manage-quizzes', (req, res) => {
-  const user = currentUser(req);
-  if (!user) return res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
-  const profile = tutors.findByUserId(user.id);
-  if (!profile || profile.status !== 'approved') return res.redirect('/dashboard');
-  res.sendFile(path.join(PUBLIC_DIR, 'manage-quizzes.html'));
+// Public per-tutor page by slug (e.g. /tutor/jane-doe) and nested profile routes
+app.get('/tutor/:slug', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+});
+
+app.get(/^\/tutor\/[a-zA-Z0-9_-]+(\/.*)?$/, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+});
+
+app.get('/become-sponsor', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'become-sponsor.html'));
+});
+
+// Publicly browsable - no login required, so anyone can see the roster of
+// approved tutors before creating an account. Login is only required at the
+// point of actually submitting a request to a tutor.
+app.get('/find-tutor', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'find-tutor.html'));
 });
 
 app.get('/orientation', (req, res) => {
@@ -258,58 +367,50 @@ app.get('/tutor-evaluation', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'tutor-evaluation.html'));
 });
 
-app.get('/placement-quiz', requireAuthPage, (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'placement-quiz.html'));
-});
-
-// Public course details - no login required to browse what a course covers.
-// Only enrolling (via /payment/:id) requires an account.
-app.get('/courses/:id', (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.redirect('/courses');
-  res.sendFile(path.join(PUBLIC_DIR, 'course-detail.html'));
-});
-
-// A course must be picked before paying; without one, send the learner
-// back to the catalog instead of showing an empty payment form.
-app.get('/payment', requireAuthPage, (req, res) => {
-  res.redirect('/courses');
-});
-
 // Public certificate verification - no login required, so a certificate
-// can be checked by anyone who has the link/code.
+// can be checked by anyone who has the link/code. Legacy feature (see
+// data/certificates.js) but still real and still verifiable.
 app.get('/certificate/:code', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'certificate.html'));
 });
 
-// Public tutor profile - no login required to browse, same as a course
-// detail page. Requesting the tutor still requires an account.
+// Public tutor profile - no login required to browse. Requesting the tutor
+// still requires an account.
 app.get('/tutors/:id', (req, res) => {
   const tutor = tutors.findById(req.params.id);
   if (!tutor || tutor.status !== 'approved' || tutor.expelled) return res.redirect('/find-tutor');
-  res.sendFile(path.join(PUBLIC_DIR, 'tutor-profile.html'));
+  // Serve the unified tutor page (same as the dashboard) but client-side
+  // will render it read-only for public viewers. This lets /tutors/:id and
+  // /tutor/:slug share the same layout and styling.
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
 });
 
-app.get('/payment/:id', requireAuthPage, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course || !course.purchasable) return res.redirect('/courses');
-
-  const user = currentUser(req);
-  if (canAccessCourse(user, course.id)) {
-    return res.redirect(`/video/${course.slug}`);
-  }
-  res.sendFile(path.join(PUBLIC_DIR, 'payment.html'));
+app.get(/^\/tutors\/[0-9]+(\/.*)?$/, (req, res) => {
+  const match = req.path.match(/^\/tutors\/([0-9]+)(?:\/.*)?$/);
+  const id = match && match[1];
+  const tutor = tutors.findById(id);
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled) return res.redirect('/find-tutor');
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
 });
 
-app.get('/video/:id', requireAuthPage, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.redirect('/courses');
+// Public per-student page by slug (e.g. /student/john-doe)
+app.get('/student/:slug', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'student.html'));
+});
 
+// Chat only opens for the two participants on the assignment.
+app.get('/chat/:id', requireAuthPage, (req, res) => {
   const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.redirect(`/payment/${course.slug}`);
-  }
-  res.sendFile(path.join(PUBLIC_DIR, 'video.html'));
+  const record = assignments.findById(req.params.id);
+  if (!record) return res.redirect('/dashboard');
+  const tutorProfile = tutors.findByUserId(user.id);
+  const isParticipant = record.studentId === user.id || (tutorProfile && record.tutorId === tutorProfile.id);
+  if (!isParticipant) return res.redirect('/dashboard');
+  res.sendFile(path.join(PUBLIC_DIR, 'chat.html'));
+});
+
+app.get('/library', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
 });
 
 // --- AUTH API ---
@@ -330,7 +431,7 @@ app.post('/api/signup', async (req, res) => {
   const user = store.createUser({ name, email, passwordHash, countryCode });
   req.session.userId = user.id;
 
-  store.addNotification(user.id, { type: 'welcome', message: `Welcome to Mozart Technique, ${user.name}!` });
+  store.addNotification(user.id, { type: 'welcome', message: `Welcome to Mozart Techniques, ${user.name}!` });
 
   res.json({ success: true, user: publicUser(user) });
 });
@@ -398,7 +499,7 @@ app.post('/api/auth/google', async (req, res) => {
 
   let payload;
   try {
-    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_AUDIENCES });
     payload = ticket.getPayload();
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Invalid Google credential.' });
@@ -440,6 +541,25 @@ app.get('/api/geo', async (req, res) => {
   res.json({ success: true, ...geoInfo, countries: geo.listCountries() });
 });
 
+// Browser GPS -> country, stored on the session so the location bridge and
+// currency work for anonymous visitors too (no account needed). This is the
+// primary country signal - IP lookup can't resolve anything on localhost or
+// private networks, and a VPN makes it wrong - so asking the browser
+// directly on first visit is what actually pins a visitor to a country.
+app.post('/api/geo/set-location', async (req, res) => {
+  const { lat, lng } = req.body || {};
+  if (lat == null || lng == null) return res.status(400).json({ success: false, error: 'Coordinates are required.' });
+
+  const resolved = await reverseGeocode(lat, lng);
+  if (!resolved || !resolved.country) {
+    return res.status(400).json({ success: false, error: 'Could not resolve your location.' });
+  }
+
+  req.session.gpsCountry = resolved.country;
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, ...geoInfo, city: resolved.city, state: resolved.state });
+});
+
 app.post('/api/profile/country', requireAuthApi, (req, res) => {
   const { countryCode } = req.body || {};
   if (!countryCode || !geo.COUNTRY_CURRENCY[countryCode]) {
@@ -450,313 +570,170 @@ app.post('/api/profile/country', requireAuthApi, (req, res) => {
   res.json({ success: true, user: publicUser(updated) });
 });
 
-// --- COURSE / PAYMENT API ---
-app.get('/api/courses/:id', async (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  res.json({ success: true, course: await localizeCourse(req, course) });
+// --- STRIPE: card on file, used to authorize (hold) and later capture
+// escrow payments. Mozart Techniques' own Stripe account collects every
+// charge directly - there's no per-tutor Connect account, so a tutor's
+// payout stays an internal balance an admin settles separately (unchanged
+// from before Stripe was wired in).
+app.get('/api/stripe/config', (req, res) => {
+  res.json({ success: true, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null });
 });
 
-// Public syllabus preview - lesson titles only, no video IDs, so browsing a
-// course page never leaks watchable content before payment.
-app.get('/api/courses/:id/syllabus', (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const lessons = content.getEffectiveLessons(course.id).map((l) => ({ title: l.title }));
-  res.json({ success: true, lessons });
+app.get('/api/payment-method', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  res.json({
+    success: true,
+    hasCard: Boolean(user.stripePaymentMethodId),
+    brand: user.cardBrand || null,
+    last4: user.cardLast4 || null,
+  });
+});
+
+app.post('/api/payment-method/setup-intent', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+
+  const user = currentUser(req);
+  try {
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await client.customers.create({ email: user.email, name: user.name });
+      customerId = customer.id;
+      store.setStripePaymentMethod(user.id, {
+        customerId, paymentMethodId: user.stripePaymentMethodId, brand: user.cardBrand, last4: user.cardLast4,
+      });
+    }
+    const setupIntent = await client.setupIntents.create({
+      customer: customerId, usage: 'off_session', payment_method_types: ['card'],
+    });
+    res.json({ success: true, clientSecret: setupIntent.client_secret });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/payment-method/confirm', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+
+  const { setupIntentId } = req.body || {};
+  if (!setupIntentId) return res.status(400).json({ success: false, error: 'Missing setup intent.' });
+
+  const user = currentUser(req);
+  try {
+    const setupIntent = await client.setupIntents.retrieve(setupIntentId);
+    if (setupIntent.status !== 'succeeded' || setupIntent.customer !== user.stripeCustomerId) {
+      return res.status(400).json({ success: false, error: 'Card setup was not completed.' });
+    }
+    const paymentMethod = await client.paymentMethods.retrieve(setupIntent.payment_method);
+    const updated = store.setStripePaymentMethod(user.id, {
+      customerId: user.stripeCustomerId,
+      paymentMethodId: paymentMethod.id,
+      brand: paymentMethod.card ? paymentMethod.card.brand : null,
+      last4: paymentMethod.card ? paymentMethod.card.last4 : null,
+    });
+    res.json({ success: true, brand: updated.cardBrand, last4: updated.cardLast4 });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/payment-method', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const client = stripeClient.getClient();
+  if (client && user.stripePaymentMethodId) {
+    try { await client.paymentMethods.detach(user.stripePaymentMethodId); } catch { /* best-effort */ }
+  }
+  store.clearStripePaymentMethod(user.id);
+  res.json({ success: true });
+});
+
+// Resolves real browser GPS coordinates to a city/state/country and saves
+// it as the user's public location. Enforces the launch-city allow-list
+// (Nigeria: Lagos/Port Harcourt/Abuja/Kano only; every other country is
+// unrestricted) - a disallowed city still saves the real location (so nine
+// out of ten "you're not in a launch city yet" cases are honest, not
+// silently dropped) but the response flags it so the client can explain.
+app.post('/api/profile/location', requireAuthApi, async (req, res) => {
+  const { lat, lng } = req.body || {};
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return res.status(400).json({ success: false, error: 'Latitude and longitude are required.' });
+  }
+  const resolved = await reverseGeocode(lat, lng);
+  if (!resolved) {
+    return res.status(502).json({ success: false, error: 'Could not resolve that location. Try again in a moment.' });
+  }
+
+  const user = currentUser(req);
+  await store.setRealLocation(user.id, resolved);
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile) tutors.setRealLocation(tutorProfile.id, resolved);
+
+  const allowed = allowedLocations.isCityAllowed(resolved.country, resolved);
+  res.json({
+    success: true,
+    location: { ...resolved, canonicalCity: allowedLocations.canonicalCity(resolved.country, resolved) },
+    allowed,
+    allowedCities: allowedLocations.getAllowedCities(resolved.country),
+  });
 });
 
 app.get('/api/dashboard', requireAuthApi, async (req, res) => {
-  const user = currentUser(req);
-  const enrolledCourses = store.hasFullAccess(user)
-    ? COURSES.filter((c) => c.purchasable)
-    : user.purchasedCourses.map((id) => getCourse(id)).filter(Boolean);
+  const user = store.markActive(currentUser(req).id);
   const geoInfo = await getGeoInfo(req);
-  const badges = store.getBadges(user, 4);
+  const studentAssignments = assignments.listForStudent(user.id);
+  const pendingTutorRequests = studentAssignments
+    .filter((r) => r.status === 'pending')
+    .map((r) => ({
+      id: r.id,
+      category: r.category,
+      lessonType: r.lessonType,
+      city: r.city,
+      notes: r.notes,
+      createdAt: r.createdAt,
+      status: r.status,
+      preferredTutorIds: r.preferredTutorIds || [],
+    }));
+  const enrolledCourses = studentAssignments
+    .filter((r) => r.status === 'active')
+    .map((r) => ({
+      id: r.id,
+      category: r.category,
+      level: r.desiredLevel || 'Verified',
+      title: `${r.category} ${r.lessonType ? `(${r.lessonType})` : ''}`.trim(),
+      slug: `course-${r.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${r.id}`,
+      status: 'verified',
+      statusText: 'Verified',
+      lessonType: r.lessonType,
+      tutorName: r.tutorName || null,
+      tutorId: r.tutorId || null,
+    }));
   res.json({
     success: true,
     user: publicUser(user),
-    enrolledCourses,
     geo: geoInfo,
-    streak: user.streak || { count: 0 },
-    badges,
     rating: user.rating || null,
     placements: user.placements || {},
     studentProfile: user.studentProfile || null,
+    certificates: certificates.listForUser(user.id),
+    streak: user.streak || { count: 0 },
+    badges: store.getBadges(user),
+    sponsor: user.sponsor || null,
+    pendingTutorRequests,
+    enrolledCourses,
   });
 });
 
-// Payment requires a signed-in session (requireAuthApi) - there is no way
-// to reach this endpoint, and therefore no way to unlock a course video,
-// without an account.
-app.post('/api/payment', requireAuthApi, async (req, res) => {
-  const { courseId, method } = req.body || {};
-  const course = getCourse(courseId);
-  if (!course || !course.purchasable) {
-    return res.status(400).json({ success: false, error: 'This course is not available for purchase.' });
-  }
-
-  const user = currentUser(req);
-  if (canAccessCourse(user, course.id)) {
-    return res.json({ success: true, alreadyPurchased: true, redirect: `/video/${course.slug}` });
-  }
-
-  // Simulated payment processing - no real payment provider is wired up.
-  // The charge is still authoritatively priced in USD (course.price); the
-  // localized amount is only for display in the confirmation message.
-  store.addPurchase(user.id, course.id);
-  payments.record({
-    userId: user.id, userName: user.name, courseId: course.id, courseTitle: course.title,
-    category: course.category, priceUsd: course.price, method: method || 'card',
-  });
-  const geoInfo = await getGeoInfo(req);
-  const localAmount = Math.round((await currency.convertFromUsd(course.price, geoInfo.currency)) * 100) / 100;
-
-  store.addNotification(user.id, { type: 'payment', message: `Payment received for ${course.title} - enjoy the course!` });
-
-  res.json({
-    success: true,
-    message: `Payment of ${geoInfo.symbol}${localAmount} (${geoInfo.currency}) via ${method || 'card'} processed.`,
-    redirect: `/video/${course.slug}`,
-  });
-});
-
-app.get('/api/video/:id', requireAuthApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-
-  const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.status(403).json({ success: false, error: 'Purchase this course to watch its lessons.' });
-  }
-
-  const lessons = content.getEffectiveLessons(course.id);
-  const completed = (user.progress && user.progress[String(course.id)]) || [];
-  res.json({ success: true, course, lessons, completedLessons: completed, streak: user.streak || { count: 0 } });
-});
-
-// --- PROGRESS / STREAKS / BADGES ---
-app.post('/api/progress/:id', requireAuthApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-
-  const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.status(403).json({ success: false, error: 'Purchase this course first.' });
-  }
-
-  const { lessonIndex, completed } = req.body || {};
-  if (typeof lessonIndex !== 'number') {
-    return res.status(400).json({ success: false, error: 'lessonIndex is required.' });
-  }
-
-  const updated = store.setLessonProgress(user.id, course.id, lessonIndex, Boolean(completed));
-  const totalLessons = content.getEffectiveLessons(course.id).length;
-  const completedLessons = updated.progress[String(course.id)] || [];
-  const allLessonsComplete = completedLessons.length >= totalLessons;
-  const hasQuiz = quizzes.getQuestionsForAdmin(course.id).length > 0;
-
-  // No quiz gate means finishing the lessons is completion - issue the
-  // certificate right here. Quiz-gated courses issue it on passing instead
-  // (see /api/courses/:id/quiz/submit).
-  let certificate = null;
-  if (allLessonsComplete && !hasQuiz) {
-    certificate = certificates.issue({
-      userId: user.id, userName: user.name, courseId: course.id, courseTitle: course.title,
-      category: course.category, level: course.level,
-    });
-  }
-
-  res.json({
-    success: true,
-    completedLessons,
-    streak: updated.streak,
-    badges: store.getBadges(updated, totalLessons),
-    allLessonsComplete,
-    hasQuiz,
-    certificate,
-  });
-});
-
-// --- FINAL QUIZ ---
-// A course with no admin-authored questions has no gate: finishing the
-// lessons is enough. A course with questions requires passing before the
-// student is congratulated; failing clears their lesson progress so they
-// have to work back through the material first.
-app.get('/api/courses/:id/quiz', requireAuthApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.status(403).json({ success: false, error: 'Purchase this course first.' });
-  }
-  res.json({ success: true, questions: quizzes.getQuestionsForStudent(course.id) });
-});
-
-app.post('/api/courses/:id/quiz/submit', requireAuthApi, async (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.status(403).json({ success: false, error: 'Purchase this course first.' });
-  }
-
-  const { answers } = req.body || {};
-  const result = quizzes.grade(course.id, Array.isArray(answers) ? answers : []);
-  if (!result) return res.status(400).json({ success: false, error: 'This course has no quiz.' });
-
-  store.setQuizResult(user.id, course.id, result);
-
-  if (result.passed) {
-    const suggestions = getSuggestions(course.id).map((c) => ({ id: c.id, slug: c.slug, title: c.title, level: c.level }));
-    const certificate = certificates.issue({
-      userId: user.id, userName: user.name, courseId: course.id, courseTitle: course.title,
-      category: course.category, level: course.level,
-    });
-    return res.json({ success: true, passed: true, score: result.score, suggestions, certificate });
-  }
-
-  store.resetCourseProgress(user.id, course.id);
-  res.json({ success: true, passed: false, score: result.score });
-});
-
-// --- CERTIFICATES ---
+// --- CERTIFICATES (legacy - see data/certificates.js) ---
 app.get('/api/my-certificates', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   res.json({ success: true, certificates: certificates.listForUser(user.id) });
 });
 
-// Public and unauthenticated on purpose - a certificate should be
-// verifiable by anyone who has the code (an employer, another school),
-// not just the person who earned it.
 app.get('/api/certificate/:code', (req, res) => {
   const certificate = certificates.findByCode(req.params.code);
   if (!certificate) return res.status(404).json({ success: false, error: 'Certificate not found.' });
   res.json({ success: true, certificate });
-});
-
-app.get('/api/admin/courses/:id/quiz', requireAdminApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  res.json({ success: true, questions: quizzes.getQuestionsForAdmin(course.id) });
-});
-
-app.post('/api/admin/courses/:id/quiz', requireAdminApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const { questions } = req.body || {};
-  if (!Array.isArray(questions)) {
-    return res.status(400).json({ success: false, error: 'Questions must be an array.' });
-  }
-  const saved = quizzes.setQuestions(course.id, questions);
-  res.json({ success: true, questions: saved });
-});
-
-// --- APPROVED TUTORS: content + quiz authoring for their own subjects ---
-// Same underlying storage as the admin editors, scoped so a tutor can only
-// touch courses in categories they're approved to teach.
-function tutorOwnedCourse(req, res) {
-  const course = getCourse(req.params.id);
-  if (!course) { res.status(404).json({ success: false, error: 'Course not found.' }); return null; }
-  if (!req.tutorProfile.categories.includes(course.category)) {
-    res.status(403).json({ success: false, error: "You can only manage content for subjects you're approved to teach." });
-    return null;
-  }
-  return course;
-}
-
-app.get('/api/tutor/courses', requireApprovedTutorApi, (req, res) => {
-  const courses = COURSES
-    .filter((c) => c.purchasable && req.tutorProfile.categories.includes(c.category))
-    .map((c) => ({ id: c.id, title: c.title, category: c.category, level: c.level }));
-  res.json({ success: true, courses });
-});
-
-app.get('/api/tutor/courses/:id/content', requireApprovedTutorApi, (req, res) => {
-  const course = tutorOwnedCourse(req, res);
-  if (!course) return;
-  res.json({ success: true, course, lessons: content.getEffectiveLessons(course.id) });
-});
-
-app.post('/api/tutor/courses/:id/content', requireApprovedTutorApi, (req, res) => {
-  const course = tutorOwnedCourse(req, res);
-  if (!course) return;
-  const { lessons } = req.body || {};
-  if (!Array.isArray(lessons) || lessons.length === 0) {
-    return res.status(400).json({ success: false, error: 'At least one lesson is required.' });
-  }
-  const saved = content.setContent(course.id, { lessons });
-  res.json({ success: true, lessons: saved.lessons });
-});
-
-// Lets an approved tutor upload a video file for one of their own lessons,
-// same underlying storage as the admin upload endpoint.
-app.post('/api/tutor/upload/video', requireApprovedTutorApi, (req, res) => {
-  videoUpload.single('video')(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
-      return res.status(400).json({ success: false, error: message });
-    }
-    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
-    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
-    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
-  });
-});
-
-app.get('/api/tutor/courses/:id/quiz', requireApprovedTutorApi, (req, res) => {
-  const course = tutorOwnedCourse(req, res);
-  if (!course) return;
-  res.json({ success: true, questions: quizzes.getQuestionsForAdmin(course.id) });
-});
-
-app.post('/api/tutor/courses/:id/quiz', requireApprovedTutorApi, (req, res) => {
-  const course = tutorOwnedCourse(req, res);
-  if (!course) return;
-  const { questions } = req.body || {};
-  if (!Array.isArray(questions)) {
-    return res.status(400).json({ success: false, error: 'Questions must be an array.' });
-  }
-  const saved = quizzes.setQuestions(course.id, questions);
-  res.json({ success: true, questions: saved });
-});
-
-// Suggested next course after finishing this one - same category, next
-// level up first, falling back to other purchasable courses in category.
-app.get('/api/courses/:id/suggestions', async (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const suggestions = await Promise.all(getSuggestions(course.id).map((c) => localizeCourse(req, c)));
-  res.json({ success: true, suggestions });
-});
-
-// --- COURSE Q&A ---
-app.get('/api/courses/:id/qna', (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  res.json({ success: true, threads: qna.getByCourse(course.id) });
-});
-
-app.post('/api/courses/:id/qna', requireAuthApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const { question } = req.body || {};
-  if (!question || !question.trim()) {
-    return res.status(400).json({ success: false, error: 'Question text is required.' });
-  }
-  const user = currentUser(req);
-  const thread = qna.addQuestion(course.id, user, question.trim());
-  res.json({ success: true, thread });
-});
-
-app.post('/api/qna/:threadId/reply', requireAuthApi, (req, res) => {
-  const { text } = req.body || {};
-  if (!text || !text.trim()) {
-    return res.status(400).json({ success: false, error: 'Reply text is required.' });
-  }
-  const user = currentUser(req);
-  const thread = qna.addReply(req.params.threadId, user, text.trim());
-  if (!thread) return res.status(404).json({ success: false, error: 'Thread not found.' });
-  res.json({ success: true, thread });
 });
 
 // --- NOTIFICATIONS ---
@@ -771,22 +748,12 @@ app.post('/api/notifications/read-all', requireAuthApi, (req, res) => {
   res.json({ success: true, notifications: updated.notifications || [] });
 });
 
-// Site-wide search across the course catalog and approved tutors - public,
-// no login required, same as browsing either individually.
+// Site-wide search across approved tutors - public, no login required.
 app.get('/api/search', async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
-  if (!q) return res.json({ success: true, courses: [], tutors: [] });
-
-  const matchedCourses = COURSES.filter((c) => c.purchasable && (
-    c.title.toLowerCase().includes(q)
-    || c.category.toLowerCase().includes(q)
-    || c.level.toLowerCase().includes(q)
-    || (c.description || '').toLowerCase().includes(q)
-  )).slice(0, 12);
+  if (!q) return res.json({ success: true, tutors: [] });
 
   const geoInfo = await getGeoInfo(req);
-  const courses = await Promise.all(matchedCourses.map((c) => localizeCourse(req, c)));
-
   const matchedTutors = tutors.listApproved().filter((t) => (
     t.name.toLowerCase().includes(q)
     || t.categories.some((c) => c.toLowerCase().includes(q))
@@ -795,40 +762,75 @@ app.get('/api/search', async (req, res) => {
   )).slice(0, 12);
 
   const tutorResults = await Promise.all(matchedTutors.map(async (t) => ({
-    id: t.id, name: t.name, categories: t.categories, city: t.city, teachesOnline: t.teachesOnline,
+    id: t.id, name: t.name, categories: t.categories, city: t.city, teachesOnline: t.teachesOnline, photoUrl: t.photoUrl || null,
     bio: t.bio, hourlyRateUsd: t.hourlyRateUsd,
     hourlyRateLocal: Math.round((await currency.convertFromUsd(t.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
     currency: geoInfo.currency, symbol: geoInfo.symbol, avgRating: tutors.avgRating(t),
   })));
 
-  res.json({ success: true, courses, tutors: tutorResults });
+  res.json({ success: true, tutors: tutorResults });
 });
 
 // --- TUTORS: applications, browsing, and matching ---
 // A tutor's approval status lives on the tutor profile, not the user's
 // role, since the same account can be both a student and a tutor.
 app.get('/api/categories', (req, res) => {
-  res.json({ success: true, categories: getCategories() });
+  res.json({ success: true, categories: taxonomy.SUBJECTS });
 });
 
 app.get('/api/taxonomy', (req, res) => {
-  res.json({ success: true, genres: taxonomy.GENRES, ageGroups: taxonomy.AGE_GROUPS, levels: taxonomy.LEVELS });
+  res.json({
+    success: true,
+    subjects: taxonomy.SUBJECTS,
+    genres: taxonomy.GENRES,
+    ageGroups: taxonomy.AGE_GROUPS,
+    levels: taxonomy.LEVELS,
+    lessonTypes: assignments.LESSON_TYPES,
+  });
 });
-
-// Any signed-up user with a tutor profile, approved or not - qualification
-// evaluation and orientation happen before/around approval, not just after.
-function requireTutorProfileApi(req, res, next) {
-  const user = currentUser(req);
-  if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
-  const profile = tutors.findByUserId(user.id);
-  if (!profile) return res.status(403).json({ success: false, error: 'No tutor application on file.' });
-  req.tutorProfile = profile;
-  next();
-}
 
 app.get('/api/tutors/me', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const profile = tutors.findByUserId(user.id);
+  res.json({ success: true, profile });
+});
+
+app.get('/api/tutors/me/intake-form', requireTutorProfileApi, (req, res) => {
+  res.json({ success: true, questions: req.tutorProfile.studentIntakeQuestions || [] });
+});
+
+app.post('/api/tutors/me/intake-form', requireTutorProfileApi, async (req, res) => {
+  const questions = Array.isArray(req.body.questions) ? req.body.questions : [];
+  const normalized = questions
+    .filter((q) => q && String(q.question || '').trim())
+    .map((q) => ({
+      question: String(q.question).trim(),
+      placeholder: String(q.placeholder || '').trim(),
+    }));
+  const updated = tutors.setIntakeQuestions(req.tutorProfile.id, normalized);
+  res.json({ success: true, questions: updated.studentIntakeQuestions || [] });
+});
+
+app.get('/api/tutors/:id/intake-form', requireAuthApi, (req, res) => {
+  const tutor = tutors.findById(req.params.id);
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled) {
+    return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  }
+  res.json({ success: true, questions: tutor.studentIntakeQuestions || [] });
+});
+
+// Fetch a tutor profile by slug for public pages
+app.get('/api/tutors/slug/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  const t = tutors.findBySlug(slug);
+  if (!t || t.status !== 'approved' || t.expelled) {
+    return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  }
+  // expose a safe public shape
+  const profile = {
+    id: t.id, name: t.name, categories: t.categories, city: t.city, teachesOnline: t.teachesOnline,
+    photoUrl: t.photoUrl || null, bio: t.bio, hourlyRateUsd: t.hourlyRateUsd, hourlyRateLocal: t.hourlyRateUsd,
+  };
   res.json({ success: true, profile });
 });
 
@@ -844,6 +846,29 @@ app.post('/api/uploads/certificate', requireAuthApi, (req, res) => {
   });
 });
 
+app.post('/api/uploads/photo', requireAuthApi, (req, res) => {
+  photoUpload.single('photo')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 8MB).' : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a photo to upload.' });
+    res.json({ success: true, url: `/uploads/photos/${req.file.filename}` });
+  });
+});
+
+// Lets an already-approved tutor add/change their photo later, since the
+// application form's photo is optional and many tutors will apply first.
+app.post('/api/tutors/me/photo', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const profile = tutors.findByUserId(user.id);
+  if (!profile) return res.status(404).json({ success: false, error: 'No tutor profile on file.' });
+  const { photoUrl } = req.body || {};
+  if (!photoUrl) return res.status(400).json({ success: false, error: 'A photo URL is required.' });
+  res.json({ success: true, profile: tutors.setPhoto(profile.id, photoUrl) });
+});
+
 app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   if (tutors.findByUserId(user.id)) {
@@ -852,7 +877,7 @@ app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
 
   const {
     categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue,
+    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
   } = req.body || {};
   if (!Array.isArray(categories) || categories.length === 0) {
     return res.status(400).json({ success: false, error: 'Choose at least one subject you can teach.' });
@@ -870,21 +895,100 @@ app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
   const profile = await tutors.apply({
     userId: user.id, name: user.name, email: user.email,
     categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue,
+    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
   });
 
-  // No email is configured, so admins are notified in-app instead of by
-  // email - every admin account sees new applications in their bell icon.
-  // Excludes the applicant themselves, in case an admin account applies to
-  // tutor - they shouldn't get an admin alert about their own application.
-  store.listUsers()
-    .filter((u) => u.role === 'admin' && u.id !== user.id)
-    .forEach((admin) => store.addNotification(admin.id, {
-      type: 'tutor-application',
-      message: `New tutor application from ${user.name} (${user.email}) - review it in the admin panel.`,
-    }));
+  notifyAdmins({
+    type: 'tutor-application',
+    subject: `New tutor application - ${user.name}`,
+    message: `New tutor application from ${user.name} (${user.email}) - review it in the admin panel.`,
+    excludeUserId: user.id,
+  });
 
   res.json({ success: true, profile });
+});
+
+// Tutor requests a payout - create a notification for admins to process.
+app.post('/api/tutors/me/withdraw', requireTutorProfileApi, (req, res) => {
+  const amount = Number(req.body && req.body.amount) || 0;
+  const tutor = req.tutorProfile;
+  if (!tutor) return res.status(404).json({ success: false, error: 'No tutor profile.' });
+  if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount.' });
+  notifyAdmins({ type: 'payout-request', subject: 'Payout request', message: `Tutor ${tutor.name} requested payout of $${amount.toFixed(2)}` });
+  store.addNotification(tutor.userId, { type: 'payout-request', message: `Requested payout of $${amount.toFixed(2)}. Admin will process it.` });
+  res.json({ success: true });
+});
+
+// Admin: process a payout request and debit tutor balance
+app.post('/api/admin/payouts/:tutorId/process', requireAdminApi, (req, res) => {
+  const tutorId = Number(req.params.tutorId);
+  const amount = Number(req.body && req.body.amount) || 0;
+  if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount.' });
+  const tutor = tutors.findById(tutorId);
+  if (!tutor) return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  if ((tutor.balanceUsd || 0) < amount) return res.status(400).json({ success: false, error: 'Insufficient balance.' });
+  const updated = tutors.debitBalance(tutorId, amount);
+  store.addNotification(tutor.userId, { type: 'payout-processed', message: `Your payout of $${amount.toFixed(2)} has been processed.` });
+  notifyAdmins({ type: 'payout-processed', subject: 'Payout processed', message: `Processed payout of $${amount.toFixed(2)} for tutor ${tutor.name}.` });
+  res.json({ success: true, tutor: updated });
+});
+
+// --- NGO / ORGANIZATION SPONSORSHIPS: an org applies, an admin approves
+// the application and separately activates a 1-year subscription once
+// payment is confirmed (simulated, same as the rest of this app's
+// payments), then the org can generate access codes for the students it
+// sponsors. A student redeems a code to link their account to the org. ---
+app.post('/api/organizations/apply', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  if (organizations.findByUserId(user.id)) {
+    return res.status(409).json({ success: false, error: 'You already have an organization application on file.' });
+  }
+  const { name, contactName, email, phone, registrationNumber, address, description } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Organization name is required.' });
+  if (!contactName || !contactName.trim()) return res.status(400).json({ success: false, error: 'A contact person is required.' });
+  if (!email || !email.trim() || !email.includes('@')) return res.status(400).json({ success: false, error: 'A valid email is required.' });
+
+  const org = await organizations.apply({
+    userId: user.id, name: name.trim(), contactName: contactName.trim(), email: email.trim(),
+    phone, registrationNumber, address, description,
+  });
+
+  notifyAdmins({
+    type: 'org-application',
+    subject: `New sponsor application - ${org.name}`,
+    message: `New organization sponsorship application from ${org.name} - review it in the admin panel.`,
+    excludeUserId: user.id,
+  });
+
+  res.json({ success: true, organization: org });
+});
+
+app.get('/api/organizations/me', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  res.json({ success: true, organization: org, subscriptionActive: org ? organizations.isSubscriptionActive(org) : false });
+});
+
+app.post('/api/organizations/me/generate-code', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization application on file.' });
+  if (!organizations.isSubscriptionActive(org)) {
+    return res.status(403).json({ success: false, error: 'Your subscription is not active yet - an admin needs to confirm payment first.' });
+  }
+  const entry = organizations.generateStudentCode(org.id);
+  res.json({ success: true, entry });
+});
+
+app.post('/api/redeem-code', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const { code } = req.body || {};
+  if (!code || !code.trim()) return res.status(400).json({ success: false, error: 'Enter a code.' });
+  const result = organizations.redeemCode(code, user.id, user.name);
+  if (result.error === 'not-found') return res.status(404).json({ success: false, error: 'That code was not recognized.' });
+  if (result.error === 'already-redeemed') return res.status(409).json({ success: false, error: 'That code has already been used.' });
+  store.setSponsor(user.id, { orgId: result.org.id, orgName: result.org.name });
+  res.json({ success: true, orgName: result.org.name });
 });
 
 // --- TUTOR QUALIFICATION EVALUATION: assigns which levels a tutor may
@@ -949,72 +1053,125 @@ app.post('/api/tutors/orientation/submit', requireTutorProfileApi, (req, res) =>
 // --- STUDENT PROFILE + PLACEMENT ---
 app.post('/api/profile/student', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
-  const { ageGroup, genres, city, address } = req.body || {};
-  const updated = await store.setStudentProfile(user.id, { ageGroup, genres, city, address });
+  const { name, ageGroup, genres, city, address, sex, photoUrl } = req.body || {};
+  const updated = await store.setStudentProfile(user.id, { name, ageGroup, genres, city, address, sex, photoUrl });
   res.json({ success: true, studentProfile: updated.studentProfile });
 });
 
-app.get('/api/placement/:category', requireAuthApi, (req, res) => {
-  const user = currentUser(req);
-  res.json({
-    success: true,
-    questions: assessments.getQuestionsForTaker('placement', req.params.category),
-    placement: (user.placements || {})[req.params.category] || null,
-  });
-});
-
-app.post('/api/placement/:category/submit', requireAuthApi, (req, res) => {
-  const user = currentUser(req);
-  const result = assessments.grade('placement', req.params.category, Array.isArray(req.body.answers) ? req.body.answers : []);
-  if (!result) return res.status(400).json({ success: false, error: 'No placement quiz is set up for this subject yet.' });
-  const level = taxonomy.levelForScore(result.score);
-  store.setPlacementSuggestion(user.id, req.params.category, { score: result.score, level });
-  res.json({ success: true, score: result.score, level });
-});
-
 // Public directory of approved tutors, filterable by subject/genre/age
-// group/city/online - browsing doesn't require an account, only requesting
-// one does. Rates are localized the same way course prices are, so students
-// compare tutors in their own currency.
+// group/city/lessonType - browsing doesn't require an account, only
+// requesting one does. Rates are localized so students compare tutors in
+// their own currency.
 app.get('/api/tutors', async (req, res) => {
-  const { category, genre, ageGroup, city, online } = req.query;
+  const { category, genre, ageGroup, city, lessonType } = req.query;
   let list = tutors.listApproved();
   if (category) list = list.filter((t) => t.categories.includes(category));
   if (genre) list = list.filter((t) => !t.genres || !t.genres.length || t.genres.includes(genre));
   if (ageGroup) list = list.filter((t) => !t.ageGroups || !t.ageGroups.length || t.ageGroups.includes(ageGroup));
   if (city) list = list.filter((t) => (t.city || '').toLowerCase().includes(String(city).toLowerCase()));
-  if (online === 'true') list = list.filter((t) => t.teachesOnline);
+  if (lessonType === 'online') list = list.filter((t) => t.teachesOnline);
+  if (lessonType === 'physical') list = list.filter((t) => t.inPersonVenue !== 'tutor_studio');
+  if (lessonType === 'studio') list = list.filter((t) => t.inPersonVenue !== 'student_location');
 
   const geoInfo = await getGeoInfo(req);
+  list = list.filter((t) => inViewerCountry(t, geoInfo.name));
   const localized = await Promise.all(list.map(async (t) => ({
     id: t.id, name: t.name, categories: t.categories, levels: t.levels, genres: t.genres, ageGroups: t.ageGroups,
-    city: t.city, teachesOnline: t.teachesOnline, experienceYears: t.experienceYears, bio: t.bio,
-    inPersonVenue: t.inPersonVenue,
+    city: t.city, teachesOnline: t.teachesOnline, inPersonVenue: t.inPersonVenue, photoUrl: t.photoUrl || null,
     hourlyRateUsd: t.hourlyRateUsd,
     hourlyRateLocal: Math.round((await currency.convertFromUsd(t.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
     currency: geoInfo.currency, symbol: geoInfo.symbol,
     avgRating: tutors.avgRating(t),
     avgProfessionalism: tutors.avgProfessionalism(t),
+    experienceYears: t.experienceYears,
+    bio: t.bio,
   })));
   localized.sort((a, b) => a.hourlyRateUsd - b.hourlyRateUsd);
 
-  res.json({ success: true, tutors: localized });
+  res.json({ success: true, tutors: localized, viewerCountry: geoInfo.name });
+});
+
+// City-grouped tutor directory: tutors from the same town/city are
+// clustered together, and within a city, ranked by qualification (approved
+// level, experience, rating) so a student can compare and pick.
+app.get('/api/tutors/directory', async (req, res) => {
+  const geoInfo = await getGeoInfo(req);
+  const list = tutors.listApproved().filter((t) => inViewerCountry(t, geoInfo.name));
+
+  const groups = {};
+  list.forEach((t) => {
+    // In a restricted country (e.g. Nigeria), normalize to the launch
+    // city's canonical name so tutors aren't fragmented by neighborhood/LGA
+    // (Nominatim often resolves "city" that granularly) - see
+    // data/allowed-locations.js. Unrestricted countries use the raw city.
+    const country = t.locality && t.locality.country;
+    const cityKey = (country && allowedLocations.canonicalCity(country, t.locality))
+      || (t.locality && t.locality.city) || t.city || 'Online only';
+    if (!groups[cityKey]) groups[cityKey] = [];
+    groups[cityKey].push(t);
+  });
+
+  const qualificationScore = (t) => {
+    const bestLevel = Object.values(t.approvedLevelByCategory || {})
+      .reduce((max, lvl) => Math.max(max, taxonomy.LEVELS.indexOf(lvl)), -1);
+    return (bestLevel + 1) * 100 + (t.experienceYears || 0) * 2 + (tutors.avgRating(t) || 0) * 10;
+  };
+
+  const cities = await Promise.all(Object.entries(groups).map(async ([city, tutorsInCity]) => {
+    const sorted = tutorsInCity.slice().sort((a, b) => qualificationScore(b) - qualificationScore(a));
+    const localized = await Promise.all(sorted.map(async (t) => ({
+      id: t.id, name: t.name, categories: t.categories, genres: t.genres,
+      teachesOnline: t.teachesOnline, inPersonVenue: t.inPersonVenue, photoUrl: t.photoUrl || null,
+      experienceYears: t.experienceYears, bio: t.bio,
+      approvedLevelByCategory: t.approvedLevelByCategory,
+      hourlyRateUsd: t.hourlyRateUsd,
+      hourlyRateLocal: Math.round((await currency.convertFromUsd(t.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
+      currency: geoInfo.currency, symbol: geoInfo.symbol,
+      avgRating: tutors.avgRating(t), avgProfessionalism: tutors.avgProfessionalism(t),
+    })));
+    return { city, tutors: localized };
+  }));
+
+  cities.sort((a, b) => b.tutors.length - a.tutors.length);
+  res.json({ success: true, cities });
 });
 
 // Public profile page data - no login required, so a tutor's profile can
 // be shared/linked like a real marketplace listing.
+// A tutor's exact address is only revealed to a student once they've
+// actually applied for in-studio lessons with that specific tutor (pending
+// request or matched) - not to anonymous browsers or every signed-in
+// student. Studio lessons mean the student travels to the tutor, so the
+// address only matters (and should only be exposed) once that's a real
+// prospect, not idle browsing.
+function studentHasStudioRequestWith(studentId, tutorId) {
+  return assignments.listForStudent(studentId).some((r) => (
+    r.lessonType === 'studio'
+    && (r.tutorId === tutorId || (r.preferredTutorIds || []).includes(tutorId))
+  ));
+}
+
 app.get('/api/tutors/:id/public', async (req, res) => {
   const tutor = tutors.findById(req.params.id);
   if (!tutor || tutor.status !== 'approved' || tutor.expelled) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   const geoInfo = await getGeoInfo(req);
+  const viewer = currentUser(req);
+  const addressUnlocked = Boolean(viewer) && (
+    viewer.role === 'admin'
+    || viewer.id === tutor.userId
+    || studentHasStudioRequestWith(viewer.id, tutor.id)
+  );
   res.json({
     success: true,
     tutor: {
       id: tutor.id, name: tutor.name, categories: tutor.categories, genres: tutor.genres, ageGroups: tutor.ageGroups,
       levels: tutor.levels, approvedLevelByCategory: tutor.approvedLevelByCategory,
-      city: tutor.city, teachesOnline: tutor.teachesOnline, inPersonVenue: tutor.inPersonVenue,
+      city: tutor.city,
+      fullAddress: addressUnlocked ? (tutor.fullAddress || tutor.address || null) : null,
+      addressLocked: !addressUnlocked && Boolean(tutor.fullAddress || tutor.address) && tutor.inPersonVenue !== 'student_location',
+      teachesOnline: tutor.teachesOnline, inPersonVenue: tutor.inPersonVenue, photoUrl: tutor.photoUrl || null,
       experienceYears: tutor.experienceYears, qualifications: tutor.qualifications, bio: tutor.bio,
       hourlyRateUsd: tutor.hourlyRateUsd,
       hourlyRateLocal: Math.round((await currency.convertFromUsd(tutor.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
@@ -1027,12 +1184,46 @@ app.get('/api/tutors/:id/public', async (req, res) => {
   });
 });
 
+// Fetch a student profile by slug for public pages
+app.get('/api/students/slug/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  const s = store.findBySlug(slug);
+  if (!s) return res.status(404).json({ success: false, error: 'Student not found.' });
+  // expose a safe public shape
+  const profile = { id: s.id, name: s.name, photoUrl: s.photoUrl || null };
+  res.json({ success: true, profile });
+});
+
+// Public student profile data - no login required, limited shape
+app.get('/api/students/:id/public', async (req, res) => {
+  const student = store.findById(Number(req.params.id));
+  if (!student) return res.status(404).json({ success: false, error: 'Student not found.' });
+  const viewer = currentUser(req);
+  // Only reveal more sensitive studentProfile fields to the student themself or admins
+  const canSeeSensitive = viewer && (viewer.role === 'admin' || viewer.id === student.id);
+  res.json({
+    success: true,
+    student: {
+      id: student.id,
+      name: student.name,
+      photoUrl: student.photoUrl || null,
+      studentProfile: canSeeSensitive ? (student.studentProfile || null) : {
+        ageGroup: student.studentProfile ? student.studentProfile.ageGroup : null,
+        city: student.studentProfile ? student.studentProfile.city : null,
+      },
+    },
+  });
+});
+
 // Scored shortlist a student picks preferences from before submitting a
 // request - always at least the top matches available, capped at 6.
 app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
-  const { category, genre, ageGroup, level, city, online } = req.query;
+  const { category, genre, ageGroup, level, city, lessonType } = req.query;
   if (!category) return res.status(400).json({ success: false, error: 'Choose a subject.' });
-  const isOnline = online === 'true';
+  const type = assignments.LESSON_TYPES.includes(lessonType) ? lessonType : 'online';
+  const user = currentUser(req);
+  const selfTutor = tutors.findByUserId(user.id);
+  const selfTutorId = selfTutor ? selfTutor.id : null;
   // Geocoding returns {lat,lng,city,state,country} in one shape, so the
   // same resolved object serves as both the in-person distance anchor and
   // the online locality-tier anchor (same city/region/country).
@@ -1040,60 +1231,112 @@ app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
 
   const candidates = assignments.generateCandidates({
     category, genre: genre || null, ageGroup: ageGroup || null, level: level || null,
-    studentCoords: studentGeo, studentLocality: studentGeo, online: isOnline,
-  });
+    studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
+  }).filter((c) => c.tutor.id !== selfTutorId);
 
   res.json({
     success: true,
     candidates: candidates.map((c) => ({
-      id: c.tutor.id, name: c.tutor.name, bio: c.tutor.bio, city: c.tutor.city,
+      id: c.tutor.id, name: c.tutor.name, bio: c.tutor.bio, city: c.tutor.city, photoUrl: c.tutor.photoUrl || null,
       teachesOnline: c.tutor.teachesOnline, experienceYears: c.tutor.experienceYears, inPersonVenue: c.tutor.inPersonVenue,
       hourlyRateUsd: c.tutor.hourlyRateUsd, avgRating: tutors.avgRating(c.tutor), avgProfessionalism: tutors.avgProfessionalism(c.tutor),
       distanceKm: c.distanceKm != null ? Math.round(c.distanceKm * 10) / 10 : null,
-      localityMatch: isOnline ? (c.localityScore >= 1 ? 'same city' : c.localityScore >= 0.66 ? 'same region' : c.localityScore >= 0.33 ? 'same country' : null) : null,
+      localityMatch: type === 'online' ? (c.localityScore >= 1 ? 'same city' : c.localityScore >= 0.66 ? 'same region' : c.localityScore >= 0.33 ? 'same country' : null) : null,
     })),
   });
 });
 
 app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
-  const { category, genre, ageGroup, desiredLevel, city, online, phone, notes, preferredTutorIds } = req.body || {};
+  const { category, genre, ageGroup, desiredLevel, city, lessonType, phone, notes, preferredTutorIds } = req.body || {};
   if (!category) return res.status(400).json({ success: false, error: 'Choose a subject.' });
-  if (!city && !online) return res.status(400).json({ success: false, error: 'Provide your city or choose online.' });
+  const type = assignments.LESSON_TYPES.includes(lessonType) ? lessonType : null;
+  if (!type) return res.status(400).json({ success: false, error: 'Choose online, physical, or in-studio lessons.' });
+  if (type !== 'online' && !city) return res.status(400).json({ success: false, error: 'Provide your city for in-person lessons.' });
 
   const user = currentUser(req);
-  const isOnline = Boolean(online);
+  const selfTutor = tutors.findByUserId(user.id);
+  const selfTutorId = selfTutor ? selfTutor.id : null;
+  const requestTutorIds = Array.isArray(preferredTutorIds) ? preferredTutorIds.map(Number) : [];
+  if (selfTutorId && requestTutorIds.includes(selfTutorId)) {
+    return res.status(400).json({ success: false, error: 'You cannot request yourself as a tutor.' });
+  }
+
   const studentGeo = city ? await geocodeAddress(city) : null;
   const candidates = assignments.generateCandidates({
-    category, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, online: isOnline,
+    category, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
   });
 
   const request = assignments.createRequest({
     studentId: user.id, studentName: user.name, studentEmail: user.email,
-    category, genre, ageGroup, desiredLevel, city, online, phone, notes,
-    preferredTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
+    category, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
+    preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
+    intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [],
   });
 
-  // Excludes the requester themselves, in case an admin account submits a
-  // tutor request - they shouldn't get an admin alert about their own request.
-  store.listUsers()
-    .filter((u) => u.role === 'admin' && u.id !== user.id)
-    .forEach((admin) => store.addNotification(admin.id, {
-      type: 'tutor-request',
-      message: `New tutor request from ${user.name} for ${category} - match them in the admin panel.`,
-    }));
+  notifyAdmins({
+    type: 'tutor-request',
+    subject: `New tutor request - ${category}`,
+    message: `New tutor request from ${user.name} for ${category} - match them in the admin panel.`,
+    excludeUserId: user.id,
+  });
+
+  store.addNotification(user.id, {
+    type: 'tutor-request',
+    message: `Your request for ${category} has been submitted. An admin will match you with a tutor soon.`,
+  });
 
   res.json({ success: true, request });
 });
 
 app.get('/api/my-assignments', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const asStudent = assignments.listForStudent(user.id);
+  // For studio lessons (student travels to the tutor), the student needs
+  // the tutor's exact address once actually matched.
+  const asStudent = assignments.listForStudent(user.id).map((r) => {
+    if (r.lessonType !== 'studio' || r.status !== 'active' || !r.tutorId) return r;
+    const tutorProfile = tutors.findById(r.tutorId);
+    const tutorAddress = tutorProfile ? (tutorProfile.fullAddress || tutorProfile.address) : null;
+    return tutorAddress ? { ...r, tutorFullAddress: tutorAddress } : r;
+  });
   const tutorProfile = tutors.findByUserId(user.id);
-  const asTutor = tutorProfile ? assignments.listForTutor(tutorProfile.id) : [];
+  // For physical lessons (tutor travels to the student), the matched tutor
+  // needs the student's exact address - the reverse of the studio case,
+  // where the student needs the tutor's address. Only surfaced here, to
+  // the specific matched tutor, once the lesson is actually active.
+  const asTutor = tutorProfile ? assignments.listForTutor(tutorProfile.id).map((r) => {
+    const student = store.findById(r.studentId);
+    const studentProfile = student ? student.studentProfile || null : null;
+    const studentMeta = {
+      studentPhotoUrl: student ? student.photoUrl || null : null,
+      studentAgeGroup: studentProfile ? studentProfile.ageGroup || null : null,
+      studentSex: student ? (student.sex || (studentProfile && studentProfile.sex) || null) : null,
+      studentProfile,
+    };
+    if (r.lessonType === 'physical' && r.status === 'active') {
+      const studentAddress = studentProfile ? studentProfile.fullAddress : null;
+      return studentAddress ? { ...r, studentFullAddress: studentAddress, ...studentMeta } : { ...r, ...studentMeta };
+    }
+    return { ...r, ...studentMeta };
+  }) : [];
   res.json({ success: true, asStudent, asTutor, tutorProfile });
 });
 
-// --- LESSON SESSIONS + TWO-WAY RATINGS ---
+// Student submits intake responses for their request/assignment
+app.post('/api/assignments/:id/intake-responses', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const record = assignments.findById(req.params.id);
+  if (!record || record.studentId !== user.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  const responses = Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [];
+  const updated = assignments.setIntakeResponses(record.id, responses);
+  if (!updated) return res.status(500).json({ success: false, error: 'Could not save responses.' });
+  // Notify tutor/admin for review
+  if (record.tutorId) {
+    notifyAdmins({ type: 'intake-responses', subject: `Intake responses for assignment ${record.id}`, message: `Student ${user.name} submitted intake responses for ${record.category}.` });
+  }
+  res.json({ success: true });
+});
+
+// --- LESSON SESSIONS, ESCROW-STYLE PAYMENT, AND TWO-WAY RATINGS ---
 app.get('/api/curriculum/:category', requireApprovedTutorApi, (req, res) => {
   if (!req.tutorProfile.categories.includes(req.params.category)) {
     return res.status(403).json({ success: false, error: 'Not one of your approved subjects.' });
@@ -1101,30 +1344,169 @@ app.get('/api/curriculum/:category', requireApprovedTutorApi, (req, res) => {
   res.json({ success: true, content: curriculum.getForCategory(req.params.category) });
 });
 
-app.get('/api/reels', requireAuthApi, (req, res) => {
+// --- VIDEO LIBRARY (technique reference clips, taggable into chat) ---
+// A student/tutor's "enrolled" subjects: every category they've ever
+// requested or been matched in as a student, plus every subject an
+// approved-or-pending tutor profile teaches. Library access for non-admins
+// is scoped to these subjects (plus subject-less "Any subject" items,
+// which stay visible to everyone) - so students and tutors only see
+// technique material for the discipline they're actually in.
+function enrolledCategoriesForUser(user) {
+  const categories = new Set();
+  assignments.listForStudent(user.id).forEach((r) => { if (r.category) categories.add(r.category); });
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile) (tutorProfile.categories || []).forEach((c) => categories.add(c));
+  return categories;
+}
+
+app.get('/api/library', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
   const { category, genre } = req.query;
-  res.json({ success: true, reels: reels.listActive({ category: category || null, genre: genre || null }) });
+  let items = reels.listActive({ category: category || null, genre: genre || null });
+  if (user.role !== 'admin') {
+    const allowed = enrolledCategoriesForUser(user);
+    items = items.filter((item) => !item.category || allowed.has(item.category));
+  }
+  res.json({ success: true, items });
 });
 
-app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, (req, res) => {
+// Lets the library page (and any other UI) know which subjects this user
+// is actually enrolled in, so it only offers those as filter options
+// instead of the entire taxonomy.
+app.get('/api/library/my-subjects', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  if (user.role === 'admin') return res.json({ success: true, subjects: taxonomy.SUBJECTS, isAdmin: true });
+  res.json({ success: true, subjects: Array.from(enrolledCategoriesForUser(user)), isAdmin: false });
+});
+
+app.post('/api/library/upload', requireApprovedTutorApi, (req, res) => {
+  videoUpload.single('video')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
+    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+  });
+});
+
+app.post('/api/library', requireApprovedTutorApi, (req, res) => {
+  const { title, url, category, genre, isFile } = req.body || {};
+  if (!title || !url) return res.status(400).json({ success: false, error: 'Title and link/file are required.' });
+  const selectedCategory = category ? String(category).trim() : null;
+  const tutorCategories = req.tutorProfile.categories || [];
+  if (selectedCategory && !tutorCategories.includes(selectedCategory)) {
+    return res.status(403).json({ success: false, error: 'You can only add library videos for your approved subjects.' });
+  }
+  const item = reels.create({ title, url, category: selectedCategory, genre, addedBy: currentUser(req).id, isFile });
+  res.json({ success: true, item });
+});
+
+app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, res) => {
   const record = assignments.findById(req.params.id);
   if (!record || record.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
   if (record.status !== 'active') return res.status(400).json({ success: false, error: 'This assignment is not active.' });
 
-  const { teacherNotes, assignmentText, reelIds } = req.body || {};
+  const { teacherNotes, assignmentText, reelIds, recordingUrl, durationMinutes } = req.body || {};
+  if (!durationMinutes || Number(durationMinutes) <= 0) {
+    return res.status(400).json({ success: false, error: 'Lesson duration (minutes) is required.' });
+  }
   const curriculumContent = curriculum.getForCategory(record.category);
   const resolvedReels = (Array.isArray(reelIds) ? reelIds : []).map((id) => reels.findById(id)).filter(Boolean);
   const session = assignments.addSession(record.id, {
     curriculumTitle: curriculumContent ? curriculumContent.title : null,
-    teacherNotes, assignmentText, reels: resolvedReels,
+    teacherNotes, assignmentText, reels: resolvedReels, recordingUrl, durationMinutes,
+    hourlyRateUsd: req.tutorProfile.hourlyRateUsd,
   });
   tutors.incrementLessonsCompleted(req.tutorProfile.id);
-  store.addNotification(record.studentId, { type: 'lesson', message: `${req.tutorProfile.name} logged a completed lesson for ${record.category}. Rate it from your dashboard!` });
+
+  // Real Stripe hold, only if the student has a card on file - keeps the
+  // simulated (no card) path working exactly as it did before Stripe was
+  // wired in, so existing data/flows don't break.
+  const student = store.findById(record.studentId);
+  if (student && student.stripeCustomerId && student.stripePaymentMethodId) {
+    const client = stripeClient.getClient();
+    if (client) {
+      try {
+        const intent = await client.paymentIntents.create({
+          amount: Math.round(session.totalUsd * 100),
+          currency: 'usd',
+          customer: student.stripeCustomerId,
+          payment_method: student.stripePaymentMethodId,
+          payment_method_types: ['card'],
+          off_session: true,
+          confirm: true,
+          capture_method: 'manual',
+          description: `Mozart Techniques lesson - ${record.category}`,
+        });
+        assignments.setSessionPaymentIntent(record.id, session.id, intent.id);
+        session.paymentIntentId = intent.id;
+      } catch (err) {
+        assignments.setSessionPaymentIntent(record.id, session.id, null, err.message);
+        session.paymentError = err.message;
+      }
+    }
+  }
+
+  store.addNotification(record.studentId, {
+    type: 'lesson',
+    message: `${req.tutorProfile.name} logged a completed lesson for ${record.category} ($${session.totalUsd} held in escrow). Confirm it from your dashboard to release payment.`,
+  });
   res.json({ success: true, session });
 });
 
-// Tutor sets/updates their own externally-created meeting link (Zoom,
-// Google Meet, etc.) for an online assignment - shown to the student too.
+// The student's attestation that the lesson happened as logged - captures
+// the real Stripe hold (if one was authorized) and releases the payment to
+// the tutor's internal balance. A session with no real hold (student never
+// added a card) releases exactly as it did before Stripe was wired in.
+app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const record = assignments.findById(req.params.id);
+  if (!record || record.studentId !== user.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+
+  const pending = (record.sessions || []).find((s) => s.id === Number(req.params.sessionId));
+  if (!pending || pending.paymentStatus === 'released') {
+    return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
+  }
+
+  if (pending.paymentIntentId) {
+    const client = stripeClient.getClient();
+    if (client) {
+      try {
+        await client.paymentIntents.capture(pending.paymentIntentId);
+      } catch (err) {
+        return res.status(400).json({ success: false, error: `Payment capture failed: ${err.message}` });
+      }
+    }
+  }
+
+  const result = assignments.confirmSession(record.id, req.params.sessionId);
+  if (!result) return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
+
+  const { session } = result;
+  // Legacy sessions logged before the commission model don't have these
+  // fields - fall back to crediting the full total for those.
+  const payoutUsd = session.tutorPayoutUsd != null ? session.tutorPayoutUsd : session.totalUsd;
+  tutors.creditBalance(record.tutorId, payoutUsd);
+  payments.record({
+    studentId: record.studentId, studentName: record.studentName,
+    tutorId: record.tutorId, tutorName: record.tutorName,
+    category: record.category, lessonType: record.lessonType,
+    priceUsd: session.totalUsd, platformFeeUsd: session.platformFeeUsd || 0, tutorPayoutUsd: payoutUsd,
+    assignmentId: record.id, sessionId: session.id,
+  });
+  store.addNotification(
+    tutors.findById(record.tutorId).userId,
+    { type: 'payment', message: `${record.studentName} confirmed your ${record.category} lesson - $${payoutUsd} released to your balance.` },
+  );
+
+  res.json({ success: true, session });
+});
+
+// Tutor sets/updates their own externally-created meeting link (Google
+// Meet, Zoom, etc.) for an online assignment - shown to the student too.
+// The platform doesn't create or host meetings itself.
 app.post('/api/assignments/:id/meeting-link', requireApprovedTutorApi, (req, res) => {
   const record = assignments.findById(req.params.id);
   if (!record || record.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
@@ -1135,6 +1517,138 @@ app.post('/api/assignments/:id/meeting-link', requireApprovedTutorApi, (req, res
   const updated = assignments.setMeetingLink(record.id, meetingLink);
   store.addNotification(record.studentId, { type: 'tutor', message: `${req.tutorProfile.name} shared a meeting link for your ${record.category} lesson.` });
   res.json({ success: true, request: updated });
+});
+
+// --- GOOGLE CALENDAR / MEET ---------------------------------------------
+// A tutor connects their own Google Calendar once; after that, scheduling a
+// lesson creates a real Calendar event on their calendar with an
+// auto-generated Meet link, invites the student by email, and lets Google
+// send the reminders. Sign In With Google only proves identity (ID token,
+// no API access), so this needs its own authorization-code consent flow.
+
+app.get('/api/calendar/status', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const cal = user.googleCalendar;
+  res.json({
+    success: true,
+    configured: googleCalendar.isConfigured(),
+    connected: Boolean(cal && cal.refreshToken),
+    googleEmail: (cal && cal.googleEmail) || null,
+    connectedAt: (cal && cal.connectedAt) || null,
+  });
+});
+
+app.get('/api/calendar/connect', requireApprovedTutorApi, (req, res) => {
+  if (!googleCalendar.isConfigured()) {
+    return res.status(503).json({ success: false, error: 'Google Calendar is not configured on this server.' });
+  }
+  const url = googleCalendar.getAuthUrl(currentUser(req).id);
+  res.redirect(url);
+});
+
+// Google redirects the browser straight here, so this responds with a page
+// redirect rather than JSON.
+app.get('/api/calendar/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error || !code) return res.redirect('/tutor?calendar=denied');
+  try {
+    const tokens = await googleCalendar.exchangeCode(code);
+    const userId = Number(state);
+    const user = store.findById(userId);
+    if (!user) return res.redirect('/tutor?calendar=error');
+    // Google only returns a refresh token on the first consent (we force
+    // prompt=consent to make it reliable); keep the existing one if this
+    // round somehow didn't include a fresh one.
+    const existing = user.googleCalendar || {};
+    const refreshToken = tokens.refresh_token || existing.refreshToken;
+    if (!refreshToken) return res.redirect('/tutor?calendar=error');
+    store.setCalendarTokens(userId, { refreshToken, googleEmail: user.email });
+    res.redirect('/tutor?calendar=connected');
+  } catch (err) {
+    console.error('Calendar callback failed:', err.message);
+    res.redirect('/tutor?calendar=error');
+  }
+});
+
+app.post('/api/calendar/disconnect', requireAuthApi, (req, res) => {
+  store.clearCalendarTokens(currentUser(req).id);
+  res.json({ success: true });
+});
+
+// Schedules one online lesson: real Calendar event + Meet link + student
+// invite + Calendar reminders. Requires the tutor to have connected their
+// calendar first.
+app.post('/api/assignments/:id/schedule', requireApprovedTutorApi, async (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.tutorId !== req.tutorProfile.id) {
+    return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  }
+  const { startISO, durationMinutes } = req.body || {};
+  if (!startISO || Number.isNaN(Date.parse(startISO))) {
+    return res.status(400).json({ success: false, error: 'Pick a valid date and time.' });
+  }
+
+  const user = currentUser(req);
+  const cal = user.googleCalendar;
+  if (!cal || !cal.refreshToken) {
+    return res.status(400).json({ success: false, error: 'Connect your Google Calendar first.' });
+  }
+
+  try {
+    const { eventId, meetLink } = await googleCalendar.createLessonEvent({
+      refreshToken: cal.refreshToken,
+      summary: `${record.category} lesson with ${req.tutorProfile.name}`,
+      description: `Mozart Techniques ${record.category} lesson.\nTutor: ${req.tutorProfile.name}\nStudent: ${record.studentName}`,
+      startISO,
+      durationMinutes: Number(durationMinutes) || 60,
+      attendeeEmails: [record.studentEmail, user.email],
+    });
+
+    const updated = assignments.scheduleSession(record.id, {
+      scheduledAt: new Date(startISO).toISOString(),
+      meetingLink: meetLink,
+      calendarEventId: eventId,
+    });
+
+    const when = new Date(startISO).toLocaleString();
+    store.addNotification(record.studentId, {
+      type: 'lesson',
+      message: `${req.tutorProfile.name} scheduled your ${record.category} lesson for ${when}. A Google Meet link and calendar invite are in your email.`,
+    });
+    mailer.sendMail({
+      to: record.studentEmail,
+      subject: `Your ${record.category} lesson is scheduled`,
+      text: `${req.tutorProfile.name} scheduled your ${record.category} lesson for ${when}.\n\nJoin here: ${meetLink}\n\nA calendar invite with reminders has been sent to this address.`,
+    });
+
+    res.json({ success: true, request: updated, meetLink });
+  } catch (err) {
+    console.error('Schedule failed:', err.message);
+    res.status(400).json({ success: false, error: `Could not create the calendar event: ${err.message}` });
+  }
+});
+
+// Tutor posts a recorded class to the student after the lesson. Accepts
+// either an uploaded file URL (via /api/library/upload) or an external link.
+app.post('/api/assignments/:id/recording', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.tutorId !== req.tutorProfile.id) {
+    return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  }
+  const { recordingUrl, title } = req.body || {};
+  if (!recordingUrl || !/^(https?:\/\/|\/uploads\/)/i.test(recordingUrl)) {
+    return res.status(400).json({ success: false, error: 'Provide an uploaded file or a link starting with http:// or https://' });
+  }
+  const item = assignments.addRecording(record.id, {
+    url: recordingUrl,
+    title: (title || `${record.category} class recording`).trim(),
+    postedBy: req.tutorProfile.name,
+  });
+  store.addNotification(record.studentId, {
+    type: 'lesson',
+    message: `${req.tutorProfile.name} posted a class recording for your ${record.category} lesson.`,
+  });
+  res.json({ success: true, recording: item });
 });
 
 app.post('/api/assignments/:id/sessions/:sessionId/rate', requireAuthApi, (req, res) => {
@@ -1173,6 +1687,44 @@ app.post('/api/assignments/:id/placement', requireApprovedTutorApi, (req, res) =
   res.json({ success: true });
 });
 
+// --- CHAT: one thread per assignment, social-media-style DMs between the
+// matched student and tutor. ---
+function assignmentParticipantRole(user, record) {
+  if (!record) return null;
+  if (record.studentId === user.id) return 'student';
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile && record.tutorId === tutorProfile.id) return 'tutor';
+  return null;
+}
+
+app.get('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const record = assignments.findById(req.params.id);
+  const role = assignmentParticipantRole(user, record);
+  if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
+  chat.markRead(record.id, role);
+  res.json({ success: true, messages: chat.listForAssignment(record.id), role });
+});
+
+app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const record = assignments.findById(req.params.id);
+  const role = assignmentParticipantRole(user, record);
+  if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
+
+  const { text, libraryItemId } = req.body || {};
+  if ((!text || !text.trim()) && !libraryItemId) {
+    return res.status(400).json({ success: false, error: 'Message text or a tagged clip is required.' });
+  }
+  const libraryItem = libraryItemId ? reels.findById(libraryItemId) : null;
+  const message = chat.send(record.id, { senderId: user.id, senderRole: role, text: (text || '').trim(), libraryItem });
+
+  const recipientId = role === 'student' ? tutors.findById(record.tutorId).userId : record.studentId;
+  store.addNotification(recipientId, { type: 'chat', message: `New message from ${user.name} about your ${record.category} lesson.` });
+
+  res.json({ success: true, message });
+});
+
 // --- ADMIN: TUTOR REVIEW & MATCHING ---
 app.get('/api/admin/tutors', requireAdminApi, (req, res) => {
   res.json({ success: true, tutors: tutors.listAll() });
@@ -1192,6 +1744,38 @@ app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
     store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application was not approved this time.' });
   }
   res.json({ success: true, tutor: updated });
+});
+
+app.get('/api/admin/organizations', requireAdminApi, (req, res) => {
+  res.json({ success: true, organizations: organizations.listAll() });
+});
+
+app.post('/api/admin/organizations/:id/status', requireAdminApi, (req, res) => {
+  const { status } = req.body || {};
+  if (!['approved', 'rejected', 'pending'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid status.' });
+  }
+  const updated = organizations.setStatus(req.params.id, status);
+  if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
+
+  if (status === 'approved') {
+    store.addNotification(updated.userId, { type: 'organization', message: 'Your organization application has been approved! Complete your annual subscription to start sponsoring students.' });
+  } else if (status === 'rejected') {
+    store.addNotification(updated.userId, { type: 'organization', message: 'Your organization application was not approved this time.' });
+  }
+  res.json({ success: true, organization: updated });
+});
+
+// Admin confirms the (simulated) annual subscription payment - see
+// data/organizations.js for why this isn't a live payment charge.
+app.post('/api/admin/organizations/:id/activate', requireAdminApi, (req, res) => {
+  const updated = organizations.activateSubscription(req.params.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
+  store.addNotification(updated.userId, {
+    type: 'organization',
+    message: `Your annual subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes for the students you sponsor.`,
+  });
+  res.json({ success: true, organization: updated });
 });
 
 app.post('/api/admin/tutors/:id/expel', requireAdminApi, (req, res) => {
@@ -1222,6 +1806,7 @@ app.get('/api/admin/activity', requireAdminApi, (req, res) => {
     ...s,
     requestId: r.id,
     category: r.category,
+    lessonType: r.lessonType,
     tutorName: r.tutorName,
     studentName: r.studentName,
   })));
@@ -1229,12 +1814,24 @@ app.get('/api/admin/activity', requireAdminApi, (req, res) => {
   res.json({ success: true, sessions });
 });
 
+// A live feed of every chat message platform-wide, newest first - part of
+// "admin can see all activities."
+app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
+  const allRecords = assignments.listAll();
+  const messages = allRecords.flatMap((r) => chat.listForAssignment(r.id).map((m) => ({
+    ...m, category: r.category, tutorName: r.tutorName, studentName: r.studentName,
+  })));
+  messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ success: true, messages: messages.slice(0, 200) });
+});
+
 // Real numbers only - every figure here comes from data already recorded
-// elsewhere (payments log, course catalog, tutor/assignment records), never
-// a placeholder or estimate.
+// elsewhere (the payments ledger, tutor/assignment records), never a
+// placeholder or estimate.
 app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
   const allPayments = payments.listAll();
   const totalRevenueUsd = allPayments.reduce((sum, p) => sum + p.priceUsd, 0);
+  const platformRevenueUsd = allPayments.reduce((sum, p) => sum + (p.platformFeeUsd || 0), 0);
 
   const DAYS = 30;
   const dayBuckets = [];
@@ -1249,32 +1846,39 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
   }));
   const revenue30dUsd = revenueByDay.reduce((sum, d) => sum + d.amountUsd, 0);
 
-  const courseCounts = {};
+  const subjectCounts = {};
   allPayments.forEach((p) => {
-    if (!courseCounts[p.courseId]) courseCounts[p.courseId] = { courseId: p.courseId, title: p.courseTitle, enrollments: 0 };
-    courseCounts[p.courseId].enrollments += 1;
+    if (!subjectCounts[p.category]) subjectCounts[p.category] = { category: p.category, lessons: 0, revenueUsd: 0 };
+    subjectCounts[p.category].lessons += 1;
+    subjectCounts[p.category].revenueUsd += p.priceUsd;
   });
-  const topCourses = Object.values(courseCounts).sort((a, b) => b.enrollments - a.enrollments).slice(0, 5);
+  const topSubjects = Object.values(subjectCounts).sort((a, b) => b.revenueUsd - a.revenueUsd).slice(0, 5);
 
   const tutorLeaderboard = tutors.listAll()
     .filter((t) => t.ratingCount > 0)
-    .map((t) => ({ id: t.id, name: t.name, avgRating: tutors.avgRating(t), ratingCount: t.ratingCount, lessonsCompletedCount: t.lessonsCompletedCount || 0 }))
+    .map((t) => ({ id: t.id, name: t.name, avgRating: tutors.avgRating(t), ratingCount: t.ratingCount, lessonsCompletedCount: t.lessonsCompletedCount || 0, totalEarnedUsd: t.totalEarnedUsd || 0 }))
     .sort((a, b) => b.avgRating - a.avgRating || b.ratingCount - a.ratingCount)
     .slice(0, 5);
 
   const lessonsLogged = assignments.listAll().reduce((sum, r) => sum + (r.sessions || []).length, 0);
+  const pendingEscrowUsd = assignments.listAll()
+    .flatMap((r) => r.sessions || [])
+    .filter((s) => s.paymentStatus === 'held')
+    .reduce((sum, s) => sum + s.totalUsd, 0);
 
   res.json({
     success: true,
     stats: {
       totalRevenueUsd,
+      platformRevenueUsd: Math.round(platformRevenueUsd * 100) / 100,
       revenue30dUsd,
+      pendingEscrowUsd: Math.round(pendingEscrowUsd * 100) / 100,
       totalUsers: store.listUsers().length,
       activeTutors: tutors.listApproved().length,
       lessonsLogged,
     },
     revenueByDay,
-    topCourses,
+    topSubjects,
     tutorLeaderboard,
   });
 });
@@ -1303,7 +1907,7 @@ app.post('/api/admin/tutor-requests/:id/assign', requireAdminApi, async (req, re
   if (!record) return res.status(404).json({ success: false, error: 'Request not found.' });
 
   let distKm = null;
-  if (!record.online && record.city && tutor.lat != null && tutor.lng != null) {
+  if (record.lessonType !== 'online' && record.city && tutor.lat != null && tutor.lng != null) {
     const studentCoords = await geocodeAddress(record.city);
     distKm = distanceKm(studentCoords, { lat: tutor.lat, lng: tutor.lng });
   }
@@ -1323,16 +1927,16 @@ app.post('/api/admin/tutor-requests/:id/end', requireAdminApi, (req, res) => {
   res.json({ success: true, request: record });
 });
 
-// --- ADMIN: EDUCATIONAL CONTENT (evaluations, orientation, curriculum, reels) ---
+// --- ADMIN: EDUCATIONAL CONTENT (evaluations, orientation, curriculum, library) ---
 app.get('/api/admin/assessments/:kind/:category', requireAdminApi, (req, res) => {
   const { kind, category } = req.params;
-  if (!['teacher-eval', 'placement'].includes(kind)) return res.status(400).json({ success: false, error: 'Invalid kind.' });
+  if (kind !== 'teacher-eval') return res.status(400).json({ success: false, error: 'Invalid kind.' });
   res.json({ success: true, questions: assessments.getQuestionsForAdmin(kind, category) });
 });
 
 app.post('/api/admin/assessments/:kind/:category', requireAdminApi, (req, res) => {
   const { kind, category } = req.params;
-  if (!['teacher-eval', 'placement'].includes(kind)) return res.status(400).json({ success: false, error: 'Invalid kind.' });
+  if (kind !== 'teacher-eval') return res.status(400).json({ success: false, error: 'Invalid kind.' });
   const { questions } = req.body || {};
   if (!Array.isArray(questions)) return res.status(400).json({ success: false, error: 'Questions must be an array.' });
   const saved = assessments.setQuestions(kind, category, questions);
@@ -1364,82 +1968,19 @@ app.post('/api/admin/curriculum/:category', requireAdminApi, (req, res) => {
   res.json({ success: true, content });
 });
 
-app.get('/api/admin/reels', requireAdminApi, (req, res) => {
-  res.json({ success: true, reels: reels.listAll() });
+app.get('/api/admin/library', requireAdminApi, (req, res) => {
+  res.json({ success: true, items: reels.listAll() });
 });
 
-app.post('/api/admin/reels', requireAdminApi, (req, res) => {
-  const { title, url, category, genre } = req.body || {};
+app.post('/api/admin/library', requireAdminApi, (req, res) => {
+  const { title, url, category, genre, isFile } = req.body || {};
   if (!title || !url) return res.status(400).json({ success: false, error: 'Title and link are required.' });
   const user = currentUser(req);
-  const reel = reels.create({ title, url, category, genre, addedBy: user.id });
-  res.json({ success: true, reel });
+  const item = reels.create({ title, url, category, genre, addedBy: user.id, isFile });
+  res.json({ success: true, item });
 });
 
-app.post('/api/admin/reels/:id', requireAdminApi, (req, res) => {
-  const { title, url, category, genre } = req.body || {};
-  const reel = reels.update(req.params.id, { title, url, category, genre });
-  if (!reel) return res.status(404).json({ success: false, error: 'Reel not found.' });
-  res.json({ success: true, reel });
-});
-
-app.post('/api/admin/reels/:id/status', requireAdminApi, (req, res) => {
-  const { status } = req.body || {};
-  if (!['active', 'broken'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid status.' });
-  const reel = reels.setStatus(req.params.id, status);
-  if (!reel) return res.status(404).json({ success: false, error: 'Reel not found.' });
-  res.json({ success: true, reel });
-});
-
-// --- AI PRACTICE FEEDBACK (inert until ANTHROPIC_API_KEY is set) ---
-app.post('/api/practice-feedback', requireAuthApi, async (req, res) => {
-  const { courseId, notes } = req.body || {};
-  const course = getCourse(courseId);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  if (!notes || !notes.trim()) {
-    return res.status(400).json({ success: false, error: 'Describe what you practiced first.' });
-  }
-
-  const user = currentUser(req);
-  if (!canAccessCourse(user, course.id)) {
-    return res.status(403).json({ success: false, error: 'Purchase this course first.' });
-  }
-
-  const result = await aiCoach.getPracticeFeedback({
-    courseTitle: course.title,
-    category: course.category,
-    level: course.level,
-    notes: notes.trim(),
-  });
-  res.json({ success: true, ...result });
-});
-
-// --- ADMIN: COURSE CONTENT MANAGEMENT ---
-app.get('/api/admin/courses', requireAdminApi, (req, res) => {
-  res.json({ success: true, courses: COURSES });
-});
-
-app.get('/api/admin/courses/:id/content', requireAdminApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  res.json({ success: true, course, lessons: content.getEffectiveLessons(course.id) });
-});
-
-app.post('/api/admin/courses/:id/content', requireAdminApi, (req, res) => {
-  const course = getCourse(req.params.id);
-  if (!course) return res.status(404).json({ success: false, error: 'Course not found.' });
-  const { lessons } = req.body || {};
-  if (!Array.isArray(lessons) || lessons.length === 0) {
-    return res.status(400).json({ success: false, error: 'At least one lesson is required.' });
-  }
-  const saved = content.setContent(course.id, { lessons });
-  res.json({ success: true, lessons: saved.lessons });
-});
-
-// Lets an admin upload a video file straight from their computer as an
-// alternative to pasting a YouTube ID. The returned URL is a self-hosted
-// path under /uploads/videos that gets saved onto the lesson.
-app.post('/api/admin/upload/video', requireAdminApi, (req, res) => {
+app.post('/api/admin/library/upload', requireAdminApi, (req, res) => {
   videoUpload.single('video')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
@@ -1451,6 +1992,21 @@ app.post('/api/admin/upload/video', requireAdminApi, (req, res) => {
   });
 });
 
+app.post('/api/admin/library/:id', requireAdminApi, (req, res) => {
+  const { title, url, category, genre, isFile } = req.body || {};
+  const item = reels.update(req.params.id, { title, url, category, genre, isFile });
+  if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
+  res.json({ success: true, item });
+});
+
+app.post('/api/admin/library/:id/status', requireAdminApi, (req, res) => {
+  const { status } = req.body || {};
+  if (!['active', 'broken'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid status.' });
+  const item = reels.setStatus(req.params.id, status);
+  if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
+  res.json({ success: true, item });
+});
+
 // --- ADMIN: APPLICANTS / USERS ---
 function adminUserView(user) {
   return {
@@ -1459,7 +2015,7 @@ function adminUserView(user) {
     email: user.email,
     role: user.role || 'user',
     countryCode: user.countryCode || null,
-    purchasedCourses: user.purchasedCourses,
+    studentProfile: user.studentProfile || null,
     createdAt: user.createdAt,
     authMethod: user.googleId ? 'google' : 'password',
   };
@@ -1488,26 +2044,12 @@ app.post('/api/admin/users/:id/role', requireAdminApi, (req, res) => {
   res.json({ success: true, user: adminUserView(updated) });
 });
 
-app.post('/api/admin/users/:id/courses', requireAdminApi, (req, res) => {
-  const { courseId, action } = req.body || {};
-  const course = getCourse(courseId);
-  if (!course) return res.status(400).json({ success: false, error: 'Unknown course.' });
-
-  const userId = Number(req.params.id);
-  const updated = action === 'revoke'
-    ? store.removePurchase(userId, course.id)
-    : store.addPurchase(userId, course.id);
-
-  if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
-  res.json({ success: true, user: adminUserView(updated) });
-});
-
 // Seed a demo and an admin account on first boot so there's always a way
-// to explore every course without going through payment.
+// to explore the platform.
 async function seedSpecialAccounts() {
   const seeds = [
     { name: 'Demo Student', email: 'demo@mozarttechnique.com', password: 'DemoPass123', role: 'demo' },
-    { name: 'Admin', email: 'admin@mozarttechnique.com', password: 'AdminPass123', role: 'admin' },
+    { name: 'Admin', email: 'mozarttechniques@gmail.com', password: '@Mozarttechniques2026$', role: 'admin' },
   ];
 
   for (const seed of seeds) {
@@ -1518,22 +2060,38 @@ async function seedSpecialAccounts() {
   }
 }
 
-seedSpecialAccounts().then(() => {
+// On Windows, a nodemon restart kills the old process and immediately
+// starts a new one - but the OS can take a moment to actually release the
+// listening socket, so the new process's first bind attempt sometimes hits
+// a transient EADDRINUSE even though nothing else is really holding the
+// port. Retrying a few times with a short delay lets that race resolve on
+// its own instead of nodemon reporting a false "app crashed" every time a
+// file is saved. A genuinely occupied port (a real other instance) still
+// fails clearly once the retries are exhausted.
+const PORT_RETRY_ATTEMPTS = 10;
+const PORT_RETRY_DELAY_MS = 400;
+
+function startServer(attempt = 1) {
   const httpServer = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
-  // Without this, a stray EADDRINUSE (e.g. the previous process hasn't
-  // released the port yet during a nodemon restart) is an unhandled
-  // 'error' event, which crashes the whole process instead of just failing
-  // to bind - this logs it clearly and exits on our own terms.
   httpServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && attempt < PORT_RETRY_ATTEMPTS) {
+      console.log(`Port ${PORT} still releasing from a previous instance - retrying (${attempt}/${PORT_RETRY_ATTEMPTS})...`);
+      setTimeout(() => startServer(attempt + 1), PORT_RETRY_DELAY_MS);
+      return;
+    }
     if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} is already in use - is another instance of the server already running?`);
+      console.error(`Port ${PORT} is still in use after ${PORT_RETRY_ATTEMPTS} retries - is another instance of the server already running?`);
     } else {
       console.error('Server failed to start:', err);
     }
     process.exit(1);
   });
+}
+
+seedSpecialAccounts().then(() => {
+  startServer();
 }).catch((err) => {
   console.error('Failed to seed initial accounts, server did not start:', err);
   process.exit(1);

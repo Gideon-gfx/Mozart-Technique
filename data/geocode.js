@@ -56,6 +56,41 @@ async function geocodeAddress(query) {
   }
 }
 
+// Turns real browser-reported coordinates into a city/state/country - used
+// when a student/tutor grants location access on signup, so their profile
+// reflects where they actually are rather than a typed-in address. Cached
+// by rounded coordinates (~100m precision) since repeat lookups from the
+// same device land on nearly the same point.
+async function reverseGeocode(lat, lng) {
+  if (lat == null || lng == null) return null;
+  const key = `rev:${Number(lat).toFixed(3)},${Number(lng).toFixed(3)}`;
+  const cache = loadCache();
+  if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
+
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`, {
+      headers: { 'User-Agent': 'MozartTechnique/1.0 (tutor-matching; contact: emmanuelsolomontenore@gmail.com)' },
+    });
+    const result = await res.json();
+    const addr = (result && result.address) || {};
+    const resolved = {
+      lat: Number(lat), lng: Number(lng),
+      city: addr.city || addr.town || addr.village || addr.county || null,
+      state: addr.state || addr.region || null,
+      country: addr.country || null,
+      // Nominatim's full formatted address (street number, road, etc.) -
+      // used where a tutor/student's exact location is meant to be shown,
+      // not just their city.
+      fullAddress: (result && result.display_name) || null,
+    };
+    cache[key] = resolved;
+    persistCache(cache);
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
 // Haversine distance in kilometers between two {lat, lng} points.
 function distanceKm(a, b) {
   if (!a || !b) return null;
@@ -80,4 +115,4 @@ function localityScore(a, b) {
   return 0;
 }
 
-module.exports = { geocodeAddress, distanceKm, localityScore };
+module.exports = { geocodeAddress, reverseGeocode, distanceKm, localityScore };

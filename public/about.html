@@ -3,309 +3,324 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Mozart Technique</title>
-    <!-- Load Tailwind CSS (config must be set AFTER this script has loaded) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'primary-red': 'var(--color-primary-red)',
-                        'dark-red': 'var(--color-dark-red)',
-                        'deep-red': 'var(--color-deep-red)',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                }
-            }
-        };
-    </script>
+    <title>About - Mozart Techniques</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/site.css">
-
     <style>
-        /*
-        * =================================================================
-        * CUSTOM STYLES
-        * =================================================================
-        */
+        @keyframes music-drift-1 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+            25% { transform: translate(25px, -35px) rotate(-15deg); opacity: 0.8; }
+            50% { transform: translate(15px, -60px) rotate(10deg); opacity: 0.5; }
+            75% { transform: translate(-20px, -35px) rotate(-20deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+        }
+
+        @keyframes music-drift-2 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+            25% { transform: translate(-30px, -40px) rotate(15deg); opacity: 0.7; }
+            50% { transform: translate(-15px, -70px) rotate(-10deg); opacity: 0.4; }
+            75% { transform: translate(25px, -40px) rotate(20deg); opacity: 0.6; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+        }
+
+        @keyframes music-drift-3 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+            25% { transform: translate(35px, -30px) rotate(-25deg); opacity: 0.6; }
+            50% { transform: translate(20px, -50px) rotate(15deg); opacity: 0.5; }
+            75% { transform: translate(-25px, -30px) rotate(-15deg); opacity: 0.65; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+        }
+
+        @keyframes music-drift-4 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+            25% { transform: translate(-25px, -45px) rotate(20deg); opacity: 0.75; }
+            50% { transform: translate(30px, -65px) rotate(-20deg); opacity: 0.45; }
+            75% { transform: translate(10px, -35px) rotate(10deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+        }
+
+        @keyframes text-slide {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .music-note {
+            position: fixed;
+            font-size: 2.4rem;
+            font-weight: 700;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .note-1 {
+            top: 15%;
+            left: 8%;
+            animation: music-drift-1 8s ease-in-out infinite;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-2 {
+            top: 25%;
+            right: 12%;
+            animation: music-drift-2 10s ease-in-out infinite 1.5s;
+            color: #ff4d5a;
+            opacity: 0.25;
+        }
+
+        .note-3 {
+            top: 50%;
+            left: 5%;
+            animation: music-drift-3 9s ease-in-out infinite 2s;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-4 {
+            top: 70%;
+            right: 8%;
+            animation: music-drift-4 11s ease-in-out infinite 0.8s;
+            color: #ff6d76;
+            opacity: 0.25;
+        }
+
         :root {
-            --color-primary-red: #C41822;
-            --color-dark-red: #A3121A;
-            --color-deep-red: #8B0000;
-            --color-white: #FFFFFF;
-            --color-black: #000000;
-            --color-text-dark: #222222;
-            --color-text-light: #F0F0F0;
+            --bg: #fff;
+            --surface: #fff;
+            --surface-soft: #f8f8f8;
+            --text: #333;
+            --text-soft: rgba(50, 50, 50, 0.74);
+            --rule: rgba(204, 0, 0, 0.12);
+            --accent: #cc0000;
+            --accent-dark: #990000;
+            --max-width: 1160px;
         }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Montserrat', sans-serif; color: var(--text); background: linear-gradient(135deg, #fff 0%, #f8f8f8 100%); min-height: 100vh; }
+        body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); pointer-events: none; z-index: 0; }
+        .serif { font-family: 'Science Gothic', sans-serif; }
+        .wrap { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
 
-        /* Base styles */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: var(--max-width); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
 
-        body {
-            color: var(--color-text-dark);
-            background-color: var(--color-dark-red);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+        .about-hero { padding: 72px 0 56px; background: linear-gradient(180deg, rgba(204,0,0,0.08), rgba(255,255,255,0.02)); border-bottom: 2px solid rgba(204,0,0,0.12); }
+        .hero-kicker { font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+        .about-hero h1 { font-size: clamp(2.8rem, 4.2vw, 4.4rem); line-height: 1.02; font-weight: 800; margin-bottom: 20px; max-width: 16ch; color: #333; animation: text-slide 0.6s ease-out; }
+        .about-hero p { font-size: 1.05rem; line-height: 1.8; color: var(--text-soft); max-width: 68ch; }
 
-        /* Custom Icon Styling (for the discipline cards) */
-        .icon-circle {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            width: 50px;
-            height: 50px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: 50%;
-            font-size: 24px;
-            margin: 0 auto 10px auto;
-        }
-        
-        /* Instructor Circle Styling */
-        .instructor-circle {
-            width: 150px;
-            height: 150px;
-            background-color: var(--color-dark-red);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 auto;
-            border: 5px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-            font-size: 60px; /* Music note icon placeholder */
-        }
-        
-        .instructor-card h4 {
-            min-height: 48px; /* Ensures consistent vertical alignment */
-        }
+        .section-heading { display: flex; align-items: center; gap: 18px; margin-bottom: 18px; }
+        .section-heading h2 { font-family: 'Science Gothic', sans-serif; font-size: clamp(2rem, 3vw, 2.8rem); margin: 0; color: #333; animation: text-slide 0.6s ease-out; }
+        .section-heading .rule { flex: 1; height: 2px; background: var(--accent); }
+        .section-sub { color: var(--text-soft); font-size: 1rem; margin-bottom: 40px; max-width: 68ch; animation: text-slide 0.6s ease-out 0.15s both; }
 
-        /* Footer links styling */
-        .footer{
-            background-color:#F0F0F0;
-        }
-        .footer, div{
-            color: #222222;
-        }
-        .footer a {
-            color:#222222;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        
-        .footer a:hover {
-            color: var(--color-dark-red);
-        }
+        .pillars { padding: 72px 0; }
+        .pillars-grid { display: flex; gap: 26px; flex-wrap: wrap; }
+        .pillar-card { flex: 1 1 260px; border: 2px solid rgba(204,0,0,0.15); border-radius: 24px; padding: 30px 26px; background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.08); transition: all 0.35s ease; }
+        .pillar-card:hover { transform: translateY(-8px); box-shadow: 0 12px 32px rgba(204,0,0,0.15); border-color: rgba(204,0,0,0.25); }
+        .pillar-icon { width: 44px; height: 44px; border-radius: 999px; background: #cc0000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 20px; }
+        .pillar-card h3 { font-family: 'Science Gothic', sans-serif; font-size: 1.25rem; font-weight: 800; margin-bottom: 10px; color: #333; }
+        .pillar-card p { font-size: 0.95rem; line-height: 1.75; color: var(--text-soft); }
+
+        .features, .disciplines, .vetting { padding: 72px 0; border-top: 2px solid rgba(204,0,0,0.12); }
+        .feature-row { display: flex; gap: 28px; padding: 26px 0; border-bottom: 1px solid rgba(204,0,0,0.12); }
+        .feature-row:last-child { border-bottom: none; }
+        .feature-index { font-family: 'Science Gothic', sans-serif; font-size: 2rem; color: var(--accent); width: 2.6rem; flex-shrink: 0; }
+        .feature-row h3 { font-size: 1.15rem; margin-bottom: 6px; color: #333; }
+        .feature-row p { color: var(--text-soft); line-height: 1.7; }
+
+        .disciplines-grid { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+        .discipline-card { background: #fff; border: 2px solid rgba(204,0,0,0.15); transition: all 0.35s ease; }
+        .discipline-card:hover { border-color: rgba(204,0,0,0.3); box-shadow: 0 4px 12px rgba(204,0,0,0.1); }
+        .discipline-icon { background: rgba(204,0,0,0.1); color: var(--accent); }
+        .discipline-card h4 { color: #333; }
+        .discipline-card p { color: var(--text-soft); }
+
+        .cta-section { background: linear-gradient(135deg, rgba(204,0,0,0.1), rgba(255,255,255,0.5)); color: #333; padding: 76px 24px; text-align: center; border-radius: 32px; margin: 72px 24px 0; border: 2px solid rgba(204,0,0,0.15); }
+        .cta-section h2 { font-size: clamp(2rem, 3vw, 3rem); animation: text-slide 0.6s ease-out; }
+        .cta-section p { color: var(--text-soft); animation: text-slide 0.6s ease-out 0.15s both; }
+        .cta-btn { border-radius: 999px; }
+
+        @media (max-width: 768px) { .nav-links { display: none; } .about-hero h1 { font-size: 2.4rem; max-width: none; } }
     </style>
 </head>
 <body class="antialiased">
+    <span class="music-note note-1">♪</span>
+    <span class="music-note note-2">♫</span>
+    <span class="music-note note-3">♬</span>
+    <span class="music-note note-4">♪</span>
 
-    <!-- =================================================================
-    HEADER / NAVIGATION (Tailwind used for structure and styling)
-    ================================================================== -->
-    <header class="bg-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center">
-                <a href="/home" class="flex items-center text-xl font-bold text-primary-red">
-                    <!-- Placeholder Logo Image -->
-                    <img src="https://placehold.co/30x30/C41822/FFFFFF?text=M" alt="M logo" class="w-7 h-7 mr-2 rounded">
-                    Mozart Technique
-                </a>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
             </div>
-            <nav class="hidden md:flex space-x-8">
-                <a href="/home" class="text-gray-600 hover:text-primary-red transition duration-150">Home</a>
-                <a href="/courses" class="text-gray-600 hover:text-primary-red transition duration-150">Courses</a>
-                <a href="#" class="text-primary-red font-bold transition duration-150">About</a>
-                <a href="/contact" class="text-gray-600 hover:text-primary-red transition duration-150">Contact</a>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about" class="active">About</a>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
             </nav>
             <div id="auth-state"></div>
         </div>
     </header>
 
-    <!-- =================================================================
-    MAIN CONTENT
-    ================================================================== -->
     <main class="flex-grow">
-        
-        <!-- SECTION 1: ABOUT & PHILOSOPHY -->
-        <section class="bg-primary-red text-white py-16 md:py-24 reveal">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h1 class="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
-                    About Mozart Technique
-                </h1>
-                <p class="text-xl md:text-2xl max-w-4xl mx-auto mb-12">
-                    Founded on the principle of making world-class arts education accessible to everyone, our institute brings together **master instructors** and **passionate students** from around the globe.
-                </p>
 
-                <!-- Mission, Story, Philosophy Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12 text-left">
-                    
-                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
-                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
-                            <!-- Icon for Mission -->
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                        </div>
-                        <h3 class="text-2xl font-semibold mb-3">Our Mission</h3>
-                        <p class="text-gray-200">
-                            To provide the **tools, techniques, and inspiration** you need to unlock your creative potential and master your chosen craft, regardless of your location or background.
-                        </p>
+        <section class="about-hero wrap reveal">
+            <div class="hero-kicker">About Mozart Techniques</div>
+            <h1 class="serif">A real tutor, not a pre-recorded course.</h1>
+            <p>Mozart Techniques is a marketplace that connects students directly with verified, one-on-one music and performance tutors. Every tutor on the roster applied with real credentials and was personally reviewed by our team before their profile ever went public - there's no algorithm deciding who you learn from, and no account required to look around first.</p>
+        </section>
+
+        <section class="pillars wrap reveal">
+            <div class="section-heading"><h2>What We're Built On</h2><span class="rule"></span></div>
+            <p class="section-sub">Three principles shape every decision we make about the platform.</p>
+            <div class="pillars-grid">
+                <div class="pillar-card">
+                    <div class="pillar-icon"><i class="fa-solid fa-eye"></i></div>
+                    <h3>Transparency First</h3>
+                    <p>You can browse every applied and verified tutor's full profile - photo, city, instrument, credentials, bio, and ratings - before you ever create an account. Sign in only when you're ready to send a request.</p>
+                </div>
+                <div class="pillar-card">
+                    <div class="pillar-icon"><i class="fa-solid fa-user-check"></i></div>
+                    <h3>A Human Reviews Every Match</h3>
+                    <p>Applications, qualifications, and student-tutor matches are all confirmed by a real admin - not an algorithm. It's slower than an auto-match, and that's the point: every pairing gets a second look.</p>
+                </div>
+                <div class="pillar-card">
+                    <div class="pillar-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h3>Payment You Can Trust</h3>
+                    <p>Lesson payment is held in escrow the moment a tutor logs a completed session, and only released to them once the student confirms it actually happened. No lesson, no release.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="features wrap reveal">
+            <div class="section-heading"><h2>What You Get</h2><span class="rule"></span></div>
+            <p class="section-sub">Everything that happens after you're matched with a tutor.</p>
+            <div>
+                <div class="feature-row">
+                    <span class="feature-index">01</span>
+                    <div>
+                        <h3>Three ways to learn</h3>
+                        <p>Live online lessons over Google Meet, a tutor who travels to you for an in-person lesson, or a session at your tutor's own studio - pick whichever fits, and switch between them anytime.</p>
                     </div>
-
-                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
-                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
-                            <!-- Icon for Story -->
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.208 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.832 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.832 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.168 18 16.5 18s-3.332.477-4.5 1.253" />
-                            </svg>
-                       nu </div>
-                        <h3 class="text-2xl font-semibold mb-3">Our Story</h3>
-                        <p class="text-gray-200">
-                            From a single studio to a **global digital stage**. Mozart was born from a passion for performance art and a desire to share it with the world in the most engaging way possible.
-                        </p>
+                </div>
+                <div class="feature-row">
+                    <span class="feature-index">02</span>
+                    <div>
+                        <h3>A private chat with your tutor</h3>
+                        <p>Every match gets its own chat thread for scheduling, questions, and quick check-ins between lessons - like messaging a person, not filling out a support ticket.</p>
                     </div>
-
-                    <div class="p-6 bg-dark-red rounded-xl shadow-lg transform transition duration-300 hover:scale-[1.02]">
-                        <div class="icon-circle bg-white text-primary-red mx-0 mb-4">
-                            <!-- Icon for Philosophy -->
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                        <h3 class="text-2xl font-semibold mb-3">Our Philosophy</h3>
-                        <p class="text-gray-200">
-                            We believe structured learning is built on a foundation of **joy and expression**. Technique is the language; artistry is what you have to say. We teach both.
-                        </p>
+                </div>
+                <div class="feature-row">
+                    <span class="feature-index">03</span>
+                    <div>
+                        <h3>A technique video library</h3>
+                        <p>Tutors can tag reference clips - finger positioning, breathing technique, a tricky passage - straight into your chat, so you always have something concrete to practice with between sessions.</p>
+                    </div>
+                </div>
+                <div class="feature-row">
+                    <span class="feature-index">04</span>
+                    <div>
+                        <h3>Recorded lessons</h3>
+                        <p>Online classes can be posted for rewatching later, and in-person or in-studio sessions can be recorded and shared straight to your chat - so nothing you learned in the room gets lost.</p>
+                    </div>
+                </div>
+                <div class="feature-row">
+                    <span class="feature-index">05</span>
+                    <div>
+                        <h3>Sponsorship for organizations</h3>
+                        <p>NGOs and community organizations can subscribe annually and generate access codes for the students they serve, so a whole program can get onto the platform under one sponsor.</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- SECTION 2: DISCIPLINES -->
-        <section class="bg-white py-16 md:py-20 reveal">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 class="text-3xl md:text-4xl font-extrabold mb-4 text-gray-900">
-                    Explore Our Disciplines
-                </h2>
-                <p class="text-lg text-gray-600 mb-12">
-                    A structured path from beginner to expert in every form of performance art.
-                </p>
-
-                <!-- Disciplines Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
-                    
-                    <!-- Discipline Card 1: Voice -->
-                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
-                        <div class="icon-circle mx-auto">🎤</div>
-                        <h4 class="text-lg font-semibold mb-2">Voice</h4>
-                        <p class="text-sm text-gray-500">
-                            Classical, Pop, Musical Theatre, Jazz & Scat Singing.
-                        </p>
-                    </div>
-
-                    <!-- Discipline Card 2: Instruments -->
-                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
-                        <div class="icon-circle mx-auto">🎻</div>
-                        <h4 class="text-lg font-semibold mb-2">Instruments</h4>
-                        <p class="text-sm text-gray-500">
-                            Piano, Guitar, Violin, Drums, and all Brass instruments.
-                        </p>
-                    </div>
-
-                    <!-- Discipline Card 3: Dance -->
-                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
-                        <div class="icon-circle mx-auto">🩰</div>
-                        <h4 class="text-lg font-semibold mb-2">Dance</h4>
-                        <p class="text-sm text-gray-500">
-                            Ballet, Hip Hop, Tap & Salsa.
-                        </p>
-                    </div>
-
-                    <!-- Discipline Card 4: DJing -->
-                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
-                        <div class="icon-circle mx-auto">🎧</div>
-                        <h4 class="text-lg font-semibold mb-2">DJing</h4>
-                        <p class="text-sm text-gray-500">
-                            Beatmatching, Mixing, Scratching, and Digital DJ Software.
-                        </p>
-                    </div>
-
-                    <!-- Discipline Card 5: Production -->
-                    <div class="p-4 rounded-lg border border-gray-200 shadow-md hover:shadow-xl transition duration-300">
-                        <div class="icon-circle mx-auto">🎛️</div>
-                        <h4 class="text-lg font-semibold mb-2">Production</h4>
-                        <p class="text-sm text-gray-500">
-                            Audio Engineering, Mixing, Mastering, and Acoustics.
-                        </p>
-                    </div>
+        <section class="disciplines wrap reveal">
+            <div class="section-heading"><h2>Every Discipline, One Roster</h2><span class="rule"></span></div>
+            <p class="section-sub">A structured path from beginner to expert in every form of performance art.</p>
+            <div class="disciplines-grid">
+                <div class="discipline-card">
+                    <div class="discipline-icon"><i class="fa-solid fa-microphone"></i></div>
+                    <h4>Voice</h4>
+                    <p>Classical, pop, musical theatre, jazz &amp; scat singing.</p>
+                </div>
+                <div class="discipline-card">
+                    <div class="discipline-icon"><i class="fa-solid fa-guitar"></i></div>
+                    <h4>Instruments</h4>
+                    <p>Piano, guitar, violin, drums, and all brass instruments.</p>
+                </div>
+                <div class="discipline-card">
+                    <div class="discipline-icon"><i class="fa-solid fa-music"></i></div>
+                    <h4>Dance</h4>
+                    <p>Ballet, hip hop, tap &amp; salsa.</p>
+                </div>
+                <div class="discipline-card">
+                    <div class="discipline-icon"><i class="fa-solid fa-headphones"></i></div>
+                    <h4>DJing</h4>
+                    <p>Beatmatching, mixing, scratching, and digital DJ software.</p>
+                </div>
+                <div class="discipline-card">
+                    <div class="discipline-icon"><i class="fa-solid fa-sliders"></i></div>
+                    <h4>Production</h4>
+                    <p>Audio engineering, mixing, mastering, and acoustics.</p>
                 </div>
             </div>
         </section>
 
-
-        <!-- SECTION 3: MEET OUR INSTRUCTORS -->
-        <section class="bg-primary-red text-white py-16 md:py-20">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 class="text-3xl md:text-4xl font-extrabold mb-12 tracking-tight">
-                    Meet Our Instructors
-                </h2>
-
-                <!-- Instructors Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
-                    
-                    <!-- Instructor 1: Maestro Albeniz -->
-                    <div class="instructor-card">
-                        <div class="instructor-circle">🎵</div>
-                        <h4 class="text-xl font-semibold mt-4">Maestro Albeniz</h4>
-                        <p class="text-sm text-gray-200">Classical Piano</p>
-                    </div>
-
-                    <!-- Instructor 2: Leo Fender -->
-                    <div class="instructor-card">
-                        <div class="instructor-circle">🎵</div>
-                        <h4 class="text-xl font-semibold mt-4">Leo Fender</h4>
-                        <p class="text-sm text-gray-200">Guitar Virtuoso</p>
-                    </div>
-
-                    <!-- Instructor 3: Odette Swan -->
-                    <div class="instructor-card">
-                        <div class="instructor-circle">🎵</div>
-                        <h4 class="text-xl font-semibold mt-4">Odette Swan</h4>
-                        <p class="text-sm text-gray-200">Ballet & Choreography</p>
-                    </div>
-
-                    <!-- Instructor 4: Sofia Martinez -->
-                    <div class="instructor-card">
-                        <div class="instructor-circle">🎵</div>
-                        <h4 class="text-xl font-semibold mt-4">Sofia Martinez</h4>
-                        <p class="text-sm text-gray-200">Vocal Coach</p>
-                    </div>
+        <section class="vetting wrap reveal">
+            <div class="section-heading"><h2>How a Tutor Joins</h2><span class="rule"></span></div>
+            <p class="section-sub">The review process behind every profile you browse.</p>
+            <div class="vetting-steps">
+                <div class="vetting-step">
+                    <span class="vetting-num">01</span>
+                    <h4>Apply with real credentials</h4>
+                    <p>Subjects, qualifications, experience, and optionally a certificate for admin review - plus their real location, so students know exactly where they are.</p>
                 </div>
-
-                <p class="text-lg mt-8 text-gray-200 italic">
-                    ...and dozens more experts across every discipline.
-                </p>
-                
-                <a href="/courses" class="inline-block mt-12 px-8 py-3 text-lg bg-white text-primary-red font-semibold rounded-full shadow-lg hover:bg-gray-100 transition duration-300 transform hover:scale-105">
-                    View All Instructors
-                </a>
+                <div class="vetting-step">
+                    <span class="vetting-num">02</span>
+                    <h4>Pass a subject evaluation</h4>
+                    <p>A qualification check per subject determines which levels - beginner through virtuoso - a tutor is actually approved to teach.</p>
+                </div>
+                <div class="vetting-step">
+                    <span class="vetting-num">03</span>
+                    <h4>Get approved by an admin</h4>
+                    <p>Only after a human reviews the application does a tutor's profile go live on the public roster.</p>
+                </div>
+                <div class="vetting-step">
+                    <span class="vetting-num">04</span>
+                    <h4>Stay accountable</h4>
+                    <p>Every completed lesson is rated by the student. A pattern of low ratings flags the account for review, so quality holds up over time.</p>
+                </div>
             </div>
+        </section>
+
+        <section class="cta-section reveal">
+            <h2>See the roster for yourself.</h2>
+            <p>No account needed - browse every verified tutor right now.</p>
+            <a href="/find-tutor" class="cta-btn">Browse Tutors</a>
         </section>
 
     </main>
-    
+
+    <script src="assets/site.js"></script>
     <script src="assets/nav-auth.js"></script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

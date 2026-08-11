@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Mozart Techniques</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        .chat-body { height: calc(100vh - 220px); min-height: 300px; }
+        .bubble { max-width: 78%; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-3xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+            <a href="/dashboard" class="text-gray-500 hover:text-primary-red transition"><i class="fa-solid fa-arrow-left text-lg"></i></a>
+            <div class="text-center">
+                <p id="chat-name" class="font-bold text-gray-800 leading-tight">Loading...</p>
+                <p id="chat-subject" class="text-xs text-gray-400"></p>
+            </div>
+            <div class="w-5"></div>
+        </nav>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-4">
+        <div class="bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
+            <div id="chat-body" class="chat-body overflow-y-auto p-4 space-y-3"></div>
+
+            <div id="library-panel" class="hidden border-t border-gray-100 p-3 max-h-40 overflow-y-auto"></div>
+
+            <form id="compose-form" class="border-t border-gray-200 p-3 flex items-end gap-2">
+                <button type="button" id="library-toggle-btn" title="Tag a library clip" class="shrink-0 w-11 h-11 rounded-full border border-gray-300 text-gray-500 hover:border-primary-red hover:text-primary-red transition flex items-center justify-center">
+                    <i class="fa-solid fa-clapperboard"></i>
+                </button>
+                <textarea id="message-input" rows="1" placeholder="Message..." class="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-red"></textarea>
+                <button type="submit" class="shrink-0 w-11 h-11 rounded-full bg-primary-red text-white hover:bg-red-700 transition flex items-center justify-center">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        const assignmentId = window.location.pathname.split('/').filter(Boolean).pop();
+        let myRole = null;
+        let lastMessageId = 0;
+        let pickedLibraryItem = null;
+
+        async function loadCounterpart() {
+            const res = await fetch('/api/my-assignments');
+            const data = await res.json();
+            if (!data.success) return;
+            const record = [...(data.asStudent || []), ...(data.asTutor || [])].find((r) => String(r.id) === String(assignmentId));
+            if (!record) return;
+            const isStudent = (data.asStudent || []).some((r) => String(r.id) === String(assignmentId));
+            document.getElementById('chat-name').textContent = isStudent ? record.tutorName : record.studentName;
+            document.getElementById('chat-subject').textContent = record.category;
+            return record.category;
+        }
+
+        function messageBubbleHtml(m) {
+            const mine = m.senderRole === myRole;
+            const clip = m.libraryItem
+                ? `<a href="${escapeHtml(m.libraryItem.url)}" target="_blank" class="block mt-1.5 text-xs font-semibold ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>@${escapeHtml(m.libraryItem.title)}</a>`
+                : '';
+            return `
+                <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
+                    <div class="bubble rounded-2xl px-4 py-2.5 ${mine ? 'bg-primary-red text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'}">
+                        ${m.text ? `<p class="text-sm whitespace-pre-wrap">${escapeHtml(m.text)}</p>` : ''}
+                        ${clip}
+                        <p class="text-[10px] mt-1 ${mine ? 'text-red-100' : 'text-gray-400'}">${new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadMessages(scroll) {
+            const res = await fetch(`/api/assignments/${assignmentId}/messages`);
+            const data = await res.json();
+            if (!data.success) return;
+            myRole = data.role;
+            if (data.messages.length && data.messages[data.messages.length - 1].id === lastMessageId) return; // nothing new
+            lastMessageId = data.messages.length ? data.messages[data.messages.length - 1].id : 0;
+
+            const body = document.getElementById('chat-body');
+            body.innerHTML = data.messages.length
+                ? data.messages.map(messageBubbleHtml).join('')
+                : '<p class="text-center text-gray-400 text-sm py-10">No messages yet - say hello!</p>';
+            if (scroll !== false) body.scrollTop = body.scrollHeight;
+        }
+
+        async function loadLibrary(category) {
+            const res = await fetch(`/api/library?category=${encodeURIComponent(category)}`);
+            const data = await res.json();
+            const panel = document.getElementById('library-panel');
+            if (!data.success || !data.items.length) {
+                panel.innerHTML = '<p class="text-xs text-gray-400 p-2">No library clips for this subject yet.</p>';
+                return;
+            }
+            panel.innerHTML = data.items.map((item) => `
+                <button type="button" class="library-pick-btn w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 text-sm text-gray-700" data-id="${item.id}" data-title="${escapeHtml(item.title)}">
+                    <i class="fa-solid fa-clapperboard text-primary-red mr-2"></i>${escapeHtml(item.title)}
+                </button>
+            `).join('');
+            panel.querySelectorAll('.library-pick-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    pickedLibraryItem = { id: Number(btn.dataset.id), title: btn.dataset.title };
+                    document.getElementById('message-input').value += `${document.getElementById('message-input').value ? ' ' : ''}@${btn.dataset.title}`;
+                    document.getElementById('library-panel').classList.add('hidden');
+                    document.getElementById('message-input').focus();
+                });
+            });
+        }
+
+        document.getElementById('library-toggle-btn').addEventListener('click', () => {
+            document.getElementById('library-panel').classList.toggle('hidden');
+        });
+
+        document.getElementById('compose-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text && !pickedLibraryItem) return;
+            const res = await fetch(`/api/assignments/${assignmentId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, libraryItemId: pickedLibraryItem ? pickedLibraryItem.id : null }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                input.value = '';
+                pickedLibraryItem = null;
+                loadMessages();
+            } else {
+                showAlert(data.error || 'Could not send message.', 'error');
+            }
+        });
+
+        document.getElementById('message-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('compose-form').requestSubmit();
+            }
+        });
+
+        async function init() {
+            const category = await loadCounterpart();
+            await loadMessages();
+            if (category) loadLibrary(category);
+            // Light polling keeps the thread feeling live without websockets.
+            setInterval(() => loadMessages(), 4000);
+        }
+        init();
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Dashboard - Mozart Technique</title>
+    <title>My Dashboard - Mozart Techniques</title>
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,19 +12,49 @@
             theme: {
                 extend: {
                     colors: {
-                        'primary-red': '#E02126',
+                        // Same red the rest of the site uses (--accent in
+                        // redesign.css). This page previously used #cc0000,
+                        // which read as a visibly different red next to any
+                        // other page.
+                        'primary-red': '#cc0000',
                         'primary-dark': '#1F2937',
                         'secondary-dark': '#121212',
                     },
-                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                    fontFamily: { sans: ['Montserrat', 'sans-serif'] }
                 }
             }
         };
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f5f5f5; }
+        /* Match the rest of the site: Montserrat body, Science Gothic
+           headings, ivory-white gradient page, #cc0000 accent. */
+        body {
+            font-family: 'Montserrat', sans-serif;
+            color: #333;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%) !important;
+            font-size: 15px;
+            line-height: 1.65;
+        }
+        h1, h2, h3, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
+
+        /* Shared header, identical to home/about/find-tutor */
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: 1160px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; gap: 16px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+        .nav-links button { color: #666; background: none; border: none; cursor: pointer; }
+        .nav-links button:hover { color: #cc0000; }
+        @media (max-width: 768px) { .nav-links { display: none; } }
+
         .course-card {
             border-radius: 0.75rem;
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
@@ -41,27 +71,25 @@
         <span id="alert-message"></span>
     </div>
 
-    <header class="sticky top-0 z-50 bg-white shadow-sm">
-        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-20">
-            <div class="flex items-center space-x-3">
-                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="Mozart Techniques logo">Mozart Techniques</a>
             </div>
-            <div class="hidden md:flex items-center space-x-6 text-gray-700 font-medium">
-                <a href="home.html" class="hover:text-primary-red transition duration-150">Home</a>
-                <a href="courses.html" class="hover:text-primary-red transition duration-150">Courses</a>
-                <a href="dashboard.html" class="text-primary-red border-b-2 border-primary-red pb-1">Dashboard</a>
-                <a id="admin-link" href="/admin" class="hidden hover:text-primary-red transition duration-150">Admin</a>
-                <a href="/search" title="Search" class="text-gray-600 hover:text-primary-red transition duration-150"><i class="fa-solid fa-magnifying-glass text-lg"></i></a>
-                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-red">
-                    <i class="fa-solid fa-bell text-lg"></i>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/library">Library</a>
+                <a href="/dashboard" class="active">Dashboard</a>
+                <a id="admin-link" href="/admin" class="hidden">Admin</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+                <button type="button" id="notif-btn" title="Notifications" class="relative">
+                    <i class="fa-solid fa-bell"></i>
                     <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-primary-red text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">0</span>
                 </button>
-                <button id="logout-btn" class="ml-2 inline-flex items-center justify-center px-6 py-2 bg-primary-dark text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 transition duration-150">
-                    <i class="fa-solid fa-right-from-bracket mr-2"></i> Log Out
-                </button>
-            </div>
-        </nav>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
     </header>
 
     <div class="bg-primary-red pt-14 pb-20 shadow-inner">
@@ -72,6 +100,8 @@
     </div>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 pb-20">
+        <div class="grid md:grid-cols-3 gap-6">
+            <div class="md:col-span-2">
         <div id="notif-panel" class="hidden bg-white rounded-xl shadow-lg p-6 mb-6 max-w-md">
             <h3 class="font-bold text-gray-800 mb-3">Notifications</h3>
             <div id="notif-list" class="space-y-2 text-sm text-gray-600"></div>
@@ -99,36 +129,35 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 text-white" style="background: linear-gradient(135deg, #7e0e14, #E02126);">
-                <i class="fa-solid fa-chalkboard-user absolute -right-3 -bottom-3 text-8xl text-white/10"></i>
+            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 bg-white">
                 <div class="relative">
                     <div class="flex items-center gap-2 mb-2">
-                        <h3 class="font-extrabold text-lg">Tutoring</h3>
-                        <span id="tutor-status-badge" class="hidden text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white/20"></span>
+                        <h3 class="font-extrabold text-lg text-gray-800">My Lessons</h3>
+                        <span id="next-lesson-time" class="text-sm text-gray-500 ml-2">No upcoming lessons</span>
                     </div>
-                    <p id="tutor-status" class="text-sm text-red-100 mb-4">Share your qualifications and get matched with students.</p>
+                    <p id="lessons-summary" class="text-sm text-gray-600 mb-4">See upcoming and past lessons, join a meeting, or message your tutor.</p>
                     <div class="flex flex-wrap gap-2">
-                        <a id="tutor-action-btn" href="/become-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-red font-bold rounded-lg text-sm shadow-md hover:bg-red-50 transition">
-                            Become a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
+                        <a id="view-schedule-btn" href="/schedule" class="inline-flex items-center justify-center px-4 py-2 bg-primary-red text-white font-bold rounded-lg text-sm shadow-md hover:bg-red-700 transition">
+                            View Schedule <i class="fa-solid fa-calendar-days ml-2"></i>
                         </a>
-                        <a id="manage-quizzes-btn" href="/manage-quizzes" class="hidden inline-flex items-center justify-center px-4 py-2 bg-white/10 border border-white/40 text-white font-bold rounded-lg text-sm hover:bg-white/20 transition">
-                            Manage Course Content <i class="fa-solid fa-clapperboard ml-2"></i>
+                        <a id="my-messages-btn" href="/chat" class="inline-flex items-center justify-center px-4 py-2 border border-gray-200 text-gray-700 bg-white font-bold rounded-lg text-sm hover:bg-gray-50 transition">
+                            Messages <i class="fa-solid fa-comments ml-2"></i>
                         </a>
+                        <button id="edit-profile-btn" class="inline-flex items-center justify-center px-4 py-2 border border-gray-200 text-gray-700 bg-white font-bold rounded-lg text-sm hover:bg-gray-50 transition">
+                            My Learning Profile <i class="fa-solid fa-user-pen ml-2"></i>
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 text-white" style="background: linear-gradient(135deg, #1F2937, #374151);">
-                <i class="fa-solid fa-magnifying-glass absolute -right-3 -bottom-3 text-8xl text-white/10"></i>
+            <div class="relative overflow-hidden rounded-2xl shadow-lg p-6 bg-white">
                 <div class="relative">
-                    <h3 class="font-extrabold text-lg mb-2">Need a Tutor?</h3>
-                    <p class="text-sm text-gray-300 mb-4">Browse approved tutors near you or online, and compare their rates.</p>
+                    <h3 class="font-extrabold text-lg text-gray-800 mb-2">Need a Tutor?</h3>
+                    <p class="text-sm text-gray-600 mb-4">Browse approved tutors near you or online, compare rates, and request a match.</p>
                     <div class="flex flex-wrap gap-2">
-                        <a href="/find-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-white text-primary-dark font-bold rounded-lg text-sm shadow-md hover:bg-gray-100 transition">
+                        <a href="/find-tutor" class="inline-flex items-center justify-center px-4 py-2 bg-primary-red text-white font-bold rounded-lg text-sm shadow-md hover:bg-red-700 transition">
                             Find a Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
                         </a>
-                        <button id="edit-profile-btn" class="inline-flex items-center justify-center px-4 py-2 bg-white/10 border border-white/40 text-white font-bold rounded-lg text-sm hover:bg-white/20 transition">
-                            My Learning Profile <i class="fa-solid fa-user-pen ml-2"></i>
-                        </button>
+                        <!-- Browse Profiles moved under each tutor in 'Your Tutor(s)' -->
                     </div>
                 </div>
             </div>
@@ -158,10 +187,12 @@
 
             <div id="empty-state" class="hidden text-center py-12">
                 <i class="fa-solid fa-music text-primary-red text-4xl mb-4"></i>
-                <p class="text-gray-600 text-lg mb-6">You haven't enrolled in any courses yet.</p>
-                <a href="courses.html" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
-                    Browse Courses
+                <p class="text-gray-600 text-lg mb-6">You haven't started lessons with a tutor yet.</p>
+                <a href="/find-tutor" class="inline-flex items-center justify-center px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
+                    Find a Tutor
                 </a>
+            </div>
+        </div>
             </div>
         </div>
     </main>
@@ -170,6 +201,7 @@
         <div id="action-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 max-h-[85vh] overflow-y-auto"></div>
     </div>
 
+    <script src="assets/nav-auth.js"></script>
     <script>
         const alertBox = document.getElementById('alert-box');
         const alertMessage = document.getElementById('alert-message');
@@ -187,12 +219,18 @@
         }
 
         function courseCardHtml(course) {
+            const status = String(course.status || 'verified').toLowerCase();
+            const statusFlag = status === 'verified' ? 'Verified' : (course.statusText || 'Active');
+            const categoryHref = course.category ? `?category=${encodeURIComponent(course.category)}` : '';
             return `
                 <div class="course-card">
                     <div class="p-5">
-                        <span class="block text-xs font-semibold uppercase tracking-wide text-primary-red mb-1">${course.category} &middot; ${course.level}</span>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="block text-xs font-semibold uppercase tracking-wide text-primary-red mb-1">${course.category} &middot; ${course.level}</span>
+                            <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase tracking-wide">${statusFlag}</span>
+                        </div>
                         <h3 class="text-lg font-bold text-gray-800 mb-4">${course.title}</h3>
-                        <a href="/video/${course.slug}" class="inline-flex items-center justify-center w-full py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow hover:bg-red-700 transition duration-150">
+                        <a href="/library${categoryHref}" class="inline-flex items-center justify-center w-full py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow hover:bg-red-700 transition duration-150">
                             <i class="fa-solid fa-play mr-2"></i> Continue Learning
                         </a>
                     </div>
@@ -228,11 +266,12 @@
 
             document.getElementById('enrolled-loading').classList.add('hidden');
 
-            if (data.enrolledCourses.length === 0) {
+            const courses = Array.isArray(data.enrolledCourses) ? data.enrolledCourses : [];
+            if (courses.length === 0) {
                 document.getElementById('empty-state').classList.remove('hidden');
             } else {
                 const grid = document.getElementById('enrolled-grid');
-                grid.innerHTML = data.enrolledCourses.map(courseCardHtml).join('');
+                grid.innerHTML = courses.map(courseCardHtml).join('');
                 grid.classList.remove('hidden');
             }
 
@@ -269,10 +308,16 @@
             }
         });
 
-        document.getElementById('logout-btn').addEventListener('click', async () => {
-            await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/home';
-        });
+        // Sign Out now lives in the account-avatar dropdown (nav-auth.js),
+        // matching every other page - but keep this wired in case a page
+        // variant still renders a standalone button.
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/home';
+            });
+        }
 
         function initials(name) {
             return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -327,6 +372,117 @@
                 if (data.success) { showAlert('Rating submitted.', 'success'); closeModal(); loadTutoring(); }
                 else showAlert(data.error || 'Could not submit rating.', 'error');
             });
+        }
+
+        async function openStudentInfoModal(category) {
+            const [taxRes, dashRes] = await Promise.all([fetch('/api/taxonomy'), fetch('/api/dashboard')]);
+            const tax = await taxRes.json();
+            const dash = await dashRes.json();
+            const user = dash.user || {};
+            const p = dash.studentProfile || {};
+            const photoPreview = user.photoUrl || 'mozartLogo.jpg';
+            openModal(`
+                <h2 class="text-xl font-bold text-gray-800 mb-1">Your learning profile</h2>
+                <p class="text-gray-500 text-sm mb-4">This information is shared with your matched tutor so they can tailor lessons for you.</p>
+                ${category ? `<p class="text-sm text-gray-500 mb-4">Subject: <strong>${escapeHtml(category)}</strong></p>` : ''}
+                <form id="profile-form">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Full name</label>
+                    <input type="text" name="name" value="${escapeHtml(user.name || '')}" placeholder="Your full name" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Age group</label>
+                            <select name="ageGroup" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                                <option value="">Not set</option>
+                                ${tax.ageGroups.map((a) => `<option value="${a.id}" ${p.ageGroup === a.id ? 'selected' : ''}>${a.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Sex</label>
+                            <select name="sex" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                                <option value="">Prefer not to say</option>
+                                <option value="female" ${p.sex === 'female' ? 'selected' : ''}>Female</option>
+                                <option value="male" ${p.sex === 'male' ? 'selected' : ''}>Male</option>
+                                <option value="nonbinary" ${p.sex === 'nonbinary' ? 'selected' : ''}>Non-binary</option>
+                                <option value="other" ${p.sex === 'other' ? 'selected' : ''}>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Preferred genre</label>
+                    <select name="genre" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                        <option value="">Not set</option>
+                        ${tax.genres.map((g) => `<option value="${g}" ${p.genres && p.genres[0] === g ? 'selected' : ''}>${g}</option>`).join('')}
+                    </select>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">City or address</label>
+                    <input type="text" name="city" value="${p.city ? escapeHtml(p.city) : ''}" placeholder="e.g. Lagos, Nigeria" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Upload a photo for your tutor</label>
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-3">
+                        <input id="profile-photo-input" type="file" accept="image/*" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg" />
+                        <button type="button" id="upload-photo-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg">Upload photo</button>
+                    </div>
+                    <div class="flex items-center gap-3 mb-3">
+                        <img id="profile-photo-preview" src="${escapeHtml(photoPreview)}" alt="Photo preview" class="w-20 h-20 rounded-2xl object-cover border border-gray-200">
+                        <span id="profile-photo-status" class="text-xs text-gray-500">Upload a photo so your tutor recognizes you.</span>
+                    </div>
+                    <input type="hidden" id="profile-photo-url" name="photoUrl" value="${escapeHtml(user.photoUrl || '')}">
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Save details</button>
+                    </div>
+                </form>
+            `);
+            const uploadBtn = document.getElementById('upload-photo-btn');
+            const photoInput = document.getElementById('profile-photo-input');
+            uploadBtn.addEventListener('click', async () => {
+                if (!photoInput.files.length) return showAlert('Choose a photo first.', 'error');
+                await uploadStudentPhotoFile(photoInput);
+            });
+            photoInput.addEventListener('change', async () => {
+                if (!photoInput.files.length) return;
+                await uploadStudentPhotoFile(photoInput);
+            });
+            document.getElementById('profile-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const genre = fd.get('genre');
+                const photoUrl = document.getElementById('profile-photo-url').value;
+                const res2 = await fetch('/api/profile/student', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: fd.get('name') || null,
+                        ageGroup: fd.get('ageGroup') || null,
+                        genres: genre ? [genre] : [],
+                        city: fd.get('city'),
+                        sex: fd.get('sex') || null,
+                        photoUrl: photoUrl || null,
+                    }),
+                });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Profile saved.', 'success'); closeModal(); loadTutoring(); }
+                else showAlert(data2.error || 'Could not save profile.', 'error');
+            });
+        }
+
+        async function uploadStudentPhotoFile(photoInput) {
+            const statusEl = document.getElementById('profile-photo-status');
+            const preview = document.getElementById('profile-photo-preview');
+            const photoUrlField = document.getElementById('profile-photo-url');
+            const file = photoInput.files[0];
+            if (!file) return;
+            statusEl.textContent = 'Uploading photo...';
+            const formData = new FormData();
+            formData.append('photo', file);
+            try {
+                const res = await fetch('/api/uploads/photo', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Upload failed.');
+                photoUrlField.value = data.url;
+                preview.src = data.url;
+                statusEl.textContent = 'Photo uploaded.';
+            } catch (err) {
+                statusEl.textContent = 'Upload failed.';
+                showAlert(err.message || 'Could not upload photo.', 'error');
+            }
         }
 
         async function openLogSessionModal(requestId, category) {
@@ -405,7 +561,7 @@
             const data = await res.json();
             openModal(`
                 <h2 class="text-xl font-bold text-gray-800 mb-1">Set Student's Level</h2>
-                <p class="text-gray-500 text-sm mb-4">Your first-lesson evaluation is the final word, overriding their online placement-quiz suggestion.</p>
+                <p class="text-gray-500 text-sm mb-4">Your first-lesson evaluation sets the student's starting level for this subject.</p>
                 <form id="level-form">
                     <select name="level" class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg">
                         ${data.levels.map((lvl) => `<option value="${lvl}">${lvl}</option>`).join('')}
@@ -494,6 +650,14 @@
         let assignmentsCache = { asStudent: [], asTutor: [] };
 
         function wireSessionButtons() {
+            document.querySelectorAll('.rate-tutor-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const list = assignmentsCache.asStudent || [];
+                    const record = list.find((r) => String(r.id) === btn.dataset.requestId);
+                    const session = record && Array.isArray(record.sessions) && record.sessions.find((s) => String(s.id) === btn.dataset.sessionId);
+                    if (record && session) openRateModal(record.id, session, 'student', record.tutorName || btn.dataset.name);
+                });
+            });
             document.querySelectorAll('.rate-session-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const list = btn.dataset.role === 'student' ? assignmentsCache.asStudent : assignmentsCache.asTutor;
@@ -511,8 +675,8 @@
             document.querySelectorAll('.set-meeting-link-btn').forEach((btn) => {
                 btn.addEventListener('click', () => openSetMeetingLinkModal(btn.dataset.requestId, btn.dataset.link));
             });
-            document.querySelectorAll('.placement-quiz-link').forEach((link) => {
-                link.addEventListener('click', (e) => { e.preventDefault(); window.location.href = `/placement-quiz?category=${encodeURIComponent(link.dataset.category)}`; });
+            document.querySelectorAll('.student-info-link').forEach((link) => {
+                link.addEventListener('click', (e) => { e.preventDefault(); openStudentInfoModal(link.dataset.category); });
             });
         }
 
@@ -520,6 +684,23 @@
             const res = await fetch('/api/my-assignments');
             const data = await res.json();
             assignmentsCache = data;
+
+            // show brief next-lesson info in summary card (if present)
+            try {
+                const nextEl = document.getElementById('next-lesson-time');
+                const sumEl = document.getElementById('lessons-summary');
+                if (nextEl && sumEl) {
+                    const upcoming = (data.asStudent || []).flatMap(r => (r.sessions || []).map(s => ({ req: r, s }))).filter(x => x.s.scheduledAt).sort((a,b)=> new Date(a.s.scheduledAt)-new Date(b.s.scheduledAt));
+                    if (upcoming.length) {
+                        const n = upcoming[0];
+                        nextEl.textContent = new Date(n.s.scheduledAt).toLocaleString();
+                        sumEl.textContent = `Next: ${n.req.category} with ${n.req.tutorName || 'your tutor'}`;
+                    } else {
+                        nextEl.textContent = 'No upcoming lessons';
+                        sumEl.textContent = 'Check your schedule or request a tutor.';
+                    }
+                }
+            } catch (e) { /* ignore */ }
 
             const statusEl = document.getElementById('tutor-status');
             const actionBtn = document.getElementById('tutor-action-btn');
@@ -531,13 +712,9 @@
                     rejected: ['Your tutor application was not approved.', 'View Status'],
                 };
                 const [msg, btnText] = labels[data.tutorProfile.status] || labels.pending;
-                statusEl.textContent = msg;
-                actionBtn.innerHTML = `${btnText} <i class="fa-solid fa-arrow-right ml-2"></i>`;
-                badgeEl.textContent = data.tutorProfile.status;
-                badgeEl.classList.remove('hidden');
-                if (data.tutorProfile.status === 'approved') {
-                    document.getElementById('manage-quizzes-btn').classList.remove('hidden');
-                }
+                if (statusEl) statusEl.textContent = msg;
+                if (actionBtn) actionBtn.innerHTML = `${btnText} <i class="fa-solid fa-arrow-right ml-2"></i>`;
+                if (badgeEl) { badgeEl.textContent = data.tutorProfile.status; badgeEl.classList.remove('hidden'); }
                 if (data.tutorProfile.flagged) {
                     document.getElementById('flagged-banner-text').textContent =
                         "Your tutor account has been flagged for review due to low student ratings. Contact support - repeated issues can lead to your tutor account being discontinued.";
@@ -546,30 +723,83 @@
             }
 
             if (data.asStudent && data.asStudent.length) {
-                const active = data.asStudent.filter((r) => r.status !== 'ended');
+                const active = data.asStudent.filter((r) => r.status === 'active');
                 if (active.length) {
                     document.getElementById('my-tutor-section').classList.remove('hidden');
                     document.getElementById('my-tutor-list').innerHTML = active.map((r) => `
-                        <div class="rounded-xl border border-gray-100 p-4 flex gap-3 ${r.status === 'active' ? 'bg-gradient-to-br from-red-50 to-white' : 'bg-gray-50'}">
+                        <div class="rounded-xl border border-gray-100 p-4 flex gap-3">
                             <div class="w-11 h-11 shrink-0 rounded-full bg-primary-red text-white font-bold flex items-center justify-center">
-                                ${r.status === 'active' ? initials(r.tutorName) : '<i class="fa-solid fa-hourglass-half text-sm"></i>'}
+                                ${initials(r.tutorName)}
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="font-semibold text-gray-800">${escapeHtml(r.category)}</p>
                                 <p class="text-xs text-gray-400 mb-1">${r.city ? escapeHtml(r.city) : ''}${r.city && r.online ? ' &middot; ' : ''}${r.online ? 'Online' : ''}${r.matchDistanceKm != null ? ' &middot; ' + r.matchDistanceKm + ' km' : ''}</p>
-                                ${r.status === 'active'
-                                    ? `<p class="text-sm text-gray-600">Matched with <strong>${escapeHtml(r.tutorName)}</strong><br>${escapeHtml(r.tutorEmail)}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</p>
-                                       ${r.online ? (r.meetingLink
-                                            ? `<a href="${escapeHtml(r.meetingLink)}" target="_blank" class="inline-flex items-center gap-1 text-xs font-semibold text-white bg-primary-red px-3 py-1.5 rounded-full mt-1 hover:bg-red-700"><i class="fa-solid fa-video"></i> Join Lesson</a>`
-                                            : `<p class="text-xs text-gray-400 italic mt-1">Waiting for your tutor to share a meeting link.</p>`) : ''}
-                                       <br><a href="#" class="placement-quiz-link text-xs text-primary-red font-semibold hover:underline" data-category="${escapeHtml(r.category)}">Take placement quiz</a>
-                                       ${sessionsListHtml(r.id, r.sessions, 'student', r.tutorName)}`
-                                    : `<p class="text-sm text-gray-400 italic">Awaiting admin match...</p>`}
+                                <p class="text-sm text-gray-600">Matched with <strong>${escapeHtml(r.tutorName)}</strong><br>${escapeHtml(r.tutorEmail)}${r.tutorPhone ? ' &middot; ' + escapeHtml(r.tutorPhone) : ''}</p>
+                                ${r.online ? (r.meetingLink
+                                    ? `<a href="${escapeHtml(r.meetingLink)}" target="_blank" class="inline-flex items-center gap-1 text-xs font-semibold text-white bg-primary-red px-3 py-1.5 rounded-full mt-1 hover:bg-red-700"><i class="fa-solid fa-video"></i> Join Lesson</a>
+                                       ${r.scheduledAt ? `<span class="block text-xs text-gray-500 mt-1"><i class="fa-regular fa-clock mr-1"></i>${new Date(r.scheduledAt).toLocaleString()}</span>` : ''}`
+                                    : `<p class="text-xs text-gray-400 italic mt-1">Waiting for your tutor to share a meeting link.</p>`) : ''}
+                                ${(r.recordings && r.recordings.length)
+                                    ? `<div class="mt-2 border-t border-gray-100 pt-2">
+                                        <p class="text-xs font-semibold text-gray-500 mb-1"><i class="fa-solid fa-film mr-1"></i>Class recordings</p>
+                                        <ul class="space-y-1">${r.recordings.map((v) => `
+                                            <li><a href="${escapeHtml(v.url)}" target="_blank" rel="noopener" class="text-xs text-primary-red hover:underline">${escapeHtml(v.title)}</a>
+                                                <span class="text-[10px] text-gray-400 ml-1">${new Date(v.postedAt).toLocaleDateString()}</span></li>`).join('')}</ul>
+                                       </div>`
+                                    : ''}
+                                <br><a href="#" class="student-info-link text-xs text-primary-red font-semibold hover:underline" data-category="${escapeHtml(r.category)}">Share profile details</a>
+                                <div class="mt-2">
+                                    <a href="${r.tutorId ? '/tutors/' + encodeURIComponent(r.tutorId) : '/find-tutor?requestTutorId=' + encodeURIComponent(r.tutorId)}" class="inline-flex items-center gap-2 text-xs font-semibold text-primary-red">View tutor profile</a>
+                                </div>
+                                ${r.sessions && r.sessions.length
+                                    ? `<div class="mt-3 flex flex-wrap gap-2">
+                                        <button class="rate-tutor-btn text-xs font-semibold text-white bg-primary-red px-3 py-1.5 rounded-full hover:bg-red-700" data-request-id="${r.id}" data-session-id="${r.sessions[r.sessions.length - 1].id}" data-role="student" data-name="${escapeHtml(r.tutorName)}">
+                                            <i class="fa-solid fa-star mr-1"></i> Rate Tutor
+                                        </button>
+                                    </div>`
+                                    : ''}
+                                ${sessionsListHtml(r.id, r.sessions, 'student', r.tutorName)}
                             </div>
                         </div>
                     `).join('');
                 }
             }
+
+            // Render sidebar intake form for the first active assignment that has a tutor
+            try {
+                const intakeBody = document.getElementById('intake-sidebar-body');
+                if (intakeBody) {
+                    const firstWithTutor = (data.asStudent || []).find((r) => r.status === 'active' && r.tutorId);
+                    if (!firstWithTutor) {
+                        intakeBody.innerHTML = '<p class="text-sm text-gray-500">No active tutor-intake forms to fill.</p>';
+                    } else {
+                        intakeBody.innerHTML = '<p class="text-sm text-gray-500">Loading form…</p>';
+                        const qres = await fetch(`/api/tutors/${firstWithTutor.tutorId}/intake-form`);
+                        const qdata = await qres.json();
+                        const questions = qdata.success ? qdata.questions || [] : [];
+                        if (!questions.length) {
+                            intakeBody.innerHTML = '<p class="text-sm text-gray-500">This tutor has not set up an intake form.</p>';
+                        } else {
+                            intakeBody.innerHTML = `<form id="intake-responses-form" class="space-y-3">${questions.map((q, i) => `
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">${escapeHtml(q.question)}</label>
+                                    <input name="q_${i}" placeholder="${escapeHtml(q.placeholder || '')}" class="w-full px-3 py-2 border border-gray-200 rounded" />
+                                </div>
+                            `).join('')}<div class="flex gap-2"><button type="button" id="submit-intake-btn" class="px-3 py-2 bg-primary-red text-white rounded">Submit</button><button type="button" id="save-intake-draft" class="px-3 py-2 border border-gray-200 rounded">Save draft</button></div></form>`;
+                            document.getElementById('submit-intake-btn').addEventListener('click', async () => {
+                                const form = document.getElementById('intake-responses-form');
+                                const fd = new FormData(form);
+                                const responses = [];
+                                questions.forEach((q, i) => { responses.push({ question: q.question, answer: fd.get(`q_${i}`) || '' }); });
+                                const res = await fetch(`/api/assignments/${firstWithTutor.id}/intake-responses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intakeResponses: responses }) });
+                                const j = await res.json();
+                                if (j.success) { showAlert('Intake responses submitted.', 'success'); intakeBody.innerHTML = '<p class="text-sm text-gray-500">Thank you — responses submitted for review.</p>'; }
+                                else showAlert(j.error || 'Could not submit responses.', 'error');
+                            });
+                        }
+                    }
+                }
+            } catch (e) { console.error(e); }
 
             if (data.tutorProfile && data.tutorProfile.status === 'approved' && data.asTutor && data.asTutor.length) {
                 const active = data.asTutor.filter((r) => r.status === 'active');
@@ -618,50 +848,7 @@
 
         // --- My Learning Profile ---
         document.getElementById('edit-profile-btn').addEventListener('click', async () => {
-            const res = await fetch('/api/taxonomy');
-            const tax = await res.json();
-            const dashRes = await fetch('/api/dashboard');
-            const dash = await dashRes.json();
-            const p = dash.studentProfile || {};
-            openModal(`
-                <h2 class="text-xl font-bold text-gray-800 mb-1">My Learning Profile</h2>
-                <p class="text-gray-500 text-sm mb-4">Saved once, used to prefill your tutor matches next time.</p>
-                <form id="profile-form">
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Age group</label>
-                    <select name="ageGroup" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
-                        <option value="">Not set</option>
-                        ${tax.ageGroups.map((a) => `<option value="${a.id}" ${p.ageGroup === a.id ? 'selected' : ''}>${a.label}</option>`).join('')}
-                    </select>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Preferred genre</label>
-                    <select name="genre" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
-                        <option value="">Not set</option>
-                        ${tax.genres.map((g) => `<option value="${g}" ${p.genres && p.genres[0] === g ? 'selected' : ''}>${g}</option>`).join('')}
-                    </select>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">City (for in-person matching)</label>
-                    <input type="text" name="city" value="${p.city ? escapeHtml(p.city) : ''}" placeholder="e.g. Lagos, Nigeria" class="w-full px-3 py-2 mb-4 border border-gray-300 rounded-lg">
-                    <div class="flex gap-2">
-                        <button type="button" onclick="closeModal()" class="flex-1 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-600">Cancel</button>
-                        <button type="submit" class="flex-1 py-2.5 bg-primary-red text-white font-semibold rounded-lg">Save</button>
-                    </div>
-                </form>
-            `);
-            document.getElementById('profile-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                const genre = fd.get('genre');
-                const res2 = await fetch('/api/profile/student', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        ageGroup: fd.get('ageGroup') || null,
-                        genres: genre ? [genre] : [],
-                        city: fd.get('city'),
-                    }),
-                });
-                const data2 = await res2.json();
-                if (data2.success) { showAlert('Profile saved.', 'success'); closeModal(); }
-                else showAlert(data2.error || 'Could not save profile.', 'error');
-            });
+            await openStudentInfoModal();
         });
 
         async function loadCertificates() {

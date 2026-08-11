@@ -87,12 +87,34 @@ async function lookupCountryByIp(ip) {
   }
 }
 
+// Local currency is only shown for Nigeria and the UK - everywhere else
+// defaults to USD, regardless of the visitor's detected country.
+const LOCAL_CURRENCY_COUNTRIES = new Set(['NG', 'GB']);
+
 function getCountryInfo(countryCode) {
-  return COUNTRY_CURRENCY[countryCode] || COUNTRY_CURRENCY[DEFAULT_COUNTRY];
+  const info = COUNTRY_CURRENCY[countryCode] || COUNTRY_CURRENCY[DEFAULT_COUNTRY];
+  if (LOCAL_CURRENCY_COUNTRIES.has(countryCode)) return info;
+  return { ...info, currency: 'USD', symbol: '$' };
 }
 
 function listCountries() {
   return Object.entries(COUNTRY_CURRENCY).map(([code, info]) => ({ code, ...info }));
 }
 
-module.exports = { COUNTRY_CURRENCY, DEFAULT_COUNTRY, lookupCountryByIp, getCountryInfo, listCountries };
+// Maps a country's full name (as returned by reverse-geocoding, e.g.
+// "Nigeria") back to its ISO code, for currency lookups once a GPS location
+// has resolved a country name rather than a code. Only covers the curated
+// currency list above - a name outside that list returns null, and callers
+// fall back to IP-based resolution for currency (the location bridge's
+// country-name comparison doesn't need this at all, it compares names
+// directly).
+function countryCodeForName(name) {
+  if (!name) return null;
+  const target = String(name).trim().toLowerCase();
+  const entry = Object.entries(COUNTRY_CURRENCY).find(([, info]) => info.name.toLowerCase() === target);
+  return entry ? entry[0] : null;
+}
+
+module.exports = {
+  COUNTRY_CURRENCY, DEFAULT_COUNTRY, lookupCountryByIp, getCountryInfo, listCountries, countryCodeForName,
+};

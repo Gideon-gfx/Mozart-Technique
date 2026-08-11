@@ -3,445 +3,355 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mozart Technique</title>
+    <title>Mozart Techniques</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/site.css">
+    <link rel="stylesheet" href="assets/redesign.css">
     <style>
-        /*
-        * =================================================================
-        * CSS STYLES
-        * =================================================================
-        */
-        :root {
-            --color-primary-red: #C41822; /* Main Red Color */
-            --color-dark-red: #A3121A;   /* Darker Red for "Craft Your Sound" */
-            --color-white: #FFFFFF;
-            --color-black: #000000;
-            --color-text-dark: #222222;
-            --color-text-light: #F0F0F0;
-            --color-rating-yellow: #FFC107;
-            --padding-section: 60px 0;
-            --max-width: 1200px;
+        /* Futuristic Gallery Redesign */
+        @keyframes float-up {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Placeholder font */
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 77, 90, 0.3), 0 30px 70px rgba(0, 0, 0, 0.28); }
+            50% { box-shadow: 0 0 40px rgba(255, 77, 90, 0.5), 0 40px 90px rgba(0, 0, 0, 0.35); }
         }
 
-        body {
-            color: var(--color-text-dark);
-            background-color: var(--color-text-light);
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
-        /* --- Header / Navigation --- */
-        .header {
-            background-color: var(--color-white);
-            height: 70px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+        @keyframes music-drift-1 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+            25% { transform: translate(25px, -35px) rotate(-15deg); opacity: 0.8; }
+            50% { transform: translate(15px, -60px) rotate(10deg); opacity: 0.5; }
+            75% { transform: translate(-20px, -35px) rotate(-20deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
         }
 
-        .nav-container {
-            width: var(--max-width);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
+        @keyframes music-drift-2 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+            25% { transform: translate(-30px, -40px) rotate(15deg); opacity: 0.7; }
+            50% { transform: translate(-15px, -70px) rotate(-10deg); opacity: 0.4; }
+            75% { transform: translate(25px, -40px) rotate(20deg); opacity: 0.6; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
         }
 
-        .logo a {
-            font-size: 24px;
+        @keyframes music-drift-3 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+            25% { transform: translate(35px, -30px) rotate(-25deg); opacity: 0.6; }
+            50% { transform: translate(20px, -50px) rotate(15deg); opacity: 0.5; }
+            75% { transform: translate(-25px, -30px) rotate(-15deg); opacity: 0.65; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+        }
+
+        @keyframes music-drift-4 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+            25% { transform: translate(-25px, -45px) rotate(20deg); opacity: 0.75; }
+            50% { transform: translate(30px, -65px) rotate(-20deg); opacity: 0.45; }
+            75% { transform: translate(10px, -35px) rotate(10deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+        }
+
+        .music-note {
+            position: fixed;
+            font-size: 2.4rem;
             font-weight: 700;
-            color: var(--color-primary-red);
-            text-decoration: none;
+            pointer-events: none;
+            z-index: 1;
+            mix-blend-mode: screen;
+        }
+
+        .note-1 {
+            top: 15%;
+            left: 8%;
+            animation: music-drift-1 8s ease-in-out infinite;
+            color: #ff4d5a;
+        }
+
+        .note-2 {
+            top: 25%;
+            right: 12%;
+            animation: music-drift-2 10s ease-in-out infinite 1.5s;
+            color: #ff8a94;
+        }
+
+        .note-3 {
+            top: 50%;
+            left: 5%;
+            animation: music-drift-3 9s ease-in-out infinite 2s;
+            color: #ff6d76;
+        }
+
+        .note-4 {
+            top: 70%;
+            right: 8%;
+            animation: music-drift-4 11s ease-in-out infinite 0.8s;
+            color: #ff4d5a;
+        }
+
+        .playful-gallery {
+            position: relative;
+            padding: 60px 26px;
+            background: linear-gradient(135deg, rgba(255,77,90,0.05), rgba(167,229,255,0.03));
+            border-radius: 32px;
+            border: 1px solid rgba(255,255,255,0.08);
+            margin-top: 0;
+            overflow: visible;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            perspective: 1200px;
+        }
+
+        .gallery-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 24px;
+            min-height: 240px;
+            background: linear-gradient(135deg, rgba(30, 20, 31, 0.95), rgba(18, 11, 19, 0.98));
+            border: 1px solid rgba(255, 77, 90, 0.2);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 30px 70px rgba(0, 0, 0, 0.28);
+            transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: slide-in 0.6s ease-out forwards;
+            animation-fill-mode: both;
+        }
+
+        .gallery-card:nth-child(1) { animation-delay: 0.1s; }
+        .gallery-card:nth-child(2) { animation-delay: 0.15s; }
+        .gallery-card:nth-child(3) { animation-delay: 0.2s; }
+        .gallery-card:nth-child(4) { animation-delay: 0.25s; }
+        .gallery-card:nth-child(5) { animation-delay: 0.3s; }
+        .gallery-card:nth-child(6) { animation-delay: 0.35s; }
+
+        .gallery-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.45s ease;
+            filter: brightness(0.85) saturate(0.9) contrast(1.05);
+        }
+
+        .gallery-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255, 77, 90, 0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            border-radius: 24px;
+            pointer-events: none;
+        }
+
+        .gallery-card:hover {
+            transform: translateY(-16px) scale(1.06);
+            border-color: rgba(255, 77, 90, 0.4);
+            animation: glow-pulse 2s ease-in-out infinite;
+        }
+
+        .gallery-card:hover img {
+            transform: scale(1.12);
+            filter: brightness(1) saturate(1.1) contrast(1.15);
+        }
+
+        .gallery-card:hover::after {
+            opacity: 1;
+        }
+
+        .ways-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 24px;
+            margin-top: 12px;
+        }
+
+        /* Text Animation */
+        @keyframes text-slide {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .section-heading h2 {
+            animation: text-slide 0.8s ease-out;
+        }
+
+        .section-sub {
+            animation: text-slide 0.8s ease-out 0.15s both;
+        }
+
+        .way-card {
+            position: relative;
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            min-height: 380px;
+            border-radius: 26px;
+            background: linear-gradient(135deg, rgba(18, 18, 18, 0.98), rgba(30, 20, 31, 0.92));
+            color: #f4f4f4;
+            box-shadow: 0 0 0 1px rgba(255,77,90,0.15), 0 28px 70px rgba(0, 0, 0, 0.22);
+            overflow: hidden;
+            transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border: 1px solid rgba(255,77,90,0.15);
+            animation: slide-in 0.6s ease-out;
         }
 
-        .logo img {
-            height: 30px;
-            margin-right: 5px;
+        .way-card::before {
+            content: '';
+            position: absolute;
+            right: 18px;
+            top: 18px;
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(255,255,255,0.7);
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg);
+            opacity: 0.7;
+            transition: all 0.35s ease;
         }
 
-        .nav-links a {
-            color: var(--color-text-dark);
-            text-decoration: none;
-            margin-left: 25px;
-            font-weight: 500;
-            padding: 5px 0;
-            transition: color 0.3s;
+        .way-card:hover::before {
+            transform: rotate(45deg) translate(8px, -8px);
+            opacity: 1;
         }
 
-        .nav-links a:hover {
-            color: var(--color-primary-red);
+        .way-card:hover {
+            transform: translateY(-16px);
+            box-shadow: 0 0 0 1px rgba(255,77,90,0.3), 0 44px 90px rgba(0, 0, 0, 0.35);
+            border-color: rgba(255, 77, 90, 0.3);
         }
 
-        .login-btn {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            padding: 8px 20px;
-            border: none;
-            border-radius: 4px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background-color 0.3s;
+        .way-image {
+            width: 100%;
+            min-height: 230px;
+            overflow: hidden;
+            position: relative;
+            background: #111;
+            border-radius: 20px 20px 0 0;
         }
 
-        .login-btn:hover {
-            background-color: var(--color-dark-red);
+        .way-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.45s ease;
+            filter: brightness(0.9) saturate(0.95);
         }
 
-        /* --- Main Banner (Craft Your Sound) --- */
-        .hero-banner {
-            background-color: var(--color-dark-red);
-            color: var(--color-white);
-            padding: 120px 20px;
-            text-align: center;
+        .way-card:hover .way-image img {
+            transform: scale(1.1);
+            filter: brightness(1) saturate(1.1);
         }
 
-        .hero-banner h1 {
-            font-size: 60px;
-            font-weight: 800;
-            margin-bottom: 20px;
-        }
-
-        .hero-banner p {
-            font-size: 20px;
-            margin-bottom: 40px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-            line-height: 1.5;
-        }
-
-        .explore-btn {
-            background-color: var(--color-black);
-            color: var(--color-white);
-            padding: 15px 30px;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background-color 0.3s;
+        .way-tag {
             display: inline-flex;
             align-items: center;
-        }
-
-        .explore-btn:hover {
-            background-color: var(--color-text-dark);
-        }
-
-        .explore-btn::after {
-            content: '→';
-            margin-left: 10px;
-            font-size: 18px;
-        }
-
-        /* --- Featured Courses Section --- */
-        .featured-courses {
-            padding: var(--padding-section);
-            background-color: var(--color-text-dark);
-            color: var(--color-white);
-            text-align: center;
-        }
-
-        .featured-courses h2 {
-            font-size: 36px;
-            margin-bottom: 50px;
-        }
-
-        .course-grid {
-            max-width: var(--max-width);
-            margin: 0 auto;
-            display: flex;
-            gap: 20px;
             justify-content: center;
-            padding: 0 20px;
-            flex-wrap: wrap; /* Make it responsive */
+            width: max-content;
+            padding: 8px 14px;
+            font-size: 0.72rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #fff;
+            background: rgba(255,77,90,0.15);
+            border-radius: 999px;
+            margin: 18px 20px 12px;
+            border: 1px solid rgba(255,77,90,0.2);
+            transition: all 0.35s ease;
         }
 
-        .course-card {
-            background-color: var(--color-white);
-            color: var(--color-text-dark);
-            border-radius: 8px;
-            overflow: hidden;
-            width: calc(25% - 15px); /* Four cards in a row */
-            min-width: 250px;
-            text-align: left;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        .way-card:hover .way-tag {
+            background: rgba(255,77,90,0.25);
+            border-color: rgba(255,77,90,0.35);
         }
 
-        .course-card img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
+        .way-card h3 {
+            margin: 0 20px 14px;
+            font-size: 1.45rem;
+            line-height: 1.1;
+            color: #ffffff;
+            animation: text-slide 0.6s ease-out 0.2s both;
         }
 
-        .course-details {
-            padding: 15px;
+        .way-desc {
+            flex: 1;
+            color: rgba(255,255,255,0.78);
+            line-height: 1.7;
+            margin: 0 20px 24px;
+            animation: text-slide 0.6s ease-out 0.25s both;
         }
 
-        .course-tag {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            padding: 3px 8px;
-            font-size: 11px;
-            font-weight: 600;
-            border-radius: 3px;
-            margin-bottom: 10px;
+        .way-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: #f3f3f3;
+            margin: 0 20px 24px;
+            transition: color 0.35s ease;
+        }
+
+        .way-cta span {
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: inline-block;
         }
 
-        .course-details h3 {
-            font-size: 18px;
-            margin: 5px 0 10px 0;
+        .way-card:hover .way-cta {
+            color: #ff8a94;
         }
 
-        .course-details p {
-            font-size: 14px;
-            color: #666;
-            min-height: 40px; /* Ensure consistent height */
+        .way-card:hover .way-cta span {
+            transform: translateX(8px);
         }
 
-        .course-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid #eee;
-        }
-
-        .rating {
-            font-size: 14px;
-            color: var(--color-text-dark);
-            font-weight: 600;
-        }
-
-        .rating .stars {
-            color: var(--color-rating-yellow);
-        }
-
-        .price {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--color-primary-red);
-        }
-
-        .view-details-btn {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            padding: 8px 15px;
-            border: none;
-            border-radius: 4px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        /* --- About Mozart Technique Section --- */
-        .about-section {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            padding: var(--padding-section);
-            text-align: center;
-        }
-
-        .about-section h2 {
-            font-size: 36px;
-            margin-bottom: 20px;
-        }
-
-        .about-content {
-            max-width: 800px;
-            margin: 0 auto 50px auto;
-            font-size: 18px;
-            line-height: 1.6;
-        }
-
-        .about-section h3 {
-            font-size: 28px;
-            margin: 30px 0 20px 0;
-        }
-
-        /* --- Disciplines Grid --- */
-        .disciplines-grid {
-            max-width: var(--max-width);
-            margin: 0 auto;
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            padding: 0 20px;
-            flex-wrap: wrap;
-        }
-
-        .discipline-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.14), rgba(196,24,34,0.2));
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 20px;
-            padding: 24px 20px;
-            width: calc(20% - 16px);
-            min-width: 180px;
-            text-align: center;
-            box-shadow: 0 18px 38px rgba(0,0,0,0.18);
-            backdrop-filter: blur(16px);
-            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-        }
-
-        .discipline-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 24px 46px rgba(0,0,0,0.24);
-            border-color: rgba(255,255,255,0.32);
-        }
-
-        .discipline-card .discipline-icon {
-            width: 54px;
-            height: 54px;
-            margin: 0 auto 14px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            font-size: 26px;
-            background: rgba(255,255,255,0.16);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
-        }
-
-        .discipline-card h4 {
-            font-size: 18px;
-            margin-bottom: 6px;
-            font-weight: 700;
-        }
-
-        .discipline-card p {
-            font-size: 14px;
-            line-height: 1.45;
-            color: rgba(245,245,245,0.88);
-        }
-
-        /* --- Testimonials Section --- */
-        .testimonials-section {
-            background-color: var(--color-primary-red);
-            color: var(--color-white);
-            padding: var(--padding-section);
-            text-align: center;
-        }
-
-        .testimonials-section h2 {
-            font-size: 36px;
-            margin-bottom: 50px;
-        }
-
-        .testimonial-card {
-            background-color: var(--color-white);
-            color: var(--color-text-dark);
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .testimonial-card blockquote {
-            font-size: 18px;
-            font-style: italic;
-            margin-bottom: 20px;
-            line-height: 1.6;
-        }
-
-        .testimonial-card strong {
-            display: block;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--color-primary-red);
-        }
-
-        .testimonial-card span {
-            font-size: 14px;
-            color: #666;
-            display: block;
-        }
-
-        /* --- Ready to Begin Section --- */
-        .cta-section {
-            background-color: var(--color-dark-red);
-            color: var(--color-white);
-            padding: 80px 20px;
-            text-align: center;
-        }
-
-        .cta-section h2 {
-            font-size: 32px;
-            margin-bottom: 15px;
-        }
-
-        .cta-section p {
-            font-size: 18px;
-            margin-bottom: 30px;
-        }
-
-        .find-course-btn {
-            background-color: var(--color-white);
-            color: var(--color-primary-red);
-            padding: 15px 30px;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            font-weight: 700;
-            text-decoration: none;
-            transition: background-color 0.3s;
-        }
-
-        .find-course-btn:hover {
-            background-color: #f0f0f0;
-        }
-
-        /* --- Footer --- */
-        .footer {
-            background-color: var(--color-black);
-            color: var(--color-white);
-            text-align: center;
-            padding: 20px;
-            font-size: 14px;
-        }
-
-        /* --- Responsiveness --- */
-        @media (max-width: 1024px) {
-            .course-card {
-                width: calc(50% - 10px); /* Two cards per row */
+        @media (max-width: 1100px) {
+            .gallery-grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
             }
-            .discipline-card {
-                width: calc(33.333% - 14px); /* Three cards per row */
+
+            .ways-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
-        @media (max-width: 768px) {
-            .nav-links {
-                display: none; /* Hide nav links on smaller screens for simplicity */
+        @media (max-width: 860px) {
+            .gallery-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
             }
-            .nav-container {
-                padding: 0 10px;
+
+            .ways-grid {
+                grid-template-columns: 1fr;
             }
-            .hero-banner h1 {
-                font-size: 40px;
+        }
+
+        @media (max-width: 620px) {
+            .gallery-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
-            .course-card {
-                width: 100%; /* Single column */
-                min-width: unset;
+
+            .playful-gallery {
+                padding-left: 12px;
+                padding-right: 12px;
             }
-            .discipline-card {
-                width: calc(50% - 10px); /* Two cards per row */
+
+            .playful-gallery::before,
+            .playful-gallery::after {
+                display: none;
+            }
+
+            .gallery-card,
+            .way-card {
+                transform: none;
+                border-radius: 20px;
             }
         }
     </style>
@@ -451,11 +361,13 @@
     <header class="header">
         <div class="nav-container">
             <div class="logo">
-                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Technique</a>
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
             </div>
             <nav class="nav-links">
-                <a href="/home">Home</a>
-                <a href="/courses">Courses</a>
+                <a href="/home" class="active">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
                 <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
@@ -464,151 +376,248 @@
         </div>
     </header>
 
-    <section class="hero-banner reveal">
-        <h1>Craft Your Sound</h1>
-        <p>Learn the art of music production, from DJing fundamentals to professional studio engineering.</p>
-        <a href="/courses" class="explore-btn">Explore All Courses</a>
-    </section>
-
-    <section class="featured-courses reveal">
-        <h2>Featured Courses</h2>
-        <div class="course-grid">
-            
-            <div class="course-card">
-                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRyK7nDzKP0r0zOMiE1mZyN3rIeQuTL8cH6ow&s" alt="Classical Piano">
-                <div class="course-details">
-                    <span class="course-tag">BEGINNER</span>
-                    <p>Instrument</p>
-                    <h3>Beginner Classical Piano</h3>
-                    <p>Learn basic scales, posture, and your first simple pieces.</p>
-                    <div class="course-footer">
-                        <div>
-                            <span class="rating"><span class="stars">★</span> 4.5 (2)</span>
-                            <div class="price">$10/mo</div>
-                        </div>
-                        <a href="/courses/classical-piano-beginner" class="view-details-btn">View Details</a>
+    <section class="rt-hero">
+        <span class="music-note note-1">♪</span>
+        <span class="music-note note-2">♫</span>
+        <span class="music-note note-3">♬</span>
+        <span class="music-note note-4">♪</span>
+        <div class="inner wrap">
+            <div class="hero-left">
+                <div class="hero-kicker typing-kicker writing-loop hero-kicker-stream">Live, One-on-One Music Instruction</div>
+                <h1 class="hero-title typing-title writing-loop hero-title-stream">Play. Learn. Grow.</h1>
+                <p class="hero-sub typing-subtitle">Mozart Techniques connects students with verified instructors for playful, focused, and inspiring music lessons — online or in-person. Start with a short lesson and watch curiosity turn into confidence.</p>
+                <div class="hero-cta-row">
+                    <a href="/find-tutor" class="explore-btn rt-cta">Browse Tutors</a>
+                </div>
+                <div class="hero-fact-row">
+                    <div class="mini-fact">
+                        <div class="num typing-title" id="hero-tutor-count">&hellip;</div>
+                        <div class="label typing-micro">Verified tutors</div>
+                    </div>
+                    <div class="mini-fact">
+                        <div class="num typing-title">3</div>
+                        <div class="label typing-micro">Ways to learn</div>
                     </div>
                 </div>
             </div>
 
-            <div class="course-card">
-                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSqjQHEL9Ab7ZTJlsbHKN8hYCEy9-X1cN0_cA&s" alt="Vocalist">
-                <div class="course-details">
-                    <span class="course-tag">BEGINNER</span>
-                    <p>Music</p>
-                    <h3>Beginner Vocals</h3>
-                    <p>Learn breath control, pitch accuracy, and basic vocal warm-ups.</p>
-                    <div class="course-footer">
-                        <div>
-                            <span class="rating"><span class="stars">★</span> New (0)</span>
-                            <div class="price">$10/mo</div>
-                        </div>
-                        <a href="/courses/vocals-beginner" class="view-details-btn">View Details</a>
-                    </div>
+            <div class="rt-emblem">
+                <div class="orb orb-1"></div>
+                <div class="orb orb-2"></div>
+                <div class="orb orb-3"></div>
+                <div class="emblem-graphic">
+                    <svg viewBox="0 0 300 300" width="280" height="280" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="g" x1="0" x2="1">
+                            <stop offset="0%" stop-color="#FFD1D1" />
+                            <stop offset="100%" stop-color="#cc0000" />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="150" cy="150" r="120" fill="url(#g)" opacity="0.95"></circle>
+                        <g transform="translate(60,70)" fill="#FFF">
+                          <rect x="0" y="0" width="40" height="90" rx="6" opacity="0.9"></rect>
+                          <rect x="60" y="10" width="40" height="80" rx="6" opacity="0.9"></rect>
+                        </g>
+                    </svg>
                 </div>
             </div>
-            
-            <div class="course-card">
-                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4dXijyH1UowqrBUG6DwBWQTCjBDWIovBA6w&s" alt="Violin">
-                <div class="course-details">
-                    <span class="course-tag">BEGINNER</span>
-                    <p>Instrument</p>
-                    <h3>Beginner Violin</h3>
-                    <p>Learn proper posture, bow hold, and how to play your first notes.</p>
-                    <div class="course-footer">
-                        <div>
-                            <span class="rating"><span class="stars">★</span> New (0)</span>
-                            <div class="price">$10/mo</div>
-                        </div>
-                        <a href="/courses/violin-beginner" class="view-details-btn">View Details</a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="course-card">
-                <img src="https://thumbs.dreamstime.com/b/male-pupil-teacher-playing-drums-music-lesson-108953238.jpg" alt="Drums">
-                <div class="course-details">
-                    <span class="course-tag">BEGINNER</span>
-                    <p>Instrument</p>
-                    <h3>Beginner Drums</h3>
-                    <p>Learn to hold sticks, basic coordination, and your first rock beat.</p>
-                    <div class="course-footer">
-                        <div>
-                            <span class="rating"><span class="stars">★</span> New (0)</span>
-                            <div class="price">$10/mo</div>
-                        </div>
-                        <a href="/courses/drums-beginner" class="view-details-btn">View Details</a>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </section>
 
-    <section class="about-section reveal">
-        <h2>About Mozart Technique</h2>
-        <div class="about-content">
-            <p>At Mozart Technique, we believe that art is a journey, not a destination. Founded on the principle of making world-class arts education accessible to everyone, our institute brings together master instructors and passionate students from around the globe. Our mission is to provide the tools, techniques, and inspiration you need to unlock your creative potential and master your chosen craft.</p>
+    <section class="big-carousel reveal" id="big-carousel">
+        <div class="carousel-scrim"></div>
+        <div class="carousel-caption">
+            <div class="cap-kicker" id="carousel-kicker">Live Lessons</div>
+            <h3 class="serif" id="carousel-title">Learning happens between two people.</h3>
         </div>
+        <div class="carousel-dots" id="carousel-dots"></div>
+        <p class="carousel-credit" id="carousel-credit"></p>
+    </section>
 
-        <h3>Explore Our Disciplines</h3>
-        <p style="margin-bottom: 40px; font-size: 16px;">A structured path from beginner to expert in every form of performance art.</p>
-        
-        <div class="disciplines-grid">
-            
-            <div class="discipline-card reveal">
-                <div class="discipline-icon">🎤</div>
-                <h4>Voice</h4>
-                <p>Classical, pop, theatre, jazz and scat singing.</p>
+    <section class="how-it-works wrap reveal">
+        <div class="section-heading"><h2 class="writing-loop section-title-stream">How It Works</h2><span class="rule"></span></div>
+        <p class="section-sub writing-loop section-copy-stream">See tutors, pick a style, and start learning in minutes — no guesswork.</p>
+        <div class="steps-list">
+            <div class="step-row">
+                <span class="step-index">01</span>
+                <div>
+                    <h3>Explore verified tutors</h3>
+                    <p>Browse profiles with ratings, teaching style, and sample clips. Filter by online or in-person lessons.</p>
+                </div>
             </div>
-
-            <div class="discipline-card reveal">
-                <div class="discipline-icon">🎸</div>
-                <h4>Instruments</h4>
-                <p>Piano, guitar, violin, drums and all brass instruments.</p>
+            <div class="step-row">
+                <span class="step-index">02</span>
+                <div>
+                    <h3>Request a lesson</h3>
+                    <p>Send a quick request to get matched to recommended tutors.</p>
+                </div>
             </div>
-            
-            <div class="discipline-card reveal">
-                <div class="discipline-icon">💃</div>
-                <h4>Dance</h4>
-                <p>Ballet, hip hop, tap and salsa with performance coaching.</p>
+            <div class="step-row">
+                <span class="step-index">03</span>
+                <div>
+                    <h3>Learn and track progress</h3>
+                    <p>Lessons include recorded clips and notes so you can practice between sessions with confidence.</p>
+                </div>
             </div>
-            
-            <div class="discipline-card reveal">
-                <div class="discipline-icon">🎧</div>
-                <h4>DJing</h4>
-                <p>Beatmatching, mixing, scratching and digital DJ workflow.</p>
-            </div>
-            
-            <div class="discipline-card reveal">
-                <div class="discipline-icon">🎛️</div>
-                <h4>Production</h4>
-                <p>Audio engineering, mixing, mastering and studio technique.</p>
-            </div>
-
         </div>
     </section>
 
-    <section class="testimonials-section reveal">
-        <h2>From Our Students</h2>
-        <div class="testimonial-card">
-            <blockquote>"The DJ Fundamentals course was awesome! I went from knowing nothing to mixing my first set."</blockquote>
-            <strong>Jasmine Ortiz</strong>
-            <span>Beginner DJing</span>
+    <section class="playful-gallery wrap reveal">
+        <div class="gallery-grid">
+            <article class="gallery-card">
+                <img src="image%20(5).png" alt="Playful music lesson image" loading="lazy">
+            </article>
+            <article class="gallery-card">
+                <img src="image%20(6).png" alt="Playful music lesson image" loading="lazy">
+            </article>
+            <article class="gallery-card">
+                <img src="image%20(7).png" alt="Playful music lesson image" loading="lazy">
+            </article>
+            <article class="gallery-card">
+                <img src="image%20(8).png" alt="Playful music lesson image" loading="lazy">
+            </article>
+            <article class="gallery-card">
+                <img src="image%20(3).png" alt="Playful music lesson image" loading="lazy">
+            </article>
+            <article class="gallery-card">
+                <img src="image%20(4).png" alt="Playful music lesson image" loading="lazy">
+            </article>
         </div>
+    </section>
+
+    <section class="ways-section wrap reveal">
+        <div class="section-heading"><h2 class="writing-loop ways-title-stream">Three Ways to Learn</h2><span class="rule"></span></div>
+        <p class="section-sub writing-loop ways-copy-stream">Flexible formats to fit every schedule and age.</p>
+        <div class="ways-grid">
+            <a href="/find-tutor?lessonType=online" class="way-card way-card-online">
+                <div class="way-image"><img src="https://everdance.app/__l5e/assets-v1/b3275322-3dda-4c24-9641-ddb915845968/online-dance-classes.webp" alt="Online music lesson image" loading="lazy"></div>
+                <span class="way-tag">Online</span>
+                <h3>Live Online Lessons</h3>
+                <p class="way-desc">Real-time 1:1 classes with recorded highlights for review.</p>
+                <span class="way-cta">Find an online tutor <span aria-hidden="true">→</span></span>
+            </a>
+
+            <a href="/find-tutor?lessonType=physical" class="way-card way-card-physical">
+                <div class="way-image"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPXsXMc_2w0T9TH20yOXkySvugzevKRFIZbec1Lq_iEw&s=10" alt="In-person music lesson image" loading="lazy"></div>
+                <span class="way-tag">In-Home</span>
+                <h3>Tutor Visits You</h3>
+                <p class="way-desc">A convenient option for beginners and young students.</p>
+                <span class="way-cta">Find an in-person tutor <span aria-hidden="true">→</span></span>
+            </a>
+
+            <a href="/find-tutor?lessonType=studio" class="way-card way-card-studio">
+                <div class="way-image"><img src="https://www.ensembleschools.com/laughlin/wp-content/uploads/sites/15/2023/08/group-class-teens.jpeg" alt="Studio music lesson image" loading="lazy"></div>
+                <span class="way-tag">Studio</span>
+                <h3>At the Tutor's Studio</h3>
+                <p class="way-desc">Focused, distraction-free practice with professional equipment.</p>
+                <span class="way-cta">Find a studio tutor <span aria-hidden="true">→</span></span>
+            </a>
+        </div>
+    </section>
+
+    <section class="tutors-section wrap reveal">
+        <div class="section-heading"><h2 class="writing-loop tutor-title-stream">Meet Our Tutors</h2><span class="rule"></span></div>
+        <p class="section-sub writing-loop tutor-copy-stream">A sample of the verified roster — browse the full list to find the right match.</p>
+        <div id="tutor-grid"></div>
+        <p id="no-tutors" class="empty-note">New tutors are joining soon — check back shortly.</p>
+        <a href="/find-tutor" class="explore-btn see-all-tutors">See All Tutors</a>
+    </section>
+
+    <section class="about-section wrap reveal">
+        <div class="section-heading"><h2 class="writing-loop about-title-stream">About Mozart Techniques</h2><span class="rule"></span></div>
+        <p class="about-content writing-loop about-copy-stream">We connect passionate teachers with curious students. Lessons are designed to be fun, structured, and effective for all ages.</p>
     </section>
 
     <section class="cta-section reveal">
-        <h2>Ready to Begin?</h2>
-        <p>Join a community of passionate artists and take your talent to the next level.</p>
-        <a href="/courses" class="find-course-btn">Find Your Perfect Course</a>
+        <h2 class="writing-loop cta-title-stream">Ready to Begin?</h2>
+        <p class="writing-loop cta-copy-stream">Start with a short lesson and see progress in weeks.</p>
+        <a href="/find-tutor" class="find-course-btn">Find Your Tutor</a>
     </section>
-
-    
 
     <script src="assets/site.js"></script>
     <script src="assets/nav-auth.js"></script>
+    <script src="assets/redesign.js"></script>
+    <script>
+        const CAROUSEL_SLIDES = [
+            { url: 'https://everdance.app/__l5e/assets-v1/b3275322-3dda-4c24-9641-ddb915845968/online-dance-classes.webp', kicker: 'Live Online Lessons', title: 'Real-time 1:1 classes with recorded highlights for review.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPXsXMc_2w0T9TH20yOXkySvugzevKRFIZbec1Lq_iEw&s=10', kicker: 'Tutor Visits You', title: 'A convenient option for beginners and young students.', credit: 'Mozart Techniques' },
+            { url: 'https://www.ensembleschools.com/laughlin/wp-content/uploads/sites/15/2023/08/group-class-teens.jpeg', kicker: 'At the Tutor\'s Studio', title: 'Focused, distraction-free practice with professional equipment.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQCO8zCj5_Lxy13agviF8UzoFdyli8wv0DPh5UQ8-YxSQCDHS0zpUxlRMDQ&s=10', kicker: 'Piano Mastery', title: 'Develop your technique with personalized piano instruction.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjKdrfjGhrCqn-LlAan6JjrMV-n52DxlIMj4COFZiiMa92BhWnzJZJXg0&s=10', kicker: 'Guitar Brilliance', title: 'Master chords, scales, and songwriting with expert tutors.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRXPeRmyi7vDXpxvtmAxufaS36vouJWRtbJsReHQbm6zxLZDmrXP6hxdUJD&s=10', kicker: 'Vocal Excellence', title: 'Build confidence and range with professional vocal coaching.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSLhDHOkaWkWfX8CqUZq2BOTd-myqDqkDjo3wj9JD2Jsw&s=10', kicker: 'Violin Artistry', title: 'Learn classical technique and modern expression on violin.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT04umdqjYAsPnlR4iZxQzyNoHtjyrczgt4ktV-gQa3Yg&s=10', kicker: 'Drums & Rhythm', title: 'Perfect your timing and explore diverse drumming styles.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSCo5eJE6TPeoMpRzKubz0mDnLbFjaB0va5oG20SyQtPkxlN_DzohMxVhQ&s=10', kicker: 'Woodwinds & Reed', title: 'Master saxophone, flute, clarinet with seasoned instructors.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRmiefvNKVxVkRrSYVEDUoPMTa_7Yymdw-Wb8V0x4nDZg&s=10', kicker: 'Bass Foundations', title: 'Build solid grooves and explore bass technique deeply.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYNh77EnpwRnNx1XRQbwo_vnaqUKDTzKBDp8sdzBS90Q&s=10', kicker: 'Music Theory', title: 'Unlock the language of music with comprehensive theory.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQFD-KHD5M0xTS4l40Y7yPP03-Qx6wPdiO4EBsRn0M4yfqVzzZQD02u_Xc&s=10', kicker: 'Performance Prep', title: 'Build stage presence and overcome performance anxiety.', credit: 'Mozart Techniques' },
+            { url: 'https://americanconservatoryofparis.com/wp-content/uploads/2023/11/online-drum-lessons.png', kicker: 'Online Flexibility', title: 'Learn from anywhere with real-time video instruction.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTR6THFeQvUVK4egncHDTLQ3Jj6d7WhG5RsNSk3IUSwSA&s=10', kicker: 'Composition Arts', title: 'Create original music with guidance from professional composers.', credit: 'Mozart Techniques' },
+            { url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7LpRmsLK-TLJvTjSvW7Eq_gFR4ECruetLKysq86geTw&s=10', kicker: 'Jazz Improvisation', title: 'Explore jazz harmony and spontaneous musical expression.', credit: 'Mozart Techniques' },
+            { url: 'https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/12/28/ea/ff.jpg', kicker: 'Classical Traditions', title: 'Master timeless classical repertoire with expert mentors.', credit: 'Mozart Techniques' }
+        ];
+
+        function buildHomeCarousel() {
+            const section = document.getElementById('big-carousel');
+            const dotsWrap = document.getElementById('carousel-dots');
+            const kickerEl = document.getElementById('carousel-kicker');
+            const titleEl = document.getElementById('carousel-title');
+            const creditEl = document.getElementById('carousel-credit');
+
+            CAROUSEL_SLIDES.forEach((slide, i) => {
+                const el = document.createElement('div');
+                el.className = `carousel-slide${i === 0 ? ' active' : ''}`;
+                el.style.backgroundImage = `url('${slide.url}')`;
+                section.insertBefore(el, section.firstChild);
+            });
+
+            dotsWrap.innerHTML = CAROUSEL_SLIDES.map((_, i) => `
+                <button type="button" class="carousel-dot${i === 0 ? ' active' : ''}" data-index="${i}" aria-label="Slide ${i + 1}"></button>
+            `).join('');
+
+            let index = 0;
+            function show(i) {
+                const slides = section.querySelectorAll('.carousel-slide');
+                const dots = dotsWrap.querySelectorAll('.carousel-dot');
+                slides[index].classList.remove('active');
+                dots[index].classList.remove('active');
+                index = i;
+                slides[index].classList.add('active');
+                dots[index].classList.add('active');
+                const slide = CAROUSEL_SLIDES[index];
+                kickerEl.textContent = slide.kicker;
+                titleEl.textContent = slide.title;
+                creditEl.textContent = slide.credit;
+            }
+
+            show(0);
+            dotsWrap.querySelectorAll('.carousel-dot').forEach((dot) => {
+                dot.addEventListener('click', () => show(Number(dot.dataset.index)));
+            });
+            setInterval(() => show((index + 1) % CAROUSEL_SLIDES.length), 6000);
+        }
+
+        document.addEventListener('DOMContentLoaded', buildHomeCarousel);
+
+        // Fills the hero's "Verified tutors" figure. /api/tutors is already
+        // scoped to the visitor's own country, so this counts the tutors
+        // they could actually book - not a global total. Left as a dash
+        // rather than a misleading "0" if the request itself fails.
+        async function loadVerifiedTutorCount() {
+            const el = document.getElementById('hero-tutor-count');
+            if (!el) return;
+            try {
+                const res = await fetch('/api/tutors');
+                const data = await res.json();
+                el.textContent = data.success && Array.isArray(data.tutors) ? data.tutors.length : '—';
+            } catch (e) {
+                el.textContent = '—';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadVerifiedTutorCount);
+    </script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

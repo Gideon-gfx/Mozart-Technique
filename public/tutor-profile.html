@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tutor Profile - Mozart Technique</title>
+    <title>Tutor Profile - Mozart Techniques</title>
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' } } }
         };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
         .chip { display: inline-flex; align-items: center; padding: .3rem .75rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -28,12 +30,27 @@
     <header class="sticky top-0 z-50 bg-white shadow-sm">
         <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
             <div class="flex items-center space-x-3">
-                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+                <a href="/home" class="flex items-center gap-3">
+                    <img src="mozartLogo.jpg" alt="Mozart Techniques logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                    <span class="hidden sm:inline text-2xl font-extrabold serif text-[#333]">Mozart Techniques</span>
+                </a>
             </div>
-            <a href="/find-tutor" class="text-gray-600 hover:text-primary-red font-medium">Back to Find a Tutor</a>
+            <div class="flex items-center gap-3">
+                <a href="/find-tutor" id="back-to-find" class="text-gray-600 hover:text-primary-red font-medium hidden sm:inline">Back to Find a Tutor</a>
+                <div id="auth-state"></div>
+            </div>
         </nav>
+        <div id="mobile-nav" class="sm:hidden bg-white border-t border-gray-100 hidden">
+            <div class="px-4 py-3 space-y-2">
+                <a href="/home" class="block text-gray-700">Home</a>
+                <a href="/find-tutor" class="block text-gray-700">Find a Tutor</a>
+                <a href="/become-tutor" class="block text-gray-700">Become a Tutor</a>
+                <a href="/dashboard" class="block text-gray-700">Dashboard</a>
+                <a href="/search" class="block text-gray-700">Search</a>
+            </div>
+        </div>
     </header>
+    <script src="assets/nav-auth.js"></script>
 
     <main class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-6">
@@ -45,7 +62,8 @@
                         <span id="tutor-rate" class="text-primary-red font-extrabold text-xl"></span>
                     </div>
                     <div id="tutor-rating" class="flex items-center gap-3 text-sm mb-3"></div>
-                    <div id="tutor-tags" class="flex flex-wrap gap-1.5 mb-4"></div>
+                    <div id="tutor-tags" class="flex flex-wrap gap-1.5 mb-2"></div>
+                    <p id="tutor-address" class="hidden text-sm text-gray-500 mb-4"><i class="fa-solid fa-location-dot mr-1 text-primary-red"></i><span id="tutor-address-text"></span></p>
                     <p id="tutor-bio" class="text-gray-600 mb-4"></p>
                     <button id="request-btn" class="inline-flex items-center justify-center px-6 py-2.5 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
                         Request This Tutor <i class="fa-solid fa-arrow-right ml-2"></i>
@@ -91,8 +109,10 @@
             if (!data.success) { showAlert(data.error || 'Tutor not found.', 'error'); return; }
 
             const t = data.tutor;
-            document.title = `${t.name} - Mozart Technique`;
-            document.getElementById('avatar').textContent = initials(t.name);
+            document.title = `${t.name} - Mozart Techniques`;
+            document.getElementById('avatar').innerHTML = t.photoUrl
+                ? `<img src="${escapeHtml(t.photoUrl)}" alt="${escapeHtml(t.name)}" class="w-full h-full object-cover rounded-full">`
+                : initials(t.name);
             document.getElementById('tutor-name').textContent = t.name;
             document.getElementById('tutor-rate').textContent = `${t.symbol}${t.hourlyRateLocal}/hr`;
 
@@ -115,8 +135,17 @@
             document.getElementById('tutor-bio').textContent = t.bio || 'This tutor has not added a bio yet.';
             document.getElementById('tutor-qualifications').textContent = t.qualifications || 'No qualifications listed.';
 
+            if (t.fullAddress) {
+                document.getElementById('tutor-address-text').textContent = t.fullAddress;
+                document.getElementById('tutor-address').classList.remove('hidden');
+            } else if (t.addressLocked) {
+                document.getElementById('tutor-address-text').textContent = 'Exact address shown once you request in-studio lessons with this tutor.';
+                document.getElementById('tutor-address').classList.remove('hidden');
+                document.getElementById('tutor-address').classList.add('italic', 'text-gray-400');
+            }
+
             document.getElementById('request-btn').addEventListener('click', () => {
-                window.location.href = `/find-tutor?category=${encodeURIComponent(t.categories[0] || '')}&tutorId=${t.id}`;
+                window.location.href = `/find-tutor?requestTutorId=${t.id}`;
             });
 
             const reviews = data.reviews || [];
@@ -139,6 +168,7 @@
         load();
     </script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

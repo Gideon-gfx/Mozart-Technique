@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sponsor Students - Mozart Techniques</title>
+    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' }, fontFamily: { sans: ['Montserrat', 'sans-serif'] } } }
+        };
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
+    <style>
+        @keyframes music-drift-1 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+            25% { transform: translate(25px, -35px) rotate(-15deg); opacity: 0.8; }
+            50% { transform: translate(15px, -60px) rotate(10deg); opacity: 0.5; }
+            75% { transform: translate(-20px, -35px) rotate(-20deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+        }
+
+        @keyframes music-drift-2 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+            25% { transform: translate(-30px, -40px) rotate(15deg); opacity: 0.7; }
+            50% { transform: translate(-15px, -70px) rotate(-10deg); opacity: 0.4; }
+            75% { transform: translate(25px, -40px) rotate(20deg); opacity: 0.6; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+        }
+
+        @keyframes music-drift-3 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+            25% { transform: translate(35px, -30px) rotate(-25deg); opacity: 0.6; }
+            50% { transform: translate(20px, -50px) rotate(15deg); opacity: 0.5; }
+            75% { transform: translate(-25px, -30px) rotate(-15deg); opacity: 0.65; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+        }
+
+        @keyframes music-drift-4 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+            25% { transform: translate(-25px, -45px) rotate(20deg); opacity: 0.75; }
+            50% { transform: translate(30px, -65px) rotate(-20deg); opacity: 0.45; }
+            75% { transform: translate(10px, -35px) rotate(10deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+        }
+
+        @keyframes text-slide {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .music-note {
+            position: fixed;
+            font-size: 2.4rem;
+            font-weight: 700;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .note-1 {
+            top: 15%;
+            left: 8%;
+            animation: music-drift-1 8s ease-in-out infinite;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-2 {
+            top: 25%;
+            right: 12%;
+            animation: music-drift-2 10s ease-in-out infinite 1.5s;
+            color: #ff4d5a;
+            opacity: 0.25;
+        }
+
+        .note-3 {
+            top: 50%;
+            left: 5%;
+            animation: music-drift-3 9s ease-in-out infinite 2s;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-4 {
+            top: 70%;
+            right: 8%;
+            animation: music-drift-4 11s ease-in-out infinite 0.8s;
+            color: #ff6d76;
+            opacity: 0.25;
+        }
+
+        body { 
+            font-family: 'Montserrat', sans-serif; 
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+            color: #333; 
+        }
+
+        body::before { 
+            content: ''; 
+            position: fixed; 
+            inset: 0; 
+            background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); 
+            pointer-events: none; 
+            z-index: 0;
+        }
+
+        header { 
+            background: #fff; 
+            border-bottom: 2px solid #cc0000; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .nav-container { background: #fff; }
+        .nav-links a { color: #333; transition: all 0.3s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 600; }
+
+        .bg-white { background: #fff !important; border: 1px solid #f0f0f0; }
+        input, textarea, button { border-radius: 12px; }
+        .rounded-xl { border-radius: 16px !important; }
+
+        h1, h2, h3 { animation: text-slide 0.6s ease-out; color: #333; }
+    </style>
+</head>
+<body>
+    <span class="music-note note-1">♪</span>
+    <span class="music-note note-2">♫</span>
+    <span class="music-note note-3">♬</span>
+    <span class="music-note note-4">♪</span>
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#cc0000;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
+            </div>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor" class="active">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+        <div id="already-applied" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Sponsorship Status</h1>
+            <p id="applied-status" class="text-gray-500 mb-6"></p>
+
+            <div id="subscription-inactive" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800 mb-6">
+                <i class="fa-solid fa-circle-info mr-2"></i>
+                Your application is approved. Reach out to the Mozart Techniques team to arrange your annual subscription payment - an admin activates it on your account once payment is confirmed, and you'll be able to generate student access codes right away.
+            </div>
+
+            <div id="subscription-active-section" class="hidden">
+                <div class="bg-green-50 border border-green-200 rounded-xl p-5 text-sm text-green-800 mb-6">
+                    <i class="fa-solid fa-circle-check mr-2"></i>
+                    Subscription active through <strong id="subscription-end-date"></strong>.
+                </div>
+
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold text-gray-800">Sponsored Students</h2>
+                    <button id="generate-code-btn" class="px-4 py-2 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">
+                        <i class="fa-solid fa-plus mr-1"></i> Generate Access Code
+                    </button>
+                </div>
+                <p class="text-gray-500 text-sm mb-4">Share a code with a student you're sponsoring. Once they redeem it in their dashboard, their account is linked to your organization and their lessons are enabled.</p>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs text-gray-500 uppercase">
+                                <th class="pb-2">Code</th>
+                                <th class="pb-2">Status</th>
+                                <th class="pb-2">Student</th>
+                                <th class="pb-2">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="codes-tbody"></tbody>
+                    </table>
+                    <p id="no-codes" class="hidden text-gray-400 text-center py-6">No codes generated yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <form id="sponsor-form" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Sponsor Students</h1>
+            <p class="text-gray-500 mb-6">Subscribe your organization annually and give your students access to Mozart Techniques' tutors. An admin reviews every application before activation.</p>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Organization name</label>
+            <input id="org-name" type="text" placeholder="e.g. Bright Futures Foundation" required class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Contact person</label>
+            <input id="contact-name" type="text" placeholder="Full name" required class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+            <input id="org-email" type="email" placeholder="organization@example.com" required class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
+            <input id="org-phone" type="text" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Registration number (optional)</label>
+            <input id="org-reg-number" type="text" placeholder="e.g. CAC/IT/NO 123456" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Address</label>
+            <button type="button" id="use-location-btn" class="inline-flex items-center gap-2 text-xs font-semibold text-primary-red mb-2 hover:underline">
+                <i class="fa-solid fa-location-crosshairs"></i> Use my current location
+            </button>
+            <input id="org-address" type="text" placeholder="e.g. 5 Marina Road, Lagos, Nigeria" class="w-full px-4 py-3 mb-1 border border-gray-300 rounded-lg">
+            <p id="location-status" class="text-xs text-gray-400 mb-4"></p>
+
+            <label class="block text-sm font-semibold text-gray-600 mb-1">About your organization</label>
+            <textarea id="org-description" rows="3" placeholder="Who you serve and how many students you're looking to sponsor..." class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
+
+            <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+                Submit Application
+            </button>
+        </form>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        document.getElementById('use-location-btn').addEventListener('click', () => {
+            const statusEl = document.getElementById('location-status');
+            if (!navigator.geolocation) { statusEl.textContent = 'Location access is not available in this browser.'; return; }
+            statusEl.textContent = 'Requesting location access...';
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                try {
+                    const res = await fetch('/api/profile/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) { statusEl.textContent = data.error || 'Could not resolve location.'; return; }
+                    document.getElementById('org-address').value = data.location.fullAddress || [data.location.city, data.location.state, data.location.country].filter(Boolean).join(', ');
+                    statusEl.textContent = 'Location set.';
+                } catch {
+                    statusEl.textContent = 'Could not resolve location.';
+                }
+            }, () => { statusEl.textContent = 'Location access denied - you can still type your address manually.'; });
+        });
+
+        document.getElementById('sponsor-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/organizations/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('org-name').value.trim(),
+                    contactName: document.getElementById('contact-name').value.trim(),
+                    email: document.getElementById('org-email').value.trim(),
+                    phone: document.getElementById('org-phone').value.trim(),
+                    registrationNumber: document.getElementById('org-reg-number').value.trim(),
+                    address: document.getElementById('org-address').value.trim(),
+                    description: document.getElementById('org-description').value.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
+                setTimeout(() => { window.location.reload(); }, 1000);
+            } else {
+                showAlert(data.error || 'Could not submit application.', 'error');
+            }
+        });
+
+        function codeRowHtml(entry) {
+            return `
+                <tr class="border-t border-gray-100">
+                    <td class="py-2 font-mono font-semibold text-gray-800">${escapeHtml(entry.code)}</td>
+                    <td class="py-2">${entry.redeemedAt ? '<span class="text-green-600 text-xs font-semibold">Redeemed</span>' : '<span class="text-gray-400 text-xs font-semibold">Unused</span>'}</td>
+                    <td class="py-2 text-gray-600">${entry.studentName ? escapeHtml(entry.studentName) : '-'}</td>
+                    <td class="py-2 text-gray-400 text-xs">${new Date(entry.createdAt).toLocaleDateString()}</td>
+                </tr>
+            `;
+        }
+
+        function renderCodes(codes) {
+            const tbody = document.getElementById('codes-tbody');
+            const empty = document.getElementById('no-codes');
+            if (!codes.length) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            tbody.innerHTML = codes.slice().reverse().map(codeRowHtml).join('');
+        }
+
+        document.getElementById('generate-code-btn').addEventListener('click', async () => {
+            const res = await fetch('/api/organizations/me/generate-code', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showAlert(`New code: ${data.entry.code}`, 'success');
+                checkExisting();
+            } else {
+                showAlert(data.error || 'Could not generate a code.', 'error');
+            }
+        });
+
+        async function checkExisting() {
+            const res = await fetch('/api/organizations/me');
+            const data = await res.json();
+            if (data.organization) {
+                const org = data.organization;
+                const statusText = {
+                    pending: 'Your application is awaiting admin review.',
+                    approved: 'Your application has been approved.',
+                    rejected: 'Your application was not approved this time.',
+                }[org.status];
+                document.getElementById('applied-status').textContent = statusText;
+
+                if (org.status === 'approved' && !data.subscriptionActive) {
+                    document.getElementById('subscription-inactive').classList.remove('hidden');
+                }
+                if (data.subscriptionActive) {
+                    document.getElementById('subscription-active-section').classList.remove('hidden');
+                    document.getElementById('subscription-end-date').textContent = new Date(org.subscriptionEndAt).toLocaleDateString();
+                    renderCodes(org.studentCodes || []);
+                }
+                document.getElementById('already-applied').classList.remove('hidden');
+            } else {
+                document.getElementById('sponsor-form').classList.remove('hidden');
+            }
+        }
+
+        checkExisting();
+    </script>
+    <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
+    <script src="assets/footer.js"></script>
+</body>
+</html>

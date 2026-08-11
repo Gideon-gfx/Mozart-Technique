@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Mozart Technique</title>
+    <title>Contact Mozart Techniques</title>
         <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
     <!-- Load Tailwind CSS (config must be set AFTER this script has loaded) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
@@ -17,70 +20,151 @@
                         'deep-red': 'var(--color-deep-red)',
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Montserrat', 'sans-serif'],
                     },
                 }
             }
         };
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
     <link rel="stylesheet" href="assets/site.css">
 
     <style>
-        /*
-        * =================================================================
-        * CUSTOM STYLES
-        * =================================================================
-        */
         :root {
-            --color-primary-red: #C41822;
-            --color-dark-red: #A3121A;
-            --color-deep-red: #8B0000;
-            --color-white: #FFFFFF;
-            --color-black: #000000;
-            --color-text-dark: #222222;
-            --color-text-light: #F0F0F0;
+            --bg: #ffffff;
+            --surface: #fff;
+            --surface-soft: #f8f8f8;
+            --text: #333;
+            --text-soft: rgba(50, 50, 50, 0.74);
+            --accent: #cc0000;
+            --accent-dark: #990000;
+            --border: rgba(204,0,0,0.16);
+            --shadow: rgba(0,0,0,0.08);
         }
 
-        /* Base styles */
-        * {
+        *, *::before, *::after {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
 
         body {
-            color: var(--color-text-dark);
-            background-color: var(--color-dark-red);
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+            color: var(--text);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            font-family: 'Montserrat', sans-serif;
         }
 
-        /* Utility for centering icons (like in the screenshot) */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at top left, rgba(204,0,0,0.05), transparent 24%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 18%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            background: #fff;
+            border-bottom: 2px solid #cc0000;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .max-w-7xl {
+            max-width: 1180px;
+        }
+
+        .bg-white {
+            background: #fff !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+        }
+
+        .text-primary-red,
         .contact-icon {
-            font-size: 24px;
-            color: var(--color-primary-red);
-            width: 40px;
-            height: 40px;
-            display: flex;
+            color: var(--accent) !important;
+        }
+
+        .contact-icon {
+            width: 44px;
+            height: 44px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             margin-right: 15px;
+            background: rgba(255, 77, 90, 0.16);
+            border-radius: 14px;
         }
 
-        /* Footer links styling */
-        .footer{
-            background-color: var(--color-text-light);
+        .hero-kicker {
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: .18em;
+            font-weight: 700;
+            margin-bottom: 16px;
         }
+
+        .reveal {
+            opacity: 1 !important;
+            transform: none !important;
+        }
+
+        .contact-main {
+            background: rgba(255,255,255,0.05);
+            border-radius: 32px;
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+        }
+
+        .rounded-xl {
+            border-radius: 24px !important;
+        }
+
+        .shadow-2xl,
+        .shadow-md,
+        .shadow-sm,
+        .shadow-xl {
+            box-shadow: 0 20px 50px rgba(0,0,0,0.38);
+        }
+
+        .row-btn-primary,
+        button[type="submit"] {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+        }
+
+        .row-btn-primary:hover,
+        button[type="submit"]:hover {
+            background: var(--accent-dark);
+        }
+
+        input,
+        textarea,
+        select {
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+        }
+
+        .footer {
+            background-color: transparent;
+        }
+
         .footer a {
-            color: var(--color-black);
+            color: var(--text);
             text-decoration: none;
-            transition: color 0.2s;
         }
-        
+
         .footer a:hover {
-            color: var(--color-deep-red);
+            color: var(--accent);
         }
     </style>
 </head>
@@ -89,20 +173,19 @@
     <!-- =================================================================
     HEADER / NAVIGATION
     ================================================================== -->
-    <header class="bg-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center">
-                <a href="/home" class="flex items-center text-xl font-bold text-primary-red">
-                    <!-- Placeholder Logo Image -->
-                    <img src="https://placehold.co/30x30/C41822/FFFFFF?text=M" alt="M logo" class="w-7 h-7 mr-2 rounded">
-                    Mozart Technique
-                </a>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
             </div>
-            <nav class="hidden md:flex space-x-8">
-                <a href="/home" class="text-gray-600 hover:text-primary-red transition duration-150">Home</a>
-                <a href="/courses" class="text-gray-600 hover:text-primary-red transition duration-150">Courses</a>
-                <a href="/about" class="text-gray-600 hover:text-primary-red transition duration-150">About</a>
-                <a href="#" class="text-primary-red font-bold transition duration-150">Contact</a>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/contact" class="active">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
             </nav>
             <div id="auth-state"></div>
         </div>
@@ -111,12 +194,12 @@
     <!-- =================================================================
     MAIN CONTENT - CONTACT SECTION
     ================================================================== -->
-    <main class="flex-grow bg-primary-red py-16 md:py-24">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white reveal">
+    <main class="contact-main flex-grow py-16 md:py-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-slate-900 reveal">
             <h1 class="text-4xl md:text-5xl font-extrabold mb-4 text-center tracking-tight">
                 Get In Touch
             </h1>
-            <p class="text-xl max-w-4xl mx-auto mb-16 text-center text-gray-200">
+            <p class="text-xl max-w-4xl mx-auto mb-16 text-center text-gray-600">
                 Have questions about our courses, instructors, or platform? We're here to help.
             </p>
 
@@ -125,7 +208,7 @@
                 <!-- LEFT COLUMN: Contact Information -->
                 <div class="w-full lg:w-1/2">
                     <h2 class="text-2xl font-semibold mb-6">Contact Information</h2>
-                    <p class="text-gray-200 mb-8 max-w-md">
+                    <p class="text-gray-600 mb-8 max-w-md">
                         Fill out the form or reach out to us directly via email or phone.
                     </p>
 
@@ -134,7 +217,7 @@
                         <span class="contact-icon text-white bg-dark-red rounded-full">✉️</span>
                         <div>
                             <h3 class="text-lg font-semibold mb-1">Email Us</h3>
-                            <p class="text-gray-200">admin@mozarttechnique.com</p>
+                            <p class="text-gray-600">mozarttechniques@gmail.com</p>
                         </div>
                     </div>
 
@@ -143,14 +226,14 @@
                         <span class="contact-icon text-white bg-dark-red rounded-full">📞</span>
                         <div>
                             <h3 class="text-lg font-semibold mb-1">Call Us</h3>
-                            <p class="text-gray-200">+1 (613) 404-6329</p>
+                            <p class="text-gray-600">+1 (613) 416-0706</p>
                         </div>
                     </div>
 
                     <!-- Optional: Support Hours -->
                     <div class="mt-12 p-4 border border-dark-red rounded-lg bg-dark-red/50">
                         <h3 class="text-lg font-semibold mb-1">Support Hours</h3>
-                        <p class="text-sm text-gray-300">Mon - Fri: 9:00 AM - 5:00 PM EST</p>
+                        <p class="text-sm text-gray-700">Mon - Fri: 9:00 AM - 5:00 PM EST</p>
                     </div>
                 </div>
 
@@ -232,6 +315,7 @@
     <script src="assets/site.js"></script>
     <script src="assets/nav-auth.js"></script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

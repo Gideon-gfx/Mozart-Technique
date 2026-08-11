@@ -1,7 +1,23 @@
-// Shared vocabulary for the tutor marketplace: musical genres, student age
-// bands, and the 5-tier skill ladder used for placement/qualification. This
-// is separate from the 3-tier level system on the packaged video courses in
-// data/courses.js - that catalog is a different product from 1:1 tutoring.
+// Shared vocabulary for the tutor marketplace: subjects, musical genres,
+// student age bands, and the 5-tier skill ladder used for placement/
+// qualification.
+const SUBJECTS = [
+  // Keyboard & voice
+  'Piano', 'Organ', 'Vocals', 'Choral Techniques',
+  // Strings
+  'Violin', 'Viola', 'Cello', 'Double Bass', 'Guitar',
+  // Woodwind
+  'Flute', 'Piccolo', 'Recorder', 'Clarinet', 'Saxophone', 'Oboe', 'Bassoon',
+  // Brass
+  'Trumpet', 'Trombone', 'French Horn', 'Tuba', 'Flugel Horn', 'Euphonium',
+  // Percussion
+  'Drums', 'Xylophone', 'Talking Drum', 'Percussive Instruments (Native)',
+  // Study & performance
+  'Composition', 'Form & Analysis', 'Conducting', 'Music Theory', 'Dance',
+  // Studio
+  'DJing', 'Production',
+];
+
 const GENRES = ['Classical', 'Jazz', 'Musical Theatre', 'Gospel', 'Folk', 'Pop', 'Rock', 'World Music'];
 
 const AGE_GROUPS = [
@@ -23,4 +39,4 @@ function levelForScore(score) {
   return 'Beginner';
 }
 
-module.exports = { GENRES, AGE_GROUPS, LEVELS, levelForScore };
+module.exports = { SUBJECTS, GENRES, AGE_GROUPS, LEVELS, levelForScore };

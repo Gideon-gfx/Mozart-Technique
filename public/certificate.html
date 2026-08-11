@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificate - Mozart Technique</title>
+    <title>Certificate - Mozart Techniques</title>
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937', 'gold': '#C9A227' } } }
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937', 'gold': '#C9A227' } } }
         };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
     <style>
         body { font-family: 'Inter', sans-serif; background: #f0f0f0; }
         .cert-frame {
@@ -26,7 +28,7 @@
         .cert-title { font-family: 'Playfair Display', serif; }
         .cert-seal {
             width: 90px; height: 90px; border-radius: 50%;
-            background: radial-gradient(circle at 35% 30%, #E02126, #7e0e14);
+            background: radial-gradient(circle at 35% 30%, #cc0000, #7e0e14);
             display: flex; align-items: center; justify-content: center;
             color: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.25);
         }
@@ -37,6 +39,7 @@
             @page { size: landscape; margin: 0.4in; }
         }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -46,10 +49,10 @@
 
     <header class="no-print sticky top-0 z-50 bg-white shadow-sm">
         <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
-            <div class="flex items-center space-x-3">
-                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
-            </div>
+            <a href="/home" class="flex items-center space-x-3">
+                <img src="mozartLogo.jpg" alt="Mozart Techniques logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold serif text-[#333]">Mozart Techniques</span>
+            </a>
             <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
         </nav>
     </header>
@@ -130,5 +133,6 @@
 
         load();
     </script>
+    <script src="assets/mobile-nav.js"></script>
 </body>
 </html>

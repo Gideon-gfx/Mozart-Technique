@@ -38,9 +38,19 @@ function findByUserId(userId) {
   return listAll().find((t) => t.userId === userId) || null;
 }
 
+function slugify(text) {
+  return String(text || '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function findBySlug(slug) {
+  if (!slug) return null;
+  const s = String(slug).toLowerCase();
+  return listAll().find((t) => String(t.id) === s || slugify(t.name) === s) || null;
+}
+
 async function apply({
   userId, name, email, categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-  qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue,
+  qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
 }) {
   const db = load();
   const coords = address || city ? await geocodeAddress(address || city) : null;
@@ -66,9 +76,11 @@ async function apply({
     phone: phone || null,
     qualifications: qualifications || '',
     certificateUrl: certificateUrl || null,
+    photoUrl: photoUrl || null,
     experienceYears: Number(experienceYears) || 0,
     hourlyRateUsd: Math.max(0, Number(hourlyRateUsd) || 0),
     bio: bio || '',
+    studentIntakeQuestions: [],
     status: 'pending',
     // Self-declared per-category levels above are a starting point; a
     // passed qualification evaluation (see data/assessments.js,
@@ -84,6 +96,8 @@ async function apply({
     professionalismSum: 0,
     professionalismCount: 0,
     lessonsCompletedCount: 0,
+    balanceUsd: 0,
+    totalEarnedUsd: 0,
     flagged: false,
     flaggedAt: null,
     expelled: false,
@@ -201,6 +215,68 @@ function expel(id) {
   return tutor;
 }
 
+// Credits a tutor's simulated running balance when an escrowed lesson
+// payment releases (see data/assignments.js confirmSession). No real money
+// moves - this app has no live payment processor - but the balance is
+// tracked for real, the same way the rest of "payment" in this app is
+// simulated-but-consistent rather than faked away.
+function creditBalance(id, amountUsd) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.balanceUsd = Math.round(((tutor.balanceUsd || 0) + amountUsd) * 100) / 100;
+  tutor.totalEarnedUsd = Math.round(((tutor.totalEarnedUsd || 0) + amountUsd) * 100) / 100;
+  persist(db);
+  return tutor;
+}
+
+function debitBalance(id, amountUsd) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.balanceUsd = Math.round(((tutor.balanceUsd || 0) - amountUsd) * 100) / 100;
+  if (tutor.balanceUsd < 0) tutor.balanceUsd = 0;
+  persist(db);
+  return tutor;
+}
+
+// Updates a tutor's location from real browser GPS coordinates (reverse
+// geocoded), rather than the free-text address they typed at application
+// time - keeps their city normalized for city-based grouping/matching.
+function setRealLocation(id, { lat, lng, city, state, country, fullAddress }) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.lat = lat;
+  tutor.lng = lng;
+  tutor.locality = { city: city || null, state: state || null, country: country || null };
+  if (city) tutor.city = city;
+  if (fullAddress) tutor.fullAddress = fullAddress;
+  persist(db);
+  return tutor;
+}
+
+function setPhoto(id, photoUrl) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.photoUrl = photoUrl;
+  persist(db);
+  return tutor;
+}
+
+function setIntakeQuestions(id, questions) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.studentIntakeQuestions = Array.isArray(questions) ? questions.map((q) => ({
+    question: String(q.question || '').trim(),
+    placeholder: String(q.placeholder || '').trim(),
+  })) : [];
+  persist(db);
+  return tutor;
+}
+
 function avgRating(tutor) {
   return tutor.ratingCount ? tutor.ratingSum / tutor.ratingCount : null;
 }
@@ -213,5 +289,6 @@ module.exports = {
   listAll, listApproved, findById, findByUserId, apply, setStatus,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
+  creditBalance, debitBalance, setRealLocation, setPhoto, setIntakeQuestions, findBySlug,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

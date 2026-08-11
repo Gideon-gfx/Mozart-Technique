@@ -3,44 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Become a Tutor - Mozart Technique</title>
+    <title>Become a Tutor - Mozart Techniques</title>
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' }, fontFamily: { sans: ['Montserrat', 'sans-serif'] } } }
         };
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        @keyframes music-drift-1 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+            25% { transform: translate(25px, -35px) rotate(-15deg); opacity: 0.8; }
+            50% { transform: translate(15px, -60px) rotate(10deg); opacity: 0.5; }
+            75% { transform: translate(-20px, -35px) rotate(-20deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+        }
+
+        @keyframes music-drift-2 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+            25% { transform: translate(-30px, -40px) rotate(15deg); opacity: 0.7; }
+            50% { transform: translate(-15px, -70px) rotate(-10deg); opacity: 0.4; }
+            75% { transform: translate(25px, -40px) rotate(20deg); opacity: 0.6; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+        }
+
+        @keyframes music-drift-3 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+            25% { transform: translate(35px, -30px) rotate(-25deg); opacity: 0.6; }
+            50% { transform: translate(20px, -50px) rotate(15deg); opacity: 0.5; }
+            75% { transform: translate(-25px, -30px) rotate(-15deg); opacity: 0.65; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+        }
+
+        @keyframes music-drift-4 {
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+            25% { transform: translate(-25px, -45px) rotate(20deg); opacity: 0.75; }
+            50% { transform: translate(30px, -65px) rotate(-20deg); opacity: 0.45; }
+            75% { transform: translate(10px, -35px) rotate(10deg); opacity: 0.7; }
+            100% { transform: translate(0, 0) rotate(0deg); opacity: 0.55; }
+        }
+
+        @keyframes text-slide {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .music-note {
+            position: fixed;
+            font-size: 2.4rem;
+            font-weight: 700;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .note-1 {
+            top: 15%;
+            left: 8%;
+            animation: music-drift-1 8s ease-in-out infinite;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-2 {
+            top: 25%;
+            right: 12%;
+            animation: music-drift-2 10s ease-in-out infinite 1.5s;
+            color: #ff4d5a;
+            opacity: 0.25;
+        }
+
+        .note-3 {
+            top: 50%;
+            left: 5%;
+            animation: music-drift-3 9s ease-in-out infinite 2s;
+            color: #cc0000;
+            opacity: 0.3;
+        }
+
+        .note-4 {
+            top: 70%;
+            right: 8%;
+            animation: music-drift-4 11s ease-in-out infinite 0.8s;
+            color: #ff6d76;
+            opacity: 0.25;
+        }
+
+        body { 
+            font-family: 'Montserrat', sans-serif; 
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+            color: #333; 
+        }
+
+        body::before { 
+            content: ''; 
+            position: fixed; 
+            inset: 0; 
+            background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); 
+            pointer-events: none; 
+            z-index: 0;
+        }
+
+        header { 
+            background: #fff; 
+            border-bottom: 2px solid #cc0000; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .nav-container { background: #fff; }
+        .nav-links a { color: #333; transition: all 0.3s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 600; }
+
         .chip-checkbox { display: none; }
         .chip-label {
             display: inline-flex; align-items: center; padding: .5rem 1rem;
-            border: 1px solid #d1d5db; border-radius: 999px; cursor: pointer;
-            font-size: .85rem; font-weight: 600; color: #374151; transition: all .15s ease;
+            border: 2px solid #e0e0e0; border-radius: 999px; cursor: pointer;
+            font-size: .85rem; font-weight: 600; color: #666; transition: all .25s ease; background: #fff;
         }
         .chip-checkbox:checked + .chip-label {
-            background: #E02126; border-color: #E02126; color: #fff;
+            background: #cc0000; border-color: #cc0000; color: #fff;
         }
+
+        h1, h2, h3 { animation: text-slide 0.6s ease-out; color: #333; }
     </style>
 </head>
 <body>
+    <span class="music-note note-1">♪</span>
+    <span class="music-note note-2">♫</span>
+    <span class="music-note note-3">♬</span>
+    <span class="music-note note-4">♪</span>
 
-    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#cc0000;">
         <span id="alert-message"></span>
     </div>
 
-    <header class="sticky top-0 z-50 bg-white shadow-sm">
-        <nav class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
-            <div class="flex items-center space-x-3">
-                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
             </div>
-            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
-        </nav>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor" class="active">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
     </header>
 
     <main class="max-w-3xl mx-auto px-4 sm:px-6 py-10">
@@ -58,6 +177,19 @@
             <h1 class="text-2xl font-bold text-gray-800 mb-1">Become a Tutor</h1>
             <p class="text-gray-500 mb-6">Tell us what you teach and where. An admin reviews every application before you're matched with students.</p>
 
+            <label class="block text-sm font-semibold text-gray-600 mb-2">Profile photo</label>
+            <div class="flex items-center gap-4 mb-5">
+                <div id="photo-preview" class="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 shrink-0 overflow-hidden">
+                    <i class="fa-solid fa-user text-2xl"></i>
+                </div>
+                <div class="flex-1">
+                    <input type="file" id="photo-file" accept="image/*" class="text-sm">
+                    <p class="text-xs text-gray-400 mt-1">Shown on your public profile and tutor cards - helps students recognize you.</p>
+                    <span id="photo-status" class="text-xs text-gray-400"></span>
+                </div>
+            </div>
+            <input type="hidden" id="photo-url" value="">
+
             <label class="block text-sm font-semibold text-gray-600 mb-2">Subjects you can teach</label>
             <div id="category-chips" class="flex flex-wrap gap-2 mb-5"></div>
 
@@ -73,11 +205,17 @@
 
             <label class="block text-sm font-semibold text-gray-600 mb-2">How do you teach?</label>
             <p class="text-xs text-gray-400 mb-2">Fill in your address to offer in-person lessons there, check the box to also (or only) offer lessons online. At least one is required.</p>
+
+            <button type="button" id="use-location-btn" class="inline-flex items-center gap-2 text-sm font-semibold text-primary-red border border-primary-red rounded-lg px-4 py-2 mb-3 hover:bg-red-50 transition">
+                <i class="fa-solid fa-location-crosshairs"></i> Use My Current Location
+            </button>
+            <p id="location-status" class="text-xs text-gray-400 mb-3"></p>
+
             <div class="grid sm:grid-cols-2 gap-4 mb-2">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Address / City (for in-person lessons)</label>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Address (for in-person lessons)</label>
                     <input id="address" type="text" placeholder="e.g. 12 Allen Avenue, Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
-                    <p class="text-xs text-gray-400 mt-1">Used to match you with students within your commute radius - not shown publicly.</p>
+                    <p class="text-xs text-gray-400 mt-1">Used to match you with nearby students and shown on your public tutor listing, so students know exactly where you are.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">City (shown to students)</label>
@@ -119,7 +257,7 @@
                 </div>
             </div>
 
-            <label class="block text-sm font-semibold text-gray-600 mb-1">Qualifications</label>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Qualifications(Cover Letter)</label>
             <textarea id="qualifications" rows="3" placeholder="Degrees, certifications, notable performances or students taught..."
                       class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
 
@@ -177,6 +315,30 @@
             `).join('');
         }
 
+        document.getElementById('photo-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('photo-status');
+            statusEl.textContent = 'Uploading...';
+            const formData = new FormData();
+            formData.append('photo', file);
+            try {
+                const res = await fetch('/api/uploads/photo', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('photo-url').value = data.url;
+                    document.getElementById('photo-preview').innerHTML = `<img src="${data.url}" class="w-full h-full object-cover">`;
+                    statusEl.textContent = 'Uploaded.';
+                } else {
+                    statusEl.textContent = '';
+                    showAlert(data.error || 'Upload failed.', 'error');
+                }
+            } catch {
+                statusEl.textContent = '';
+                showAlert('Upload failed.', 'error');
+            }
+        });
+
         document.getElementById('certificate-file').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -198,6 +360,38 @@
                 statusEl.textContent = '';
                 showAlert('Upload failed.', 'error');
             }
+        });
+
+        document.getElementById('use-location-btn').addEventListener('click', () => {
+            const statusEl = document.getElementById('location-status');
+            if (!navigator.geolocation) {
+                statusEl.textContent = 'Location access is not available in this browser.';
+                return;
+            }
+            statusEl.textContent = 'Requesting location access...';
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                statusEl.textContent = 'Resolving your address...';
+                try {
+                    const res = await fetch('/api/profile/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) { statusEl.textContent = data.error || 'Could not resolve location.'; return; }
+                    const loc = data.location;
+                    const cityName = loc.canonicalCity || loc.city;
+                    document.getElementById('city').value = [cityName, loc.state, loc.country].filter(Boolean).join(', ');
+                    document.getElementById('address').value = loc.fullAddress || [loc.city, loc.state, loc.country].filter(Boolean).join(', ');
+                    statusEl.textContent = data.allowed
+                        ? `Location set to ${cityName}.`
+                        : `We're not yet operating in ${cityName}, ${loc.country} - currently serving ${data.allowedCities ? data.allowedCities.join(', ') : 'select cities'}. You can still apply for online-only lessons.`;
+                } catch {
+                    statusEl.textContent = 'Could not resolve location.';
+                }
+            }, () => {
+                statusEl.textContent = 'Location access denied - you can still type your address manually.';
+            });
         });
 
         async function checkExisting() {
@@ -246,6 +440,7 @@
                     hourlyRateUsd: document.getElementById('rate').value,
                     qualifications: document.getElementById('qualifications').value.trim(),
                     certificateUrl: document.getElementById('certificate-url').value,
+                    photoUrl: document.getElementById('photo-url').value,
                     bio: document.getElementById('bio').value.trim(),
                 }),
             });
@@ -263,6 +458,7 @@
         checkExisting();
     </script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

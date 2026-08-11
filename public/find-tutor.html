@@ -3,20 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find a Tutor - Mozart Technique</title>
+    <title>Browse Tutors - Mozart Techniques</title>
     <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { 'primary-red': '#E02126', 'primary-dark': '#1F2937' } } }
+            theme: { extend: { colors: { 'primary-red': '#cc0000', 'primary-dark': '#1F2937' } } }
         };
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="assets/site.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
-        .tutor-card { background: #fff; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,.1); padding: 1.25rem; }
+        :root {
+            --bg: #ffffff;
+            --surface: #fff;
+            --surface-soft: #f8f8f8;
+            --text: #333;
+            --text-soft: rgba(50,50,50,0.74);
+            --accent: #cc0000;
+            --accent-dark: #990000;
+            --border: rgba(204,0,0,0.14);
+            --shadow: rgba(0,0,0,0.08);
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+            color: var(--text);
+            margin: 0;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at left, rgba(204,0,0,0.05), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .serif {
+            font-family: 'Science Gothic', sans-serif;
+        }
+
+        header.site-header {
+            border-bottom: 2px solid #cc0000;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .browse-hero {
+            padding: 64px 0 44px;
+            background: linear-gradient(180deg, #fff 0%, #fbf8f5 100%);
+            border: 1px solid var(--border);
+            border-radius: 32px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.75), 0 12px 34px rgba(0,0,0,0.06);
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 36px;
+        }
+
+        @media (min-width: 900px) {
+            .hero-grid {
+                grid-template-columns: 1.5fr 1fr;
+                align-items: end;
+            }
+        }
+
+        .hero-kicker {
+            font-size: .74rem;
+            font-weight: 700;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 14px;
+        }
+
+        .browse-hero h1 {
+            font-size: 3rem;
+            line-height: 1.05;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+
+        .browse-hero p {
+            color: var(--text-soft);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            max-width: 46ch;
+        }
+
+        .hero-facts {
+            border-left: 1px solid var(--border);
+            padding-left: 28px;
+        }
+
+        .hero-fact {
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero-fact:last-child {
+            border-bottom: none;
+        }
+
+        .hero-fact .num {
+            font-family: 'Science Gothic', sans-serif;
+            font-size: 1.9rem;
+            font-weight: 800;
+            color: var(--accent);
+            display: block;
+            line-height: 1;
+        }
+
+        .hero-fact .label {
+            font-size: .8rem;
+            color: var(--text-soft);
+            font-weight: 500;
+        }
+
+        .tab-nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 22px;
+        }
+
+        .tab-link {
+            position: relative;
+            font-size: .92rem;
+            font-weight: 600;
+            color: var(--text-soft);
+            cursor: pointer;
+            padding-bottom: 8px;
+            transition: color .25s ease;
+        }
+
+        .tab-link i {
+            margin-right: 6px;
+        }
+
+        .tab-link::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            height: 2px;
+            width: 100%;
+            background: var(--accent);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform .3s cubic-bezier(.2,.8,.2,1);
+        }
+
+        .tab-link:hover {
+            color: var(--text);
+        }
+
+        .tab-link.active {
+            color: var(--text);
+        }
+
+        .tab-link.active::after {
+            transform: scaleX(1);
+        }
+
+        /* --- Minimal filters --- */
+        .field-underline {
+            border: none;
+            border-bottom: 1.5px solid #d6c4c1;
+            background: transparent;
+            border-radius: 0;
+            padding: 6px 2px;
+            font-weight: 500;
+            color: var(--text);
+            transition: border-color .2s ease;
+        }
+
+        .field-underline:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* --- Tutor listing rows --- */
+        .tutor-row {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 30px 0;
+            border-bottom: 1px solid var(--border);
+            opacity: 0;
+            transform: translateY(14px);
+            animation: rowIn .55s cubic-bezier(.2,.8,.2,1) forwards;
+            background: #fff;
+            border-radius: 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 16px 42px -20px var(--shadow);
+        }
+
+        .tutor-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        @keyframes rowIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .row-index {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--accent);
+            width: 2.4rem;
+            flex-shrink: 0;
+            padding-top: 4px;
+            transition: color .3s ease;
+        }
+
+        .tutor-row:hover .row-index {
+            color: var(--accent-dark);
+        }
+
+        .row-avatar {
+            width: 4.25rem;
+            height: 4.25rem;
+            border-radius: .6rem;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1px solid var(--border);
+        }
+
+        .row-avatar-fallback {
+            width: 4.25rem;
+            height: 4.25rem;
+            border-radius: .6rem;
+            flex-shrink: 0;
+            background: var(--accent);
+            color: #fff;
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .row-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--text);
+        }
+
+        .row-subject {
+            font-size: .74rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .row-price {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .row-price .unit {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem;
+            font-weight: 500;
+            color: var(--text-soft);
+        }
+
+        .row-btn-primary {
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            font-size: .82rem;
+            padding: .55rem 1.1rem;
+            border-radius: 999px;
+            transition: background-color .25s ease, transform .2s ease;
+        }
+
+        .row-btn-primary:hover {
+            background: var(--accent-dark);
+            transform: translateY(-2px);
+        }
+
+        .row-btn-outline {
+            border: 1px solid #d6c4c1;
+            color: var(--text-soft);
+            font-weight: 600;
+            font-size: .82rem;
+            padding: .55rem 1.1rem;
+            border-radius: 999px;
+            transition: border-color .25s ease, color .25s ease;
+        }
+
+        .row-btn-outline:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* --- Section headings --- */
+        .section-heading {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            margin-bottom: 4px;
+        }
+
+        .section-heading h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .section-heading .rule {
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .city-block {
+            margin-bottom: 48px;
+        }
+
+        .city-title {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .city-count {
+            font-size: .78rem;
+            color: var(--text-soft);
+            font-weight: 500;
+        }
+
+        /* --- Guided match panel --- */
+        #match-panel-inner {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height .5s cubic-bezier(.2,.8,.2,1);
+        }
+
+        #match-panel-inner.open {
+            max-height: 1400px;
+        }
+
+        #toggle-match-btn i {
+            transition: transform .3s ease;
+        }
+
+        .match-card {
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px -30px var(--shadow);
+        }
+
+        .match-card select,
+        .match-card input {
+            border-radius: 14px !important;
+            border: 1px solid var(--border) !important;
+            background: #fff !important;
+            padding: .85rem .9rem !important;
+            color: var(--text) !important;
+        }
+
+        .match-card select:focus,
+        .match-card input:focus {
+            outline: none;
+            border-color: var(--accent) !important;
+            box-shadow: none !important;
+        }
+
+        /* --- Modal --- */
+        #request-modal {
+            transition: opacity .25s ease;
+        }
+
+        #request-modal-body {
+            background: #fff !important;
+            border: 1px solid var(--border) !important;
+            border-radius: .5rem !important;
+            box-shadow: 0 30px 70px -15px rgba(0,0,0,.16) !important;
+            animation: modalIn .35s cubic-bezier(.2,.8,.2,1);
+        }
+
+        #request-modal-body h2 {
+            font-family: 'Playfair Display', serif;
+        }
+
+        #request-modal-body select,
+        #request-modal-body input,
+        #request-modal-body textarea {
+            border-radius: 14px !important;
+            border: 1px solid var(--border) !important;
+            background: #fff !important;
+            padding: .85rem .9rem !important;
+        }
+
+        #request-modal-body select:focus,
+        #request-modal-body input:focus,
+        #request-modal-body textarea:focus {
+            outline: none;
+            border-color: var(--accent) !important;
+            box-shadow: none !important;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(16px) scale(.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -25,107 +446,153 @@
         <span id="alert-message"></span>
     </div>
 
-    <header class="sticky top-0 z-50 bg-white shadow-sm">
-        <nav class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
-            <div class="flex items-center space-x-3">
-                <img src="mozartLogo.jpg" alt="Mozart Technique logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold text-primary-red">Mozart Technique</span>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="mozartLogo.jpg" alt="M logo">Mozart Techniques</a>
             </div>
-            <a href="/dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
-        </nav>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor" class="active">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
     </header>
 
+    <section class="browse-hero">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+            <div class="hero-grid">
+                <div>
+                    <div class="hero-kicker">The Roster &mdash; No Account Required</div>
+                    <h1>Browse Tutors</h1>
+                    <p>Every applied and verified tutor on Mozart Techniques, laid out like a program &mdash; photo, location, instrument, credentials and ratings. Look around freely; sign in only when you're ready to send a request.</p>
+                </div>
+                <div class="hero-facts">
+                    <div class="hero-fact">
+                        <span class="num" id="hero-tutor-count">&hellip;</span>
+                        <span class="label">Verified tutors ready to teach</span>
+                    </div>
+                    <div class="hero-fact">
+                        <span class="num">3</span>
+                        <span class="label">Ways to learn &mdash; online, in-person, in-studio</span>
+                    </div>
+                    <div class="hero-fact">
+                        <span class="num">0</span>
+                        <span class="label">Forms required to look around</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <h1 class="text-2xl font-bold text-gray-800 mb-1">Find a Tutor</h1>
-        <p class="text-gray-500 mb-6">Tell us what you're looking for, pick your favorites from the matches, and an admin makes the final assignment.</p>
-
-        <!-- Get Matched -->
-        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-10">
-            <h2 class="text-xl font-bold text-gray-800 mb-1">Get Matched</h2>
-            <p class="text-gray-500 mb-5">We'll generate a shortlist of approved tutors based on what you select below.</p>
-
-            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Subject</label>
-                    <select id="match-category" class="w-full px-4 py-3 border border-gray-300 rounded-lg" required></select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Genre (optional)</label>
-                    <select id="match-genre" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
-                        <option value="">Any genre</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Age group</label>
-                    <select id="match-age-group" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
-                        <option value="">Any</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Level (optional)</label>
-                    <select id="match-level" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
-                        <option value="">Not sure yet</option>
-                    </select>
-                </div>
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center justify-between gap-6 mb-10">
+            <div class="tab-nav" id="lesson-tabs">
+                <div class="tab-link active" data-type="">All Tutors</div>
+                <div class="tab-link" data-type="online"><i class="fa-solid fa-video"></i>Online</div>
+                <div class="tab-link" data-type="physical"><i class="fa-solid fa-van-shuttle"></i>In-Person</div>
+                <div class="tab-link" data-type="studio"><i class="fa-solid fa-house"></i>In-Studio</div>
             </div>
-
-            <div class="grid sm:grid-cols-2 gap-4 mb-4">
+            <div class="flex flex-wrap gap-6 items-end">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Your city (for in-person lessons)</label>
-                    <input id="match-city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Subject</label>
+                    <select id="filter-category" class="field-underline">
+                        <option value="">All subjects</option>
+                    </select>
                 </div>
-                <div class="flex items-end gap-2 pb-2">
-                    <input type="checkbox" id="match-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
-                    <label for="match-online" class="text-sm text-gray-600">I'd like online lessons instead</label>
+                <div>
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">City</label>
+                    <input id="filter-city" type="text" placeholder="e.g. Lagos" class="field-underline">
                 </div>
+                <button id="filter-btn" class="row-btn-primary">Filter</button>
+                <button id="clear-filter-btn" class="row-btn-outline">Clear</button>
             </div>
+        </div>
 
-            <button id="find-matches-btn" class="px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
-                Find My Matches
+        <div id="tutor-grid"></div>
+        <p id="no-tutors" class="hidden text-[#9C9384] text-center py-10">No approved tutors match yet - check back soon or clear filters.</p>
+
+        <!-- City directory -->
+        <div class="section-heading mt-16 mb-8"><h2>Browse by City</h2><span class="rule"></span></div>
+        <div id="city-directory"></div>
+
+        <!-- Optional guided matching, collapsed by default -->
+        <div class="match-card p-6 sm:p-8 mt-4">
+            <button type="button" id="toggle-match-btn" class="w-full flex items-center justify-between text-left">
+                <div>
+                    <h2 class="serif text-xl font-bold text-[#17130F]">Not sure who to pick?</h2>
+                    <p class="text-[#7A7266] text-sm">Answer a few optional questions and we'll shortlist tutors for you.</p>
+                </div>
+                <i class="fa-solid fa-chevron-down text-[#9C9384]"></i>
             </button>
-
-            <div id="candidates-section" class="hidden mt-8">
-                <p class="text-sm text-gray-500 mb-3">Check the tutors you'd like to work with (an admin makes the final call, taking your picks into account):</p>
-                <div id="candidates-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
-                <p id="no-candidates" class="hidden text-gray-400 mb-6">No approved tutors match yet - submit anyway and an admin will follow up as tutors join.</p>
-
-                <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
-                <input id="req-phone" type="text" placeholder="Shown only to your matched tutor" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
-
-                <label class="block text-sm font-semibold text-gray-600 mb-1">Notes for your tutor</label>
-                <textarea id="req-notes" rows="3" placeholder="Your goals, schedule, experience level..."
-                          class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
-
-                <button id="submit-request-btn" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
-                    Submit Enrollment Request
+            <div id="match-panel-inner">
+            <div class="mt-6 pt-6" style="border-top: 1px solid #E7DFD3;">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Subject</label>
+                        <select id="match-category" class="w-full field-underline" required></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Genre (optional)</label>
+                        <select id="match-genre" class="w-full field-underline">
+                            <option value="">Any genre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Age group</label>
+                        <select id="match-age-group" class="w-full field-underline">
+                            <option value="">Any</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Level (optional)</label>
+                        <select id="match-level" class="w-full field-underline">
+                            <option value="">Not sure yet</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-5 mb-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">How would you like to learn?</label>
+                        <select id="match-lesson-type" class="w-full field-underline">
+                            <option value="online">Online - live class over Google Meet</option>
+                            <option value="physical">In-Person - tutor travels to you</option>
+                            <option value="studio">In-Studio - you go to the tutor</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Your city</label>
+                        <input id="match-city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full field-underline">
+                    </div>
+                </div>
+                <button type="button" id="match-use-location-btn" class="inline-flex items-center gap-2 text-xs font-semibold text-primary-red mt-4 mb-4 hover:underline">
+                    <i class="fa-solid fa-location-crosshairs"></i> Use my current location
                 </button>
+                <p id="match-location-status" class="text-xs text-[#9C9384] mb-2"></p>
+
+                <button id="find-matches-btn" class="row-btn-primary px-6 py-3">
+                    Show My Shortlist
+                </button>
+
+                <div id="candidates-section" class="hidden mt-8">
+                    <div id="candidates-grid"></div>
+                    <p id="no-candidates" class="hidden text-[#9C9384] mb-6">No approved tutors match yet - browse the full roster above instead.</p>
+                </div>
+            </div>
             </div>
         </div>
-
-        <!-- Browse all -->
-        <h2 class="text-xl font-bold text-gray-800 mb-1">Or Browse All Approved Tutors</h2>
-        <p class="text-gray-500 mb-4">Rates shown in your local currency.</p>
-        <div class="bg-white rounded-2xl shadow-lg p-5 mb-6 flex flex-wrap gap-3 items-end">
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
-                <select id="filter-category" class="px-3 py-2 border border-gray-300 rounded-lg">
-                    <option value="">All subjects</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1">City</label>
-                <input id="filter-city" type="text" placeholder="e.g. Lagos" class="px-3 py-2 border border-gray-300 rounded-lg">
-            </div>
-            <div class="flex items-center gap-2 pb-2">
-                <input type="checkbox" id="filter-online" class="h-4 w-4 text-primary-red border-gray-300 rounded">
-                <label for="filter-online" class="text-sm text-gray-600">Online only</label>
-            </div>
-            <button id="filter-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">Search</button>
-        </div>
-
-        <div id="tutor-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10"></div>
-        <p id="no-tutors" class="hidden text-gray-400 text-center mb-10">No approved tutors match yet - try Get Matched above.</p>
     </main>
+
+    <!-- Quick request modal -->
+    <div id="request-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+        <div id="request-modal-body" class="max-w-md w-full p-6 sm:p-8"></div>
+    </div>
 
     <script>
         const alertBox = document.getElementById('alert-box');
@@ -139,6 +606,18 @@
         function escapeHtml(text) {
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
+        function initials(name) {
+            return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        }
+        function avatarHtml(t) {
+            return t.photoUrl
+                ? `<img src="${escapeHtml(t.photoUrl)}" alt="${escapeHtml(t.name)}" class="row-avatar">`
+                : `<div class="row-avatar-fallback">${initials(t.name)}</div>`;
+        }
+
+        let currentUser = null;
+        let allTutorsById = {};
+        let myAssignedTutorIds = new Set();
 
         async function loadCategories() {
             const res = await fetch('/api/categories');
@@ -162,45 +641,76 @@
             data.levels.forEach((lvl) => { levelSel.innerHTML += `<option value="${lvl}">${lvl}</option>`; });
         }
 
-        function tutorCardHtml(t) {
-            const formatBadges = [
-                t.city ? `<span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold"><i class="fa-solid fa-location-dot"></i> In-Person &middot; ${escapeHtml(t.city)}</span>` : '',
-                t.teachesOnline ? `<span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold"><i class="fa-solid fa-globe"></i> Online</span>` : '',
-            ].filter(Boolean).join(' ');
+        function locationLine(t) {
+            if (t.fullAddress) return `<span class="inline-flex items-start gap-1 text-xs text-[#9C9384]"><i class="fa-solid fa-location-dot mt-0.5"></i><span>${escapeHtml(t.fullAddress)}</span></span>`;
+            if (t.city) return `<span class="inline-flex items-center gap-1 text-xs text-[#9C9384]"><i class="fa-solid fa-location-dot"></i>${escapeHtml(t.city)}</span>`;
+            return '';
+        }
 
+        function formatBadgesHtml(t) {
+            return [
+                t.city ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-[#5B5449]"><i class="fa-solid fa-van-shuttle"></i> In-Person</span>` : '',
+                t.teachesOnline ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-[#5B5449]"><i class="fa-solid fa-video"></i> Online</span>` : '',
+            ].filter(Boolean).join('<span class="text-[#D9CFC0]">&middot;</span>');
+        }
+
+        function tutorRowHtml(t, i) {
+            allTutorsById[t.id] = t;
+            const rating = t.avgRating != null ? `<span class="text-xs text-amber-700 font-semibold"><i class="fa-solid fa-star"></i> ${t.avgRating.toFixed(1)}</span>` : '<span class="text-xs text-[#9C9384]">Not yet rated</span>';
+            const isAssigned = myAssignedTutorIds.has(t.id);
+            const continueLabel = `Continue with ${escapeHtml((t.name||'').split(' ')[0] || t.name)}`;
             return `
-                <div class="tutor-card flex flex-col">
-                    <div class="flex items-start justify-between mb-1">
-                        <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(t.name)}</h3>
-                        <span class="text-primary-red font-extrabold whitespace-nowrap">${t.symbol}${t.hourlyRateLocal}<span class="text-xs font-medium text-gray-400">/hr</span></span>
-                    </div>
-                    <p class="text-xs text-primary-red font-semibold uppercase mb-2">${t.categories.map(escapeHtml).join(', ')}</p>
-                    <div class="flex flex-wrap gap-1.5 mb-2">${formatBadges}</div>
-                    <p class="text-sm text-gray-600 mb-3 flex-1">${t.bio ? escapeHtml(t.bio) : `${t.experienceYears || 0} years experience`}</p>
-                    <div class="flex gap-2">
-                        <a href="/tutors/${t.id}" class="flex-1 text-center py-2 border border-gray-300 text-gray-600 font-semibold rounded-lg text-sm hover:border-primary-red hover:text-primary-red transition">
-                            View Profile
-                        </a>
-                        <button class="request-tutor-btn flex-1 py-2 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition"
-                                data-tutor-id="${t.id}" data-category="${escapeHtml(t.categories[0] || '')}">
-                            Request
-                        </button>
+                <div class="tutor-row" style="animation-delay:${((i || 0) % 9) * 0.06}s">
+                    <span class="row-index">${String((i || 0) + 1).padStart(2, '0')}</span>
+                    ${avatarHtml(t)}
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                                <h3 class="row-name">${escapeHtml(t.name)}</h3>
+                                <p class="row-subject">${t.categories.map(escapeHtml).join(', ')}</p>
+                            </div>
+                            <span class="row-price">${t.symbol}${t.hourlyRateLocal}<span class="unit">/hr</span></span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 mt-2">${rating}<span class="text-[#D9CFC0]">&middot;</span>${formatBadgesHtml(t)}</div>
+                        <div class="mt-1.5">${locationLine(t)}</div>
+                        <p class="text-sm text-[#5B5449] mt-2 max-w-2xl">${t.bio ? escapeHtml(t.bio) : `${t.experienceYears || 0} years experience`}</p>
+                        <div class="flex gap-2 mt-4">
+                            <a href="/tutors/${t.id}" class="row-btn-outline">View Profile</a>
+                            ${isAssigned ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${t.id}">${continueLabel}</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${t.id}">Request</button>`}
+                        </div>
                     </div>
                 </div>
             `;
         }
 
+        let activeLessonType = '';
+
         async function loadTutors() {
             const category = document.getElementById('filter-category').value;
             const city = document.getElementById('filter-city').value;
-            const online = document.getElementById('filter-online').checked;
             const params = new URLSearchParams();
             if (category) params.set('category', category);
             if (city) params.set('city', city);
-            if (online) params.set('online', 'true');
+            if (activeLessonType) params.set('lessonType', activeLessonType);
 
             const res = await fetch(`/api/tutors?${params}`);
             const data = await res.json();
+            // refresh student's active assignments so buttons can reflect assigned tutors
+            myAssignedTutorIds = new Set();
+            if (currentUser) {
+                try {
+                    const ares = await fetch('/api/my-assignments');
+                    const adata = await ares.json();
+                    if (adata && adata.asStudent) {
+                        adata.asStudent.forEach((r) => {
+                            if (r.tutorId && r.status && r.status !== 'ended') myAssignedTutorIds.add(Number(r.tutorId));
+                        });
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            if (!category && !city && !activeLessonType) {
+                document.getElementById('hero-tutor-count').textContent = data.tutors.length;
+            }
             const grid = document.getElementById('tutor-grid');
             const empty = document.getElementById('no-tutors');
             if (!data.tutors.length) {
@@ -209,67 +719,189 @@
                 return;
             }
             empty.classList.add('hidden');
-            grid.innerHTML = data.tutors.map(tutorCardHtml).join('');
+            grid.innerHTML = data.tutors.map(tutorRowHtml).join('');
+            wireRequestButtons(grid);
+        }
 
-            grid.querySelectorAll('.request-tutor-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    document.getElementById('match-category').value = btn.dataset.category;
-                    document.getElementById('find-matches-btn').scrollIntoView({ behavior: 'smooth' });
-                    findMatches();
+        document.querySelectorAll('.tab-link').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab-link').forEach((t) => t.classList.remove('active'));
+                tab.classList.add('active');
+                activeLessonType = tab.dataset.type;
+                loadTutors();
+            });
+        });
+        document.getElementById('filter-btn').addEventListener('click', loadTutors);
+        document.getElementById('clear-filter-btn').addEventListener('click', () => {
+            document.getElementById('filter-category').value = '';
+            document.getElementById('filter-city').value = '';
+            document.querySelectorAll('.tab-link').forEach((t) => t.classList.remove('active'));
+            document.querySelector('.tab-link[data-type=""]').classList.add('active');
+            activeLessonType = '';
+            loadTutors();
+        });
+
+        // --- Quick request modal (no multi-field form - just lesson type + optional note) ---
+        function openModal(html) {
+            document.getElementById('request-modal-body').innerHTML = html;
+            document.getElementById('request-modal').classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('request-modal').classList.add('hidden');
+            document.getElementById('request-modal-body').innerHTML = '';
+        }
+
+        const lessonTypeLabels = { online: 'Online - live class over Google Meet', physical: 'In-Person - tutor travels to you', studio: 'In-Studio - you go to the tutor' };
+
+        function openRequestModal(tutor) {
+            const options = ['online', 'physical', 'studio'].filter((lt) => {
+                if (lt === 'online') return tutor.teachesOnline;
+                if (lt === 'physical') return tutor.inPersonVenue !== 'tutor_studio';
+                if (lt === 'studio') return tutor.inPersonVenue !== 'student_location';
+                return false;
+            });
+            if (!options.length) options.push('online');
+            openModal(`
+                <div class="flex items-center gap-3 mb-4">
+                    ${avatarHtml(tutor)}
+                    <div>
+                        <h2 class="text-lg font-bold text-[#17130F]">Request ${escapeHtml(tutor.name)}</h2>
+                        <p class="text-xs text-[#9C9384]">${tutor.categories.map(escapeHtml).join(', ')}</p>
+                    </div>
+                </div>
+                <form id="quick-request-form">
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Lesson type</label>
+                    <select name="lessonType" class="w-full field-underline mb-5">
+                        ${options.map((lt) => `<option value="${lt}">${lessonTypeLabels[lt]}</option>`).join('')}
+                    </select>
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Note for your tutor (optional)</label>
+                    <textarea name="notes" rows="3" placeholder="Your goals, schedule, experience level..." class="w-full field-underline mb-5"></textarea>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal()" class="row-btn-outline flex-1 text-center">Cancel</button>
+                        <button type="submit" class="row-btn-primary flex-1 text-center">Send Request</button>
+                    </div>
+                </form>
+            `);
+                    document.getElementById('quick-request-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const lessonType = fd.get('lessonType');
+                const res = await fetch('/api/tutor-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category: tutor.categories[0] || '',
+                        lessonType,
+                        city: lessonType !== 'online' ? (tutor.fullAddress || tutor.city || '') : '',
+                        notes: fd.get('notes').trim(),
+                        preferredTutorIds: [tutor.id],
+                    }),
                 });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('Request sent! An admin will confirm the match soon.', 'success');
+                    closeModal();
+                } else {
+                    showAlert(data.error || 'Could not send request.', 'error');
+                }
             });
         }
 
-        document.getElementById('filter-btn').addEventListener('click', loadTutors);
+        function requestTutor(tutorId) {
+            const tutor = allTutorsById[tutorId];
+            if (!tutor) return;
+            if (!currentUser) {
+                window.location.href = `/login?redirect=${encodeURIComponent(`/find-tutor?requestTutorId=${tutorId}`)}`;
+                return;
+            }
+            if (currentUser.tutorProfileId && currentUser.tutorProfileId === tutorId) {
+                showAlert('You cannot request yourself as a tutor.', 'error');
+                return;
+            }
+            openRequestModal(tutor);
+        }
 
-        // --- Get Matched: candidate shortlist ---
+        function wireRequestButtons(scope) {
+            scope.querySelectorAll('.request-tutor-btn').forEach((btn) => {
+                btn.addEventListener('click', () => requestTutor(Number(btn.dataset.tutorId)));
+            });
+            scope.querySelectorAll('.continue-tutor-btn').forEach((btn) => {
+                btn.addEventListener('click', () => { window.location.href = '/dashboard'; });
+            });
+        }
+
+        async function loadTutorIntakeQuestions(tutorId) {
+            try {
+                const res = await fetch(`/api/tutors/${tutorId}/intake-form`);
+                const data = await res.json();
+                return data.success ? data.questions || [] : [];
+            } catch {
+                return [];
+            }
+        }
+
+        // --- Optional guided matching (collapsed by default) ---
+        function setMatchPanelOpen(open) {
+            const panel = document.getElementById('match-panel-inner');
+            const icon = document.querySelector('#toggle-match-btn i');
+            panel.classList.toggle('open', open);
+            icon.classList.toggle('fa-chevron-down', !open);
+            icon.classList.toggle('fa-chevron-up', open);
+        }
+        document.getElementById('toggle-match-btn').addEventListener('click', () => {
+            setMatchPanelOpen(!document.getElementById('match-panel-inner').classList.contains('open'));
+        });
+
         let candidates = [];
-
         const venueLabels = { student_location: 'Tutor travels to you', tutor_studio: "At tutor's studio", either: 'Your place or theirs' };
 
-        function candidateCardHtml(c) {
-            const distance = c.distanceKm != null ? `<span class="text-xs text-gray-400">${c.distanceKm} km away</span>` : '';
-            const locality = c.localityMatch ? `<span class="text-xs text-blue-600 font-semibold">${c.localityMatch}</span>` : '';
-            const rating = c.avgRating != null ? `<span class="text-xs text-amber-600 font-semibold"><i class="fa-solid fa-star"></i> ${c.avgRating.toFixed(1)}</span>` : '<span class="text-xs text-gray-400">Not yet rated</span>';
-            const professionalism = c.avgProfessionalism != null ? `<span class="text-xs text-gray-500">Professionalism ${c.avgProfessionalism.toFixed(1)}/5</span>` : '';
-            const venue = c.inPersonVenue && c.city ? `<p class="text-xs text-gray-400 mb-1">${escapeHtml(venueLabels[c.inPersonVenue] || '')}</p>` : '';
+        function candidateRowHtml(c, i) {
+            allTutorsById[c.id] = c;
+            const distance = c.distanceKm != null ? `<span class="text-xs text-[#9C9384]">${c.distanceKm} km away</span>` : '';
+            const locality = c.localityMatch ? `<span class="text-xs text-[#cc0000] font-semibold">${c.localityMatch}</span>` : '';
+            const rating = c.avgRating != null ? `<span class="text-xs text-amber-700 font-semibold"><i class="fa-solid fa-star"></i> ${c.avgRating.toFixed(1)}</span>` : '<span class="text-xs text-[#9C9384]">Not yet rated</span>';
+            const venue = c.inPersonVenue && c.city ? `<p class="text-xs text-[#9C9384] mb-1">${escapeHtml(venueLabels[c.inPersonVenue] || '')}</p>` : '';
             return `
-                <label class="tutor-card flex flex-col cursor-pointer border-2 border-transparent has-[:checked]:border-primary-red">
-                    <div class="flex items-start justify-between mb-1">
-                        <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(c.name)}</h3>
-                        <input type="checkbox" class="candidate-checkbox h-5 w-5 text-primary-red border-gray-300 rounded" value="${c.id}">
+                <div class="tutor-row" style="animation-delay:${((i || 0) % 9) * 0.06}s">
+                    <span class="row-index">${String((i || 0) + 1).padStart(2, '0')}</span>
+                    ${avatarHtml(c)}
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-3 flex-wrap">
+                            <h3 class="row-name">${escapeHtml(c.name)}</h3>
+                            <span class="row-price">$${c.hourlyRateUsd}<span class="unit">/hr</span></span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap mt-1">${rating} ${distance} ${locality}</div>
+                        ${venue}
+                        <div class="mt-1">${locationLine(c)}</div>
+                        <p class="text-sm text-[#5B5449] mt-2 max-w-2xl">${c.bio ? escapeHtml(c.bio) : `${c.experienceYears || 0} years experience`}</p>
+                        <div class="flex gap-2 mt-4">
+                            <a href="/tutors/${c.id}" target="_blank" class="row-btn-outline">Profile</a>
+                            ${myAssignedTutorIds.has(c.id) ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${c.id}">Continue with ${escapeHtml((c.name||'').split(' ')[0] || c.name)}</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${c.id}">Request</button>`}
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2 mb-1 flex-wrap">${rating} ${distance} ${locality}</div>
-                    ${professionalism ? `<p class="mb-1">${professionalism}</p>` : ''}
-                    ${venue}
-                    <p class="text-sm text-gray-600 mb-2 flex-1">${c.bio ? escapeHtml(c.bio) : `${c.experienceYears || 0} years experience`}</p>
-                    <div class="flex items-center justify-between">
-                        <p class="text-primary-red font-extrabold text-sm">$${c.hourlyRateUsd}/hr</p>
-                        <a href="/tutors/${c.id}" target="_blank" class="text-xs text-gray-500 hover:text-primary-red hover:underline">View Profile</a>
-                    </div>
-                </label>
+                </div>
             `;
         }
 
-        async function findMatches(preselectTutorId) {
+        async function findMatches() {
             const category = document.getElementById('match-category').value;
             if (!category) { showAlert('Choose a subject first.', 'error'); return; }
-            const params = new URLSearchParams({ category });
+            const lessonType = document.getElementById('match-lesson-type').value;
+            const params = new URLSearchParams({ category, lessonType });
             const genre = document.getElementById('match-genre').value;
             const ageGroup = document.getElementById('match-age-group').value;
             const level = document.getElementById('match-level').value;
             const city = document.getElementById('match-city').value.trim();
-            const online = document.getElementById('match-online').checked;
             if (genre) params.set('genre', genre);
             if (ageGroup) params.set('ageGroup', ageGroup);
             if (level) params.set('level', level);
             if (city) params.set('city', city);
-            if (online) params.set('online', 'true');
 
             const res = await fetch(`/api/tutor-requests/candidates?${params}`);
             const data = await res.json();
             candidates = data.candidates || [];
-            document.getElementById('candidates-section').classList.remove('hidden');
+            const section = document.getElementById('candidates-section');
+            section.classList.remove('hidden');
             const grid = document.getElementById('candidates-grid');
             const empty = document.getElementById('no-candidates');
             if (!candidates.length) {
@@ -277,75 +909,122 @@
                 empty.classList.remove('hidden');
             } else {
                 empty.classList.add('hidden');
-                grid.innerHTML = candidates.map(candidateCardHtml).join('');
-                if (preselectTutorId) {
-                    const checkbox = document.querySelector(`.candidate-checkbox[value="${preselectTutorId}"]`);
-                    if (checkbox) checkbox.checked = true;
-                }
+                grid.innerHTML = candidates.map(candidateRowHtml).join('');
+                wireRequestButtons(grid);
             }
-            document.getElementById('candidates-section').scrollIntoView({ behavior: 'smooth' });
+            section.scrollIntoView({ behavior: 'smooth' });
         }
 
         document.getElementById('find-matches-btn').addEventListener('click', findMatches);
 
-        document.getElementById('submit-request-btn').addEventListener('click', async () => {
-            const preferredTutorIds = Array.from(document.querySelectorAll('.candidate-checkbox:checked')).map((el) => Number(el.value));
-            const res = await fetch('/api/tutor-requests', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    category: document.getElementById('match-category').value,
-                    genre: document.getElementById('match-genre').value || null,
-                    ageGroup: document.getElementById('match-age-group').value || null,
-                    desiredLevel: document.getElementById('match-level').value || null,
-                    city: document.getElementById('match-city').value.trim(),
-                    online: document.getElementById('match-online').checked,
-                    phone: document.getElementById('req-phone').value.trim(),
-                    notes: document.getElementById('req-notes').value.trim(),
-                    preferredTutorIds,
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                showAlert('Enrollment request submitted! An admin will confirm your match soon.', 'success');
-                document.getElementById('candidates-section').classList.add('hidden');
-                document.getElementById('req-phone').value = '';
-                document.getElementById('req-notes').value = '';
-            } else {
-                showAlert(data.error || 'Could not submit request.', 'error');
-            }
+        document.getElementById('match-use-location-btn').addEventListener('click', () => {
+            const statusEl = document.getElementById('match-location-status');
+            if (!navigator.geolocation) { statusEl.textContent = 'Location access is not available in this browser.'; return; }
+            statusEl.textContent = 'Requesting location access...';
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                try {
+                    const res = await fetch('/api/profile/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) { statusEl.textContent = data.error || 'Could not resolve location.'; return; }
+                    const cityName = data.location.canonicalCity || data.location.city;
+                    document.getElementById('match-city').value = data.location.fullAddress || cityName || '';
+                    statusEl.textContent = data.allowed
+                        ? `Location set to ${cityName}.`
+                        : `We're not yet operating in ${cityName}, ${data.location.country} - you can still request online lessons.`;
+                } catch {
+                    statusEl.textContent = 'Could not resolve location.';
+                }
+            }, () => { statusEl.textContent = 'Location access denied - you can still type your city manually.'; });
         });
 
-        // Prefills the Get Matched form from the student's saved learning
-        // profile (set from the dashboard), so returning students don't
-        // have to re-enter their age group/genre/city every time.
+        // --- City directory ---
+        async function loadCityDirectory() {
+            const res = await fetch('/api/tutors/directory');
+            const data = await res.json();
+            const container = document.getElementById('city-directory');
+            if (!data.success || !data.cities.length) {
+                container.innerHTML = '<p class="text-[#9C9384]">No approved tutors yet.</p>';
+                return;
+            }
+            container.innerHTML = data.cities.map((group) => `
+                <div class="city-block">
+                    <h3 class="city-title">${escapeHtml(group.city)}</h3>
+                    <p class="city-count mb-2">${group.tutors.length} tutor${group.tutors.length === 1 ? '' : 's'}</p>
+                    <div>${group.tutors.map(tutorRowHtml).join('')}</div>
+                </div>
+            `).join('');
+            wireRequestButtons(container);
+        }
+
+        // Prefills the guided-matching form from the student's saved learning
+        // profile (set from the dashboard), so returning students don't have
+        // to re-enter their age group/genre/city every time.
         async function prefillFromProfile() {
+            if (!currentUser) return;
             const res = await fetch('/api/dashboard');
             const data = await res.json();
             if (!data.success || !data.studentProfile) return;
             const p = data.studentProfile;
             if (p.ageGroup) document.getElementById('match-age-group').value = p.ageGroup;
             if (p.genres && p.genres.length) document.getElementById('match-genre').value = p.genres[0];
-            if (p.city) document.getElementById('match-city').value = p.city;
+            if (p.city) document.getElementById('match-city').value = p.fullAddress || p.city;
         }
 
-        // Deep link from a tutor's public profile page (?category=X&tutorId=Y)
-        // jumps straight into Get Matched with that tutor pre-checked.
+        // Handles both: a deep link from a tutor's public profile
+        // (?category=X&tutorId=Y opens the guided-match panel pre-filled),
+        // a lesson-type deep link from the home page (?lessonType=X), and
+        // the post-login return from clicking "Request" while signed out
+        // (?requestTutorId=X reopens the quick-request modal for that tutor).
         async function applyDeepLink() {
             const params = new URLSearchParams(window.location.search);
             const category = params.get('category');
             const tutorId = params.get('tutorId');
-            if (!category) return;
-            document.getElementById('match-category').value = category;
-            document.getElementById('find-matches-btn').scrollIntoView({ behavior: 'smooth' });
-            await findMatches(tutorId ? Number(tutorId) : null);
+            const lessonType = params.get('lessonType');
+            const requestTutorId = params.get('requestTutorId');
+
+            if (lessonType && ['online', 'physical', 'studio'].includes(lessonType)) {
+                const tab = document.querySelector(`.tab-link[data-type="${lessonType}"]`);
+                if (tab) tab.click();
+            }
+            if (requestTutorId) {
+                await loadTutors();
+                requestTutor(Number(requestTutorId));
+                return;
+            }
+            if (category) {
+                document.getElementById('match-category').value = category;
+                setMatchPanelOpen(true);
+                document.getElementById('toggle-match-btn').scrollIntoView({ behavior: 'smooth' });
+                await findMatches();
+                if (tutorId) {
+                    const checkbox = document.querySelector(`.candidate-checkbox[value="${tutorId}"]`);
+                    if (checkbox) checkbox.checked = true;
+                }
+            }
         }
 
-        loadCategories().then(applyDeepLink);
-        loadTaxonomy().then(prefillFromProfile);
-        loadTutors();
+        async function init() {
+            try {
+                const res = await fetch('/api/session');
+                const data = await res.json();
+                currentUser = data.user || null;
+            } catch { currentUser = null; }
+
+            await Promise.all([loadCategories(), loadTaxonomy()]);
+            await loadTutors();
+            loadCityDirectory();
+            prefillFromProfile();
+            applyDeepLink();
+        }
+        init();
     </script>
+    <script src="assets/nav-auth.js"></script>
     <script src="assets/mobile-nav.js"></script>
+    <script src="assets/geo-location.js"></script>
     <script src="assets/footer.js"></script>
 </body>
 </html>

@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', function () {
     style.id = STYLE_ID;
     style.textContent = `
       .mt-footer {
-        background: linear-gradient(135deg, rgba(10,10,12,.98), rgba(20,16,18,.98));
-        color: #f5f5f5;
+        background: linear-gradient(135deg, #ffffff 0%, #fff6f6 100%);
+        color: #333333;
         padding: 3rem 1.25rem 1.5rem;
-        border-top: 1px solid rgba(255,255,255,.08);
+        border-top: 2px solid #cc0000;
         font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       }
       .mt-footer-shell {
@@ -28,35 +28,35 @@ document.addEventListener('DOMContentLoaded', function () {
         letter-spacing: .08em;
         text-transform: uppercase;
         margin: 0 0 .85rem;
-        color: #fff;
+        color: #cc0000;
       }
-      .mt-footer p, .mt-footer li { font-size: .95rem; color: rgba(245,245,245,.82); margin: 0; }
+      .mt-footer p, .mt-footer li { font-size: .95rem; color: #555555; margin: 0; }
       .mt-footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .55rem; }
-      .mt-footer a { color: rgba(245,245,245,.82); text-decoration: none; transition: color .2s ease; }
-      .mt-footer a:hover { color: #ff8c94; }
+      .mt-footer a { color: #555555; text-decoration: none; transition: color .2s ease; }
+      .mt-footer a:hover { color: #cc0000; }
       .mt-footer-social { display: flex; gap: .75rem; flex-wrap: wrap; }
       .mt-footer-social a {
         width: 2.5rem; height: 2.5rem; border-radius: 999px;
         display: grid; place-items: center;
-        background: rgba(255,255,255,.08); color: #fff;
+        background: rgba(204, 0, 0, .08); color: #cc0000;
         transition: transform .2s ease, background .2s ease;
       }
-      .mt-footer-social a:hover { transform: translateY(-2px); background: rgba(196,24,34,.7); }
+      .mt-footer-social a:hover { transform: translateY(-2px); background: #cc0000; color: white; }
       .mt-footer-newsletter { display: flex; }
       .mt-footer-newsletter input {
-        background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.15);
+        background: #fff; color: #333; border: 1px solid rgba(204,0,0,.25);
         padding: .5rem .75rem; border-radius: .375rem 0 0 .375rem; flex: 1; min-width: 0;
       }
-      .mt-footer-newsletter input::placeholder { color: rgba(245,245,245,.55); }
+      .mt-footer-newsletter input::placeholder { color: #888888; }
       .mt-footer-newsletter button {
-        background: #c41822; color: #fff; border: none; padding: .5rem 1rem;
+        background: #cc0000; color: #fff; border: none; padding: .5rem 1rem;
         border-radius: 0 .375rem .375rem 0; font-weight: 600; cursor: pointer;
       }
-      .mt-footer-newsletter button:hover { background: #a3121a; }
+      .mt-footer-newsletter button:hover { background: #990000; }
       .mt-footer-bottom {
         max-width: 1180px; margin: 1.6rem auto 0; padding-top: 1rem;
-        border-top: 1px solid rgba(255,255,255,.09); text-align: center;
-        font-size: .95rem; color: rgba(245,245,245,.82);
+        border-top: 1px solid rgba(204,0,0,.2); text-align: center;
+        font-size: .95rem; color: #555555;
       }
       @media (max-width: 1024px) { .mt-footer-shell { grid-template-columns: repeat(3, minmax(0,1fr)); } }
       @media (max-width: 700px) { .mt-footer-shell { grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -70,14 +70,14 @@ document.addEventListener('DOMContentLoaded', function () {
   footer.innerHTML = `
     <div class="mt-footer-shell">
       <div>
-        <h4>Mozart Technique</h4>
+        <h4>Mozart Techniques</h4>
         <p>Unlock your creative potential and master your chosen craft.</p>
       </div>
       <div>
         <h4>Quick Links</h4>
         <ul>
           <li><a href="/home">Home</a></li>
-          <li><a href="/courses">Courses</a></li>
+          <li><a href="/library">Video Library</a></li>
           <li><a href="/about">About</a></li>
           <li><a href="/contact">Contact</a></li>
         </ul>
@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <ul>
           <li><a href="/become-tutor">Become a Tutor</a></li>
           <li><a href="/find-tutor">Find a Tutor</a></li>
+          <li><a href="/become-sponsor">Sponsor Students</a></li>
         </ul>
       </div>
       <div>
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </form>
       </div>
     </div>
-    <div class="mt-footer-bottom">&copy; 2026 Mozart Technique. All Rights Reserved.</div>
+    <div class="mt-footer-bottom">&copy; 2026 Mozart Techniques. All Rights Reserved.</div>
   `;
 
   document.body.appendChild(footer);

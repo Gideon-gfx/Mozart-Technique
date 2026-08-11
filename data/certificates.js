@@ -1,8 +1,7 @@
-// Course completion certificates. Issued automatically the moment a student
-// finishes a course (either by completing all lessons directly, or by
-// passing the final quiz). Each certificate has a random verification code
-// that resolves on a public, no-login page - so a certificate can be shared
-// or checked by anyone, the way a real credential works.
+// Legacy course-completion certificates from when the platform sold
+// packaged video courses. That product is gone, so issue() is no longer
+// called from anywhere - but any certificate already earned stays
+// verifiable at its code, the way a real credential would.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

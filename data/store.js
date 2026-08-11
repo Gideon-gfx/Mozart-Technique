@@ -61,19 +61,13 @@ function todayStamp() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD, local-independent enough for this use
 }
 
-// Marks a lesson complete/incomplete and bumps the daily practice streak.
-// A streak increments once per calendar day of activity; missing a day
+// Bumps the daily activity streak - called once per dashboard visit. A
+// streak increments once per calendar day of activity; missing a day
 // resets it back to 1 on the next active day.
-function setLessonProgress(userId, courseId, lessonIndex, completed) {
+function markActive(userId) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
-
-  if (!user.progress) user.progress = {};
-  const key = String(courseId);
-  const done = new Set(user.progress[key] || []);
-  if (completed) done.add(lessonIndex); else done.delete(lessonIndex);
-  user.progress[key] = Array.from(done).sort((a, b) => a - b);
 
   if (!user.streak) user.streak = { count: 0, lastActiveDate: null };
   const today = todayStamp();
@@ -81,46 +75,16 @@ function setLessonProgress(userId, courseId, lessonIndex, completed) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     user.streak.count = user.streak.lastActiveDate === yesterday ? user.streak.count + 1 : 1;
     user.streak.lastActiveDate = today;
+    persist(db);
   }
-
-  persist(db);
   return user;
 }
 
-// Failing the final quiz clears lesson completion for that course, so the
-// student has to work back through the lessons before retaking it.
-function resetCourseProgress(userId, courseId) {
-  const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
-  if (!user.progress) user.progress = {};
-  user.progress[String(courseId)] = [];
-  persist(db);
-  return user;
-}
-
-function setQuizResult(userId, courseId, { passed, score }) {
-  const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
-  if (!user.quizResults) user.quizResults = {};
-  user.quizResults[String(courseId)] = { passed, score, attemptedAt: new Date().toISOString() };
-  persist(db);
-  return user;
-}
-
-function getBadges(user, totalLessonsPerCourse) {
+function getBadges(user) {
   const badges = [];
-  const purchasedCount = user.purchasedCourses.length;
-  const completedCourses = Object.entries(user.progress || {}).filter(
-    ([, done]) => done.length >= totalLessonsPerCourse
-  ).length;
-
-  if (purchasedCount >= 1) badges.push({ id: 'first-enrollment', label: 'First Enrollment', icon: 'fa-graduation-cap' });
-  if (purchasedCount >= 3) badges.push({ id: 'three-courses', label: '3 Courses Enrolled', icon: 'fa-book' });
-  if (completedCourses >= 1) badges.push({ id: 'first-completion', label: 'Course Completed', icon: 'fa-trophy' });
   if ((user.streak && user.streak.count) >= 3) badges.push({ id: 'streak-3', label: '3-Day Streak', icon: 'fa-fire' });
   if ((user.streak && user.streak.count) >= 7) badges.push({ id: 'streak-7', label: '7-Day Streak', icon: 'fa-fire' });
+  if ((user.streak && user.streak.count) >= 30) badges.push({ id: 'streak-30', label: '30-Day Streak', icon: 'fa-fire' });
   return badges;
 }
 
@@ -160,22 +124,111 @@ function setCountry(userId, countryCode) {
   return user;
 }
 
-// Profile details used for tutor matching: age band, preferred genres, and
-// (geocoded) location for in-person proximity matching.
-async function setStudentProfile(userId, { ageGroup, genres, city, address }) {
+// A student's saved card, used to authorize (hold) and later capture escrow
+// payments off-session when a tutor logs/confirms a lesson. Only the
+// non-sensitive display bits (brand/last4) and Stripe's own IDs are stored
+// here - the actual card details live entirely on Stripe's side.
+function setStripePaymentMethod(userId, { customerId, paymentMethodId, brand, last4 }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.stripeCustomerId = customerId;
+  user.stripePaymentMethodId = paymentMethodId;
+  user.cardBrand = brand || null;
+  user.cardLast4 = last4 || null;
+  persist(db);
+  return user;
+}
+
+function clearStripePaymentMethod(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.stripePaymentMethodId = null;
+  user.cardBrand = null;
+  user.cardLast4 = null;
+  persist(db);
+  return user;
+}
+
+// A tutor's Google Calendar refresh token, from the separate authorization-
+// code OAuth flow (see data/google-calendar.js) - lets the server create a
+// real Calendar event with a Meet link on the tutor's behalf, independent
+// of whether they originally signed up with Google or a password.
+function setGoogleCalendarToken(userId, { refreshToken, email }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.googleCalendarRefreshToken = refreshToken;
+  user.googleCalendarEmail = email || null;
+  user.googleCalendarConnectedAt = new Date().toISOString();
+  persist(db);
+  return user;
+}
+
+function clearGoogleCalendarToken(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.googleCalendarRefreshToken = null;
+  user.googleCalendarEmail = null;
+  user.googleCalendarConnectedAt = null;
+  persist(db);
+  return user;
+}
+
+// Profile details used for tutor matching: age band, preferred genres, sex,
+// and (geocoded) location for in-person proximity matching.
+async function setStudentProfile(userId, { name, ageGroup, genres, city, address, sex, photoUrl }) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
   const coords = address || city ? await geocodeAddress(address || city) : null;
-  user.studentProfile = {
-    ageGroup: ageGroup || null,
-    genres: Array.isArray(genres) ? genres : [],
-    city: city || null,
-    address: address || null,
-    lat: coords ? coords.lat : null,
-    lng: coords ? coords.lng : null,
-    locality: coords ? { city: coords.city, state: coords.state, country: coords.country } : null,
-  };
+  user.studentProfile = user.studentProfile || { ageGroup: null, genres: [], city: null, address: null };
+  if (name && String(name).trim()) {
+    user.name = String(name).trim();
+  }
+  user.studentProfile.ageGroup = ageGroup || null;
+  user.studentProfile.genres = Array.isArray(genres) ? genres : user.studentProfile.genres || [];
+  user.studentProfile.city = city || null;
+  user.studentProfile.address = address || null;
+  user.studentProfile.sex = sex != null ? (sex || null) : (user.studentProfile.sex || null);
+  if (photoUrl) {
+    user.photoUrl = photoUrl;
+  }
+  user.studentProfile.lat = coords ? coords.lat : user.studentProfile.lat || null;
+  user.studentProfile.lng = coords ? coords.lng : user.studentProfile.lng || null;
+  user.studentProfile.locality = coords ? { city: coords.city, state: coords.state, country: coords.country } : user.studentProfile.locality || null;
+  persist(db);
+  return user;
+}
+
+// Sets a student's location from real browser GPS coordinates (reverse
+// geocoded), which is what powers matching/grouping - more reliable than a
+// typed address, and required so the platform actually knows where a
+// student is (per the "location must be public to the tutor" rule, this is
+// shown to a matched tutor, not just used internally).
+function setRealLocation(userId, { lat, lng, city, state, country, fullAddress }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.studentProfile) user.studentProfile = { ageGroup: null, genres: [], city: null, address: null };
+  user.studentProfile.lat = lat;
+  user.studentProfile.lng = lng;
+  user.studentProfile.locality = { city: city || null, state: state || null, country: country || null };
+  if (city) user.studentProfile.city = city;
+  if (fullAddress) user.studentProfile.fullAddress = fullAddress;
+  persist(db);
+  return user;
+}
+
+// Links a student's account to the NGO/organization sponsoring them, once
+// they redeem that org's access code (see data/organizations.js).
+function setSponsor(userId, { orgId, orgName }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.sponsor = { orgId, orgName, activatedAt: new Date().toISOString() };
   persist(db);
   return user;
 }
@@ -247,35 +300,11 @@ function clearStudentFlag(userId) {
 
 // Demo and admin accounts get every purchasable course unlocked without
 // ever going through payment.
-function hasFullAccess(user) {
-  return user.role === 'admin' || user.role === 'demo';
-}
-
 function linkGoogleId(userId, googleId) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
   user.googleId = googleId;
-  persist(db);
-  return user;
-}
-
-function addPurchase(userId, courseId) {
-  const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
-  if (!user.purchasedCourses.includes(courseId)) {
-    user.purchasedCourses.push(courseId);
-    persist(db);
-  }
-  return user;
-}
-
-function removePurchase(userId, courseId) {
-  const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
-  user.purchasedCourses = user.purchasedCourses.filter((id) => id !== courseId);
   persist(db);
   return user;
 }
@@ -326,10 +355,53 @@ function resetPassword(token, passwordHash) {
   return user;
 }
 
+function slugify(text) {
+  return String(text || '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function findBySlug(slug) {
+  if (!slug) return null;
+  const s = String(slug).toLowerCase();
+  const db = load();
+  return db.users.find((u) => String(u.id) === s || slugify(u.name) === s) || null;
+}
+
+// Google Calendar connection for a tutor. Only the refresh token is kept -
+// access tokens are short-lived and re-minted from it on demand, so there's
+// nothing to expire here. Disconnecting simply drops the token; any events
+// already on the tutor's calendar stay where they are.
+function setCalendarTokens(userId, { refreshToken, googleEmail }) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.googleCalendar = {
+    refreshToken,
+    googleEmail: googleEmail || null,
+    connectedAt: new Date().toISOString(),
+  };
+  persist(db);
+  return user;
+}
+
+function clearCalendarTokens(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.googleCalendar = null;
+  persist(db);
+  return user;
+}
+
 module.exports = {
-  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, addPurchase, removePurchase, hasFullAccess, setCountry,
-  setLessonProgress, getBadges, addNotification, markNotificationsRead, setRole, listUsers,
-  createResetToken, findByResetToken, resetPassword, resetCourseProgress, setQuizResult,
-  setStudentProfile, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
+  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry,
+  setCalendarTokens, clearCalendarTokens,
+  markActive, getBadges, addNotification, markNotificationsRead, setRole, listUsers,
+  createResetToken, findByResetToken, resetPassword,
+  setStudentProfile, setRealLocation, setSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
+  setStripePaymentMethod, clearStripePaymentMethod,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };
+
+// expose slug helpers for public routes
+module.exports.slugify = slugify;
+module.exports.findBySlug = findBySlug;
