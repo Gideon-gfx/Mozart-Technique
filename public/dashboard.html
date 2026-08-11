@@ -690,11 +690,17 @@
                 const nextEl = document.getElementById('next-lesson-time');
                 const sumEl = document.getElementById('lessons-summary');
                 if (nextEl && sumEl) {
-                    const upcoming = (data.asStudent || []).flatMap(r => (r.sessions || []).map(s => ({ req: r, s }))).filter(x => x.s.scheduledAt).sort((a,b)=> new Date(a.s.scheduledAt)-new Date(b.s.scheduledAt));
+                    // scheduleSession() records the booking on the assignment
+                    // itself, not on a logged session (a session is only
+                    // created after the lesson happens), so read it there.
+                    const now = Date.now();
+                    const upcoming = (data.asStudent || [])
+                        .filter((r) => r.scheduledAt && new Date(r.scheduledAt).getTime() >= now - 60 * 60 * 1000)
+                        .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
                     if (upcoming.length) {
                         const n = upcoming[0];
-                        nextEl.textContent = new Date(n.s.scheduledAt).toLocaleString();
-                        sumEl.textContent = `Next: ${n.req.category} with ${n.req.tutorName || 'your tutor'}`;
+                        nextEl.textContent = new Date(n.scheduledAt).toLocaleString();
+                        sumEl.textContent = `Next: ${n.category} with ${n.tutorName || 'your tutor'}`;
                     } else {
                         nextEl.textContent = 'No upcoming lessons';
                         sumEl.textContent = 'Check your schedule or request a tutor.';

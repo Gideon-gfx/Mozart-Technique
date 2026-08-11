@@ -35,6 +35,12 @@
         <span id="alert-message"></span>
     </div>
 
+    <!-- Same modal shell the student dashboard uses, so scheduling and
+         posting a recording are real forms rather than browser prompts. -->
+    <div id="action-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+        <div id="action-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto"></div>
+    </div>
+
     <header class="sticky top-0 z-50 bg-white shadow-sm">
         <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
             <div class="flex items-center gap-3">
@@ -186,11 +192,11 @@
                             <select id="video-genre-select" aria-label="Select genre" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
                             <input id="video-title-input" type="text" placeholder="Video title" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                             <input id="video-link-input" type="url" placeholder="Video link (mp4, YouTube, etc.)" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                            <div class="flex gap-3 items-center">
-                                <input id="video-file-input" type="file" accept="video/*" aria-label="Upload a video file" class="w-full text-sm text-gray-700">
-                                <button id="video-upload-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg">Upload file</button>
+                            <div class="flex gap-2 items-center">
+                                <input id="video-file-input" type="file" accept="video/*" aria-label="Upload a video file" class="min-w-0 flex-1 text-xs text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700">
+                                <button id="video-upload-btn" class="shrink-0 px-3 py-1.5 text-xs font-semibold border border-gray-300 text-gray-700 rounded-md hover:border-primary-red hover:text-primary-red transition">Upload</button>
                             </div>
-                            <button id="video-submit-btn" class="w-full px-4 py-2 bg-primary-red text-white rounded-lg">Add to library</button>
+                            <button id="video-submit-btn" class="w-full px-3 py-2 text-sm font-semibold bg-primary-red text-white rounded-lg hover:bg-red-700 transition">Add to library</button>
                             <p id="video-upload-status" class="text-xs text-gray-500"></p>
                         </div>
                     </div>
@@ -396,8 +402,8 @@
                         <div>${meet}</div>
                         ${recs ? `<ul class="mt-2 space-y-1 border-t border-gray-100 pt-2">${recs}</ul>` : ''}
                         <div class="flex flex-wrap gap-2 pt-1">
-                            <button type="button" class="row-btn-outline text-xs schedule-meet-btn" data-request-id="${r.id}">Schedule lesson</button>
-                            <button type="button" class="row-btn-outline text-xs post-recording-btn" data-request-id="${r.id}">Post recording</button>
+                            <button type="button" class="row-btn-outline text-xs schedule-meet-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Schedule lesson</button>
+                            <button type="button" class="row-btn-outline text-xs post-recording-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Post recording</button>
                         </div>
                     </div>`;
             }).join('');
@@ -417,44 +423,285 @@
             });
 
             host.querySelectorAll('.schedule-meet-btn').forEach((btn) => {
-                btn.addEventListener('click', async () => {
-                    const local = prompt('Lesson date & time (YYYY-MM-DD HH:MM, your local time):', '');
-                    if (!local) return;
-                    const parsed = new Date(local.replace(' ', 'T'));
-                    if (Number.isNaN(parsed.getTime())) return showAlert('Could not read that date/time.', 'error');
-                    const mins = parseInt(prompt('Lesson length in minutes:', '60'), 10);
-                    if (!mins || mins <= 0) return showAlert('Invalid duration.', 'error');
-                    btn.disabled = true;
-                    try {
-                        const res = await fetch(`/api/assignments/${btn.dataset.requestId}/schedule`, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ startISO: parsed.toISOString(), durationMinutes: mins }),
-                        });
-                        const data = await res.json();
-                        if (!data.success) return showAlert(data.error || 'Could not schedule.', 'error');
-                        showAlert('Lesson scheduled - Meet link sent to your student.', 'success');
-                        loadTutorDashboardData();
-                    } catch (e) { showAlert('Could not schedule the lesson.', 'error'); }
-                    finally { btn.disabled = false; }
-                });
+                btn.addEventListener('click', () => openScheduleModal(btn.dataset.requestId, btn.dataset.studentName));
             });
 
             host.querySelectorAll('.post-recording-btn').forEach((btn) => {
-                btn.addEventListener('click', async () => {
-                    const url = prompt('Recording link (https://... or an uploaded /uploads/ path):', 'https://');
-                    if (!url) return;
-                    const title = prompt('Title for this recording:', 'Class recording') || 'Class recording';
-                    try {
-                        const res = await fetch(`/api/assignments/${btn.dataset.requestId}/recording`, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ recordingUrl: url, title }),
-                        });
-                        const data = await res.json();
-                        if (!data.success) return showAlert(data.error || 'Could not post recording.', 'error');
-                        showAlert('Recording posted to your student.', 'success');
-                        loadTutorDashboardData();
-                    } catch (e) { showAlert('Could not post the recording.', 'error'); }
-                });
+                btn.addEventListener('click', () => openRecordingModal(btn.dataset.requestId, btn.dataset.studentName));
+            });
+        }
+
+        function openModal(html) {
+            document.getElementById('action-modal-body').innerHTML = html;
+            document.getElementById('action-modal').classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('action-modal').classList.add('hidden');
+            document.getElementById('action-modal-body').innerHTML = '';
+        }
+        document.getElementById('action-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'action-modal') closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !document.getElementById('action-modal').classList.contains('hidden')) closeModal();
+        });
+
+        // A datetime-local input needs "YYYY-MM-DDTHH:MM" in *local* time -
+        // toISOString() would shift it by the timezone offset and silently
+        // schedule the lesson at the wrong hour.
+        function localDatetimeValue(date) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        }
+
+        function openScheduleModal(requestId, studentName) {
+            const start = new Date(Date.now() + 60 * 60 * 1000);
+            start.setMinutes(0, 0, 0);
+            openModal(`
+                <h3 class="text-lg font-bold text-gray-900 mb-1">Schedule a lesson</h3>
+                <p class="text-sm text-gray-500 mb-5">${studentName ? 'With ' + escapeHtml(studentName) + '. ' : ''}Creates a Google Calendar event with a Meet link and invites your student.</p>
+                <form id="schedule-form" class="space-y-4">
+                    <div>
+                        <label for="sched-when" class="block text-xs font-semibold text-gray-600 mb-1">Date &amp; time</label>
+                        <input id="sched-when" name="when" type="datetime-local" required
+                               value="${localDatetimeValue(start)}" min="${localDatetimeValue(new Date())}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label for="sched-mins" class="block text-xs font-semibold text-gray-600 mb-1">Length</label>
+                        <select id="sched-mins" name="mins" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="30">30 minutes</option>
+                            <option value="45">45 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="90">1 hour 30 minutes</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                    </div>
+                    <p id="sched-error" class="hidden text-xs text-red-600"></p>
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" id="sched-cancel" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                        <button type="submit" id="sched-submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold hover:bg-red-700">Schedule</button>
+                    </div>
+                </form>
+            `);
+
+            document.getElementById('sched-cancel').addEventListener('click', closeModal);
+            document.getElementById('schedule-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const err = document.getElementById('sched-error');
+                const submit = document.getElementById('sched-submit');
+                const when = document.getElementById('sched-when').value;
+                const mins = Number(document.getElementById('sched-mins').value);
+                const parsed = new Date(when);
+                if (!when || Number.isNaN(parsed.getTime())) {
+                    err.textContent = 'Pick a valid date and time.'; err.classList.remove('hidden'); return;
+                }
+                err.classList.add('hidden');
+                submit.disabled = true;
+                submit.textContent = 'Scheduling…';
+                try {
+                    const res = await fetch(`/api/assignments/${requestId}/schedule`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ startISO: parsed.toISOString(), durationMinutes: mins }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        err.textContent = data.error || 'Could not schedule.'; err.classList.remove('hidden');
+                        submit.disabled = false; submit.textContent = 'Schedule';
+                        return;
+                    }
+                    closeModal();
+                    showAlert('Lesson scheduled - Meet link sent to your student.', 'success');
+                    loadTutorDashboardData();
+                } catch (e2) {
+                    err.textContent = 'Could not schedule the lesson.'; err.classList.remove('hidden');
+                    submit.disabled = false; submit.textContent = 'Schedule';
+                }
+            });
+        }
+
+        function openLogSessionModal(requestId) {
+            openModal(`
+                <h3 class="text-lg font-bold text-gray-900 mb-1">Log a completed lesson</h3>
+                <p class="text-sm text-gray-500 mb-5">Payment is held in escrow and released once your student confirms the lesson happened.</p>
+                <form id="log-form" class="space-y-4">
+                    <div>
+                        <label for="log-mins" class="block text-xs font-semibold text-gray-600 mb-1">Lesson length</label>
+                        <select id="log-mins" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="30">30 minutes</option>
+                            <option value="45">45 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="90">1 hour 30 minutes</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="log-notes" class="block text-xs font-semibold text-gray-600 mb-1">Notes for your student <span class="font-normal text-gray-400">(optional)</span></label>
+                        <textarea id="log-notes" rows="3" placeholder="What you covered, what to practise…"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"></textarea>
+                    </div>
+                    <p id="log-error" class="hidden text-xs text-red-600"></p>
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" id="log-cancel" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                        <button type="submit" id="log-submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold hover:bg-red-700">Log lesson</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('log-cancel').addEventListener('click', closeModal);
+            document.getElementById('log-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const err = document.getElementById('log-error');
+                const submit = document.getElementById('log-submit');
+                submit.disabled = true; submit.textContent = 'Logging…';
+                try {
+                    const res = await fetch(`/api/assignments/${requestId}/sessions`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            durationMinutes: Number(document.getElementById('log-mins').value),
+                            teacherNotes: document.getElementById('log-notes').value.trim(),
+                        }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        err.textContent = data.error || 'Could not log session.'; err.classList.remove('hidden');
+                        submit.disabled = false; submit.textContent = 'Log lesson'; return;
+                    }
+                    closeModal();
+                    showAlert(`Lesson logged - $${data.session.totalUsd} held in escrow.`, 'success');
+                    loadTutorDashboardData();
+                } catch (e2) {
+                    err.textContent = 'Could not log session.'; err.classList.remove('hidden');
+                    submit.disabled = false; submit.textContent = 'Log lesson';
+                }
+            });
+        }
+
+        function openMeetingLinkModal(requestId) {
+            openModal(`
+                <h3 class="text-lg font-bold text-gray-900 mb-1">Set a meeting link</h3>
+                <p class="text-sm text-gray-500 mb-5">Use this for Zoom or any link you created yourself. To generate a Google Meet link automatically, use <strong>Schedule lesson</strong> instead.</p>
+                <form id="link-form" class="space-y-4">
+                    <div>
+                        <label for="link-url" class="block text-xs font-semibold text-gray-600 mb-1">Meeting link</label>
+                        <input id="link-url" type="url" required placeholder="https://…"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <p id="link-error" class="hidden text-xs text-red-600"></p>
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" id="link-cancel" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                        <button type="submit" id="link-submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold hover:bg-red-700">Save link</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('link-cancel').addEventListener('click', closeModal);
+            document.getElementById('link-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const err = document.getElementById('link-error');
+                const submit = document.getElementById('link-submit');
+                submit.disabled = true; submit.textContent = 'Saving…';
+                try {
+                    const res = await fetch(`/api/assignments/${requestId}/meeting-link`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ meetingLink: document.getElementById('link-url').value.trim() }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        err.textContent = data.error || 'Could not save link.'; err.classList.remove('hidden');
+                        submit.disabled = false; submit.textContent = 'Save link'; return;
+                    }
+                    closeModal();
+                    showAlert('Meeting link saved.', 'success');
+                    loadTutorDashboardData();
+                } catch (e2) {
+                    err.textContent = 'Could not save link.'; err.classList.remove('hidden');
+                    submit.disabled = false; submit.textContent = 'Save link';
+                }
+            });
+        }
+
+        function openRecordingModal(requestId, studentName) {
+            openModal(`
+                <h3 class="text-lg font-bold text-gray-900 mb-1">Post a class recording</h3>
+                <p class="text-sm text-gray-500 mb-5">${studentName ? 'Shared with ' + escapeHtml(studentName) + '. ' : ''}Upload the file or paste a link.</p>
+                <form id="recording-form" class="space-y-4">
+                    <div>
+                        <label for="rec-title" class="block text-xs font-semibold text-gray-600 mb-1">Title</label>
+                        <input id="rec-title" type="text" value="Class recording" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label for="rec-file" class="block text-xs font-semibold text-gray-600 mb-1">Upload a video</label>
+                        <div class="flex gap-2 items-center">
+                            <input id="rec-file" type="file" accept="video/*"
+                                   class="min-w-0 flex-1 text-xs text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700">
+                            <button type="button" id="rec-upload" class="shrink-0 px-3 py-1.5 text-xs font-semibold border border-gray-300 text-gray-700 rounded-md hover:border-primary-red hover:text-primary-red">Upload</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] uppercase tracking-wider text-gray-400">
+                        <span class="flex-1 h-px bg-gray-200"></span>or<span class="flex-1 h-px bg-gray-200"></span>
+                    </div>
+                    <div>
+                        <label for="rec-url" class="block text-xs font-semibold text-gray-600 mb-1">Paste a link</label>
+                        <input id="rec-url" type="url" placeholder="https://…"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <p id="rec-status" class="hidden text-xs"></p>
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" id="rec-cancel-btn" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                        <button type="submit" id="rec-submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold hover:bg-red-700">Post</button>
+                    </div>
+                </form>
+            `);
+
+            const status = document.getElementById('rec-status');
+            const setStatus = (msg, kind) => {
+                status.textContent = msg;
+                status.className = `text-xs ${kind === 'error' ? 'text-red-600' : 'text-green-600'}`;
+                status.classList.toggle('hidden', !msg);
+            };
+
+            document.getElementById('rec-cancel-btn').addEventListener('click', closeModal);
+
+            document.getElementById('rec-upload').addEventListener('click', async () => {
+                const file = document.getElementById('rec-file').files[0];
+                if (!file) return setStatus('Choose a video file first.', 'error');
+                setStatus('Uploading…');
+                const body = new FormData();
+                body.append('video', file);
+                try {
+                    const res = await fetch('/api/library/upload', { method: 'POST', body });
+                    const data = await res.json();
+                    if (!data.success) return setStatus(data.error || 'Upload failed.', 'error');
+                    document.getElementById('rec-url').value = data.url;
+                    setStatus('Uploaded - press Post to share it.');
+                } catch (e) { setStatus('Upload failed.', 'error'); }
+            });
+
+            document.getElementById('recording-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const url = document.getElementById('rec-url').value.trim();
+                const title = document.getElementById('rec-title').value.trim() || 'Class recording';
+                if (!url) return setStatus('Upload a file or paste a link first.', 'error');
+                const submit = document.getElementById('rec-submit');
+                submit.disabled = true; submit.textContent = 'Posting…';
+                try {
+                    const res = await fetch(`/api/assignments/${requestId}/recording`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ recordingUrl: url, title }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        setStatus(data.error || 'Could not post recording.', 'error');
+                        submit.disabled = false; submit.textContent = 'Post';
+                        return;
+                    }
+                    closeModal();
+                    showAlert('Recording posted to your student.', 'success');
+                    loadTutorDashboardData();
+                } catch (e2) {
+                    setStatus('Could not post the recording.', 'error');
+                    submit.disabled = false; submit.textContent = 'Post';
+                }
             });
         }
 
@@ -509,32 +756,10 @@
                         `).join('');
                     // wire session buttons
                     sessionsEl.querySelectorAll('.log-session-btn').forEach((btn) => {
-                        btn.addEventListener('click', async () => {
-                            const reqId = btn.dataset.requestId; const sessionId = btn.dataset.sessionId;
-                            const minutes = parseInt(prompt('Lesson duration in minutes (e.g. 60):', '60'), 10);
-                            if (!minutes || minutes <= 0) return showAlert('Invalid duration.', 'error');
-                            try {
-                                const res = await fetch(`/api/assignments/${reqId}/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ durationMinutes: minutes, teacherNotes: '' }) });
-                                const data = await res.json();
-                                if (!data.success) return showAlert(data.error || 'Could not log session.', 'error');
-                                showAlert('Session logged.', 'success');
-                                loadTutorDashboardData();
-                            } catch (e) { showAlert('Could not log session.', 'error'); }
-                        });
+                        btn.addEventListener('click', () => openLogSessionModal(btn.dataset.requestId));
                     });
                     sessionsEl.querySelectorAll('.set-meeting-btn').forEach((btn) => {
-                        btn.addEventListener('click', async () => {
-                            const reqId = btn.dataset.requestId;
-                            const link = prompt('Meeting link (https://):', 'https://');
-                            if (!link) return;
-                            try {
-                                const res = await fetch(`/api/assignments/${reqId}/meeting-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetingLink: link }) });
-                                const data = await res.json();
-                                if (!data.success) return showAlert(data.error || 'Could not set meeting link.', 'error');
-                                showAlert('Meeting link saved.', 'success');
-                                loadTutorDashboardData();
-                            } catch (e) { showAlert('Could not set meeting link.', 'error'); }
-                        });
+                        btn.addEventListener('click', () => openMeetingLinkModal(btn.dataset.requestId));
                     });
                 }
 
