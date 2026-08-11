@@ -1637,7 +1637,19 @@ app.post('/api/assignments/:id/schedule', requireApprovedTutorApi, async (req, r
     const { eventId, meetLink } = await googleCalendar.createLessonEvent({
       refreshToken: cal.refreshToken,
       summary: `${record.category} lesson with ${req.tutorProfile.name}`,
-      description: `Mozart Techniques ${record.category} lesson.\nTutor: ${req.tutorProfile.name}\nStudent: ${record.studentName}`,
+      // The host-management note is in the invite body because it's the
+      // one place the tutor reliably looks right before the lesson. Meet
+      // leaves that toggle off by default on personal accounts, which hands
+      // every participant host controls - not what you want in a class,
+      // particularly one with a minor in it.
+      description: [
+        `Mozart Techniques ${record.category} lesson.`,
+        `Tutor: ${req.tutorProfile.name}`,
+        `Student: ${record.studentName}`,
+        '',
+        'Tutors: after joining, open Host controls (shield icon) and turn on',
+        '"Host management" so only you can mute, remove or admit participants.',
+      ].join('\n'),
       startISO,
       durationMinutes: Number(durationMinutes) || 60,
       attendeeEmails: [record.studentEmail, user.email],

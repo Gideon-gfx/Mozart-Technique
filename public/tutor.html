@@ -426,6 +426,12 @@
                         <strong>${account}</strong> — joining from another Google account puts you in as a guest.
                     </p>
                 </div>
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900 leading-snug">
+                    <p class="font-semibold mb-1"><i class="fa-solid fa-shield-halved mr-1"></i>Turn on Host management in the call</p>
+                    <p>Google Meet leaves host management <strong>off</strong> by default on personal accounts, which gives
+                    every participant host controls. In the call, open <strong>Host controls</strong> (shield icon) and switch
+                    <strong>Host management</strong> on — then only you can mute, remove or admit people.</p>
+                </div>
                 ${rows || '<p class="text-gray-500 text-sm mt-3">No active students to schedule with yet.</p>'}`;
 
             document.getElementById('calendar-disconnect-btn').addEventListener('click', async () => {
