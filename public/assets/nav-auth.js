@@ -108,7 +108,7 @@
         <div class="mt-auth-menu" data-mt-menu>
           <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
-          <a href="/dashboard#messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
+          <a href="/messages" target="_blank" rel="noopener" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${adminLink}
           ${tutorLink}
           <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
@@ -154,7 +154,7 @@
         // With exactly one unread thread, send them straight into it
         // instead of to the dashboard to hunt for it.
         if (link && data.threads && data.threads.length === 1) {
-          link.href = `/chat/${data.threads[0].assignmentId}`;
+          link.href = `/messages/chat/${data.threads[0].assignmentId}`;
         }
       } catch (e) { /* offline - leave the badge as-is */ }
     }

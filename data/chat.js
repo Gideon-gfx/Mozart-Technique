@@ -27,7 +27,12 @@ function listForAssignment(assignmentId) {
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 }
 
-function send(assignmentId, { senderId, senderRole, text, libraryItem }) {
+// `attachment` is a file the sender uploaded through /api/chat/upload:
+// { url, name, mime, size, kind } where kind is 'image' | 'video' | 'audio'
+// | 'file'. The kind is resolved once at send time so the client can pick a
+// renderer (inline image, <video>, voice-note player, download link)
+// without re-sniffing the mime type on every render.
+function send(assignmentId, { senderId, senderRole, text, libraryItem, attachment }) {
   const db = load();
   const message = {
     id: db.nextId++,
@@ -36,6 +41,15 @@ function send(assignmentId, { senderId, senderRole, text, libraryItem }) {
     senderRole, // 'student' | 'tutor'
     text: text || '',
     libraryItem: libraryItem ? { id: libraryItem.id, title: libraryItem.title, url: libraryItem.url } : null,
+    attachment: attachment
+      ? {
+        url: attachment.url,
+        name: attachment.name || 'attachment',
+        mime: attachment.mime || '',
+        size: attachment.size || 0,
+        kind: attachment.kind || 'file',
+      }
+      : null,
     createdAt: new Date().toISOString(),
     readByStudent: senderRole === 'student',
     readByTutor: senderRole === 'tutor',

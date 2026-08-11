@@ -87,6 +87,34 @@ const videoUpload = multer({
   },
 });
 
+// Chat attachments: documents, images, video clips, camera captures and
+// voice notes all land here. Deliberately permissive on type (it's a file
+// people send each other) but hard-blocks the handful of extensions a
+// browser or OS might execute if someone opened one, since these are served
+// back from our own origin.
+const CHAT_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'chat');
+fs.mkdirSync(CHAT_UPLOAD_DIR, { recursive: true });
+
+const BLOCKED_UPLOAD_EXT = new Set([
+  '.html', '.htm', '.svg', '.xhtml', // render as markup on our origin
+  '.js', '.mjs', '.php', '.jsp', '.asp', '.aspx',
+  '.exe', '.bat', '.cmd', '.com', '.msi', '.scr', '.ps1', '.sh',
+]);
+
+const chatUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, CHAT_UPLOAD_DIR),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (req, file, cb) => {
+    if (BLOCKED_UPLOAD_EXT.has(path.extname(file.originalname).toLowerCase())) {
+      return cb(new Error('That file type is not allowed.'));
+    }
+    cb(null, true);
+  },
+});
+
 const CERT_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'certificates');
 fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
 
@@ -128,7 +156,7 @@ const photoUpload = multer({
 const GATED_HTML_FILES = [
   '/dashboard.html', '/admin.html', '/become-tutor.html', '/become-sponsor.html',
   '/orientation.html', '/tutor-evaluation.html',
-  '/chat.html', '/library.html',
+  '/chat.html', '/library.html', '/messages.html',
 ];
 app.use((req, res, next) => {
   if (GATED_HTML_FILES.includes(req.path.toLowerCase())) {
@@ -399,16 +427,26 @@ app.get('/student/:slug', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'student.html'));
 });
 
+// The conversation list - everyone you're matched with, like opening a
+// messaging app before picking a thread.
+app.get('/messages', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'messages.html'));
+});
+
 // Chat only opens for the two participants on the assignment.
-app.get('/chat/:id', requireAuthPage, (req, res) => {
+function serveChatPage(req, res) {
   const user = currentUser(req);
   const record = assignments.findById(req.params.id);
-  if (!record) return res.redirect('/dashboard');
+  if (!record) return res.redirect('/messages');
   const tutorProfile = tutors.findByUserId(user.id);
   const isParticipant = record.studentId === user.id || (tutorProfile && record.tutorId === tutorProfile.id);
-  if (!isParticipant) return res.redirect('/dashboard');
+  if (!isParticipant) return res.redirect('/messages');
   res.sendFile(path.join(PUBLIC_DIR, 'chat.html'));
-});
+}
+
+app.get('/messages/chat/:id', requireAuthPage, serveChatPage);
+// Kept so older links (notifications, emails already sent) still work.
+app.get('/chat/:id', requireAuthPage, serveChatPage);
 
 app.get('/library', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
@@ -1707,18 +1745,60 @@ app.get('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   res.json({ success: true, messages: chat.listForAssignment(record.id), role });
 });
 
+// Uploads a chat attachment and returns its URL - the caller then sends a
+// normal message referencing it, so an abandoned upload never becomes a
+// half-sent message in the thread.
+app.post('/api/chat/upload', requireAuthApi, (req, res) => {
+  chatUpload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 50MB).' : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to send.' });
+
+    const mime = req.file.mimetype || '';
+    const kind = mime.startsWith('image/') ? 'image'
+      : mime.startsWith('video/') ? 'video'
+        : mime.startsWith('audio/') ? 'audio' : 'file';
+
+    res.json({
+      success: true,
+      attachment: {
+        url: `/uploads/chat/${req.file.filename}`,
+        name: req.file.originalname,
+        mime,
+        size: req.file.size,
+        kind,
+      },
+    });
+  });
+});
+
 app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const record = assignments.findById(req.params.id);
   const role = assignmentParticipantRole(user, record);
   if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
 
-  const { text, libraryItemId } = req.body || {};
-  if ((!text || !text.trim()) && !libraryItemId) {
-    return res.status(400).json({ success: false, error: 'Message text or a tagged clip is required.' });
+  const { text, libraryItemId, attachment } = req.body || {};
+  if ((!text || !text.trim()) && !libraryItemId && !attachment) {
+    return res.status(400).json({ success: false, error: 'Message text, a file, or a tagged clip is required.' });
   }
+  // Only accept an attachment that points at our own upload directory -
+  // otherwise this field would let anyone render an arbitrary URL inside
+  // someone else's thread.
+  let safeAttachment = null;
+  if (attachment && typeof attachment.url === 'string' && attachment.url.startsWith('/uploads/chat/')) {
+    safeAttachment = attachment;
+  } else if (attachment) {
+    return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  }
+
   const libraryItem = libraryItemId ? reels.findById(libraryItemId) : null;
-  const message = chat.send(record.id, { senderId: user.id, senderRole: role, text: (text || '').trim(), libraryItem });
+  const message = chat.send(record.id, {
+    senderId: user.id, senderRole: role, text: (text || '').trim(), libraryItem, attachment: safeAttachment,
+  });
 
   const recipientId = role === 'student' ? tutors.findById(record.tutorId).userId : record.studentId;
   store.addNotification(recipientId, { type: 'chat', message: `New message from ${user.name} about your ${record.category} lesson.` });
@@ -1732,7 +1812,12 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   if (!realtime.isWatching(record.id, recipientId)) {
     const recipient = store.findById(recipientId);
     if (recipient && recipient.email) {
-      const preview = (text || '').trim() || (libraryItem ? `Shared a clip: ${libraryItem.title}` : 'Sent you a message');
+      const attachmentLabel = safeAttachment
+        ? ({ image: 'Sent a photo', video: 'Sent a video', audio: 'Sent a voice note' }[safeAttachment.kind] || `Sent a file: ${safeAttachment.name}`)
+        : null;
+      const preview = (text || '').trim()
+        || attachmentLabel
+        || (libraryItem ? `Shared a clip: ${libraryItem.title}` : 'Sent you a message');
       mailer.sendMail({
         to: recipient.email,
         subject: `New message from ${user.name} - ${record.category}`,
@@ -1746,6 +1831,61 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
 
 // Total unread messages across every thread this user is part of - drives
 // the unread badge in the nav.
+// Every conversation this user is part of, newest activity first - the
+// WhatsApp-style list behind /messages. A tutor sees the students matched
+// to them; a student sees the tutors they've been matched with. Pending
+// (unmatched) requests are excluded because there's nobody to talk to yet.
+app.get('/api/conversations', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutorProfile = tutors.findByUserId(user.id);
+
+  const conversations = assignments.listAll()
+    .map((record) => {
+      const role = record.studentId === user.id
+        ? 'student'
+        : (tutorProfile && record.tutorId === tutorProfile.id ? 'tutor' : null);
+      if (!role || !record.tutorId) return null;
+
+      // The other person, from this user's point of view.
+      let name;
+      let photoUrl = null;
+      if (role === 'student') {
+        const theirTutor = tutors.findById(record.tutorId);
+        name = record.tutorName;
+        photoUrl = theirTutor ? theirTutor.photoUrl || null : null;
+      } else {
+        const theirStudent = store.findById(record.studentId);
+        name = record.studentName;
+        photoUrl = theirStudent ? theirStudent.photoUrl || null : null;
+      }
+
+      const messages = chat.listForAssignment(record.id);
+      const last = messages[messages.length - 1] || null;
+      const lastLabel = last
+        ? (last.text
+          || ({ image: 'Photo', video: 'Video', audio: 'Voice note' }[last.attachment && last.attachment.kind] || (last.attachment ? last.attachment.name : ''))
+          || (last.libraryItem ? `Clip: ${last.libraryItem.title}` : ''))
+        : '';
+
+      return {
+        assignmentId: record.id,
+        role,
+        name,
+        photoUrl,
+        category: record.category,
+        status: record.status,
+        lessonType: record.lessonType,
+        lastMessage: lastLabel,
+        lastAt: last ? last.createdAt : (record.assignedAt || record.createdAt),
+        unread: chat.unreadCountForRole(record.id, role),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
+
+  res.json({ success: true, conversations });
+});
+
 app.get('/api/messages/unread-count', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const tutorProfile = tutors.findByUserId(user.id);

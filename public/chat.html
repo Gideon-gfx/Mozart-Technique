@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat - Mozart Techniques</title>
-    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,12 +14,173 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="assets/redesign.css">
-    <link rel="stylesheet" href="assets/site.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="stylesheet" href="/assets/site.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
-        .chat-body { height: calc(100vh - 220px); min-height: 300px; }
-        .bubble { max-width: 78%; }
+        body { font-family: 'Montserrat', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        .chat-body { height: calc(100vh - 290px); min-height: 260px; }
+
+        .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .brand img { width: 36px; height: 36px; border-radius: 12px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .brand span { font-family: 'Science Gothic', sans-serif; font-weight: 700; font-size: 1.15rem; color: #333; letter-spacing: .03em; }
+
+        /* In-page camera. A file input's capture attribute only does
+           anything on mobile - desktop browsers ignore it and fall back to a
+           file picker, which is why "take a photo" appeared to do nothing.
+           getUserMedia works on both. */
+        .cam-modal {
+            position: fixed; inset: 0; z-index: 80;
+            background: rgba(0,0,0,.75);
+            display: grid; place-items: center;
+            padding: 16px;
+        }
+        .cam-inner { background: #111; border-radius: 16px; overflow: hidden; max-width: 460px; width: 100%; }
+        .cam-inner video { width: 100%; display: block; background: #000; max-height: 60vh; }
+        .cam-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; }
+        .cam-actions button { border: none; background: none; color: #ddd; font-size: .85rem; font-weight: 600; cursor: pointer; }
+        .cam-shutter {
+            width: 52px; height: 52px; border-radius: 999px;
+            background: #cc0000; color: #fff !important; font-size: 1.05rem !important;
+            display: grid; place-items: center;
+        }
+
+        /* Bubbles hug their text: just enough padding to clear the glyphs,
+           with the timestamp inline at the end of the last line rather than
+           on its own row, which is what made them look oversized. */
+        .bubble {
+            max-width: 76%;
+            padding: 6px 12px;
+            /* Fully curved on every corner - a short message reads as a
+               pill, a long one keeps the same soft edge as it wraps. */
+            border-radius: 18px;
+            font-size: 13.5px;
+            line-height: 1.35;
+        }
+        .bubble p { margin: 0; }
+        .bubble .stamp {
+            font-size: 9.5px;
+            line-height: 1;
+            margin-left: 6px;
+            float: right;
+            position: relative;
+            top: 5px;
+            opacity: .75;
+            white-space: nowrap;
+        }
+
+        /* --- Composer -------------------------------------------------- */
+        .composer {
+            border-top: 1px solid #eee;
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .composer-bar {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 0 6px;
+            background: #f4f4f5;
+            border: 1px solid #e6e6e8;
+            border-radius: 999px;
+        }
+        .composer-input {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            background: transparent;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 13.5px;
+            line-height: 1.35;
+            padding: 8px 4px;
+            max-height: 96px;
+        }
+        .composer-icon {
+            flex-shrink: 0;
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border: none;
+            background: none;
+            border-radius: 999px;
+            color: #8a8a8f;
+            font-size: 14px;
+            cursor: pointer;
+            transition: color .15s ease, background-color .15s ease;
+        }
+        .composer-icon:hover { color: #cc0000; background: rgba(204,0,0,.07); }
+        .composer-send {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: none;
+            background: #cc0000;
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color .15s ease, transform .1s ease;
+        }
+        .composer-send:hover { background: #a30000; }
+        .composer-send:active { transform: scale(.94); }
+        .composer-send.recording { background: #17130f; animation: recPulse 1.2s ease-in-out infinite; }
+        @keyframes recPulse { 50% { opacity: .55; } }
+
+        .emoji-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            padding: 8px 12px 10px;
+            border-top: 1px solid #f0f0f0;
+            max-height: 168px;
+            overflow-y: auto;
+        }
+        .emoji-panel button {
+            width: 32px; height: 32px;
+            border: none; background: none;
+            font-size: 19px; line-height: 1;
+            border-radius: 8px; cursor: pointer;
+        }
+        .emoji-panel button:hover { background: #f2f2f2; }
+
+        .attach-preview {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 12px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 12px; color: #555;
+        }
+        .attach-preview img { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
+        .attach-preview .drop { margin-left: auto; border: none; background: none; color: #999; cursor: pointer; font-size: 14px; }
+
+        .recording-bar {
+            display: flex; align-items: center; gap: 9px;
+            padding: 8px 12px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 12.5px; color: #444;
+        }
+        .rec-dot { width: 9px; height: 9px; border-radius: 999px; background: #cc0000; animation: recPulse 1s ease-in-out infinite; }
+        .rec-cancel, .rec-send { margin-left: auto; border: none; background: none; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+        .rec-cancel { color: #888; }
+        .rec-send { color: #cc0000; margin-left: 0; }
+
+        /* Attachments inside a bubble */
+        .att-img { max-width: 200px; border-radius: 9px; display: block; margin-top: 3px; cursor: pointer; }
+        .att-video { max-width: 220px; border-radius: 9px; display: block; margin-top: 3px; }
+        .att-audio { height: 34px; margin-top: 3px; max-width: 210px; }
+        .att-file {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-top: 3px; padding: 5px 8px;
+            border-radius: 8px; background: rgba(0,0,0,.07);
+            font-size: 12px; text-decoration: none;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
@@ -30,32 +191,75 @@
     </div>
 
     <header class="sticky top-0 z-50 bg-white shadow-sm">
-        <nav class="max-w-3xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-            <a href="/dashboard" class="text-gray-500 hover:text-primary-red transition"><i class="fa-solid fa-arrow-left text-lg"></i></a>
-            <div class="text-center">
-                <p id="chat-name" class="font-bold text-gray-800 leading-tight">Loading...</p>
-                <p id="chat-subject" class="text-xs text-gray-400"></p>
+        <nav class="max-w-3xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-3">
+            <a href="/home" class="brand">
+                <img src="/mozartLogo.jpg" alt="Mozart Techniques logo">
+                <span>Mozart Techniques</span>
+            </a>
+            <div class="flex items-center gap-3">
+                <a href="/messages" class="text-sm font-semibold text-gray-500 hover:text-primary-red transition">Messages</a>
+                <div id="auth-state"></div>
             </div>
-            <div class="w-5"></div>
         </nav>
     </header>
+
+    <!-- Who you're talking to, directly above the thread -->
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-4">
+        <div class="flex items-center gap-3">
+            <a href="/messages" title="Back to messages" class="text-gray-400 hover:text-primary-red transition shrink-0">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <img id="chat-avatar" src="/mozartLogo.jpg" alt="" class="w-9 h-9 rounded-full object-cover shrink-0">
+            <div class="min-w-0">
+                <p id="chat-name" class="font-bold text-gray-800 leading-tight truncate">Loading...</p>
+                <p id="chat-subject" class="text-xs text-gray-400 truncate"></p>
+            </div>
+        </div>
+    </div>
 
     <main class="max-w-3xl mx-auto px-4 sm:px-6 py-4">
         <div class="bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
             <div id="chat-body" class="chat-body overflow-y-auto p-4 space-y-3"></div>
             <p id="typing-indicator" class="hidden px-4 pb-1 text-xs text-gray-400 italic" aria-live="polite"></p>
 
-            <div id="library-panel" class="hidden border-t border-gray-100 p-3 max-h-40 overflow-y-auto"></div>
 
-            <form id="compose-form" class="border-t border-gray-200 p-3 flex items-end gap-2">
-                <button type="button" id="library-toggle-btn" title="Tag a library clip" class="shrink-0 w-11 h-11 rounded-full border border-gray-300 text-gray-500 hover:border-primary-red hover:text-primary-red transition flex items-center justify-center">
-                    <i class="fa-solid fa-clapperboard"></i>
+            <form id="compose-form" class="composer">
+                <!-- Slim pill bar: attachments live inside it, the mic/send
+                     button sits outside on the right. -->
+                <div class="composer-bar">
+                    <button type="button" id="attach-doc-btn" title="Attach a document" class="composer-icon">
+                        <i class="fa-regular fa-file-lines"></i>
+                    </button>
+                    <textarea id="message-input" rows="1" placeholder="Message" class="composer-input"></textarea>
+                    <button type="button" id="emoji-btn" title="Emoji" class="composer-icon">
+                        <i class="fa-regular fa-face-smile"></i>
+                    </button>
+                    <button type="button" id="attach-media-btn" title="Photo or video" class="composer-icon">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+                    <button type="button" id="camera-btn" title="Take a photo" class="composer-icon">
+                        <i class="fa-solid fa-camera"></i>
+                    </button>
+                </div>
+                <button type="submit" id="send-btn" title="Hold to record a voice note" class="composer-send">
+                    <i id="send-icon" class="fa-solid fa-microphone"></i>
                 </button>
-                <textarea id="message-input" rows="1" placeholder="Message..." class="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-red"></textarea>
-                <button type="submit" class="shrink-0 w-11 h-11 rounded-full bg-primary-red text-white hover:bg-red-700 transition flex items-center justify-center">
-                    <i class="fa-solid fa-paper-plane"></i>
-                </button>
+
+                <!-- Hidden pickers driven by the buttons above -->
+                <input type="file" id="doc-input" class="hidden" aria-hidden="true"
+                       accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip">
+                <input type="file" id="media-input" class="hidden" aria-hidden="true" accept="image/*,video/*">
+                <input type="file" id="camera-input" class="hidden" aria-hidden="true" accept="image/*" capture="environment">
             </form>
+
+            <div id="emoji-panel" class="emoji-panel hidden"></div>
+            <div id="attach-preview" class="attach-preview hidden"></div>
+            <div id="recording-bar" class="recording-bar hidden">
+                <span class="rec-dot"></span>
+                <span>Recording <span id="rec-time">0:00</span></span>
+                <button type="button" id="rec-cancel" class="rec-cancel">Cancel</button>
+                <button type="button" id="rec-send" class="rec-send">Send</button>
+            </div>
         </div>
     </main>
 
@@ -85,16 +289,20 @@
             .then((d) => { if (d.user) myName = (d.user.name || '').split(' ')[0]; })
             .catch(() => { /* indicator falls back to "They" */ });
 
+        // Uses the same conversations feed as /messages, so the name, photo
+        // and subject shown here match the list exactly.
         async function loadCounterpart() {
-            const res = await fetch('/api/my-assignments');
-            const data = await res.json();
+            let data;
+            try { data = await fetch('/api/conversations').then((r) => r.json()); } catch (e) { return; }
             if (!data.success) return;
-            const record = [...(data.asStudent || []), ...(data.asTutor || [])].find((r) => String(r.id) === String(assignmentId));
-            if (!record) return;
-            const isStudent = (data.asStudent || []).some((r) => String(r.id) === String(assignmentId));
-            document.getElementById('chat-name').textContent = isStudent ? record.tutorName : record.studentName;
-            document.getElementById('chat-subject').textContent = record.category;
-            return record.category;
+            const convo = (data.conversations || []).find((c) => String(c.assignmentId) === String(assignmentId));
+            if (!convo) return;
+            document.getElementById('chat-name').textContent = convo.name || 'Conversation';
+            document.getElementById('chat-subject').textContent = `${convo.category || ''}${convo.lessonType ? ' · ' + convo.lessonType : ''}`;
+            const avatar = document.getElementById('chat-avatar');
+            if (convo.photoUrl) avatar.src = convo.photoUrl;
+            else avatar.style.display = 'none';
+            return convo.category;
         }
 
         function messageBubbleHtml(m) {
@@ -102,12 +310,28 @@
             const clip = m.libraryItem
                 ? `<a href="${escapeHtml(m.libraryItem.url)}" target="_blank" class="block mt-1.5 text-xs font-semibold ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>@${escapeHtml(m.libraryItem.title)}</a>`
                 : '';
+            const a = m.attachment;
+            let attachmentHtml = '';
+            if (a) {
+                const url = escapeHtml(a.url);
+                const name = escapeHtml(a.name || 'file');
+                if (a.kind === 'image') {
+                    attachmentHtml = `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${name}" class="att-img"></a>`;
+                } else if (a.kind === 'video') {
+                    attachmentHtml = `<video src="${url}" controls preload="metadata" class="att-video"></video>`;
+                } else if (a.kind === 'audio') {
+                    attachmentHtml = `<audio src="${url}" controls preload="metadata" class="att-audio"></audio>`;
+                } else {
+                    attachmentHtml = `<a href="${url}" target="_blank" rel="noopener" download class="att-file ${mine ? 'text-white' : 'text-gray-700'}"><i class="fa-regular fa-file-lines"></i>${name}</a>`;
+                }
+            }
+            const stamp = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             return `
                 <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
-                    <div class="bubble rounded-2xl px-4 py-2.5 ${mine ? 'bg-primary-red text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'}">
-                        ${m.text ? `<p class="text-sm whitespace-pre-wrap">${escapeHtml(m.text)}</p>` : ''}
+                    <div class="bubble ${mine ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-800'}">
+                        ${attachmentHtml}
+                        ${m.text ? `<p class="whitespace-pre-wrap">${escapeHtml(m.text)}<span class="stamp">${stamp}</span></p>` : `<span class="stamp" style="float:none;top:0;display:block;margin:2px 0 0">${stamp}</span>`}
                         ${clip}
-                        <p class="text-[10px] mt-1 ${mine ? 'text-red-100' : 'text-gray-400'}">${new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                 </div>
             `;
@@ -128,59 +352,273 @@
             if (scroll !== false) body.scrollTop = body.scrollHeight;
         }
 
-        async function loadLibrary(category) {
-            const res = await fetch(`/api/library?category=${encodeURIComponent(category)}`);
-            const data = await res.json();
-            const panel = document.getElementById('library-panel');
-            if (!data.success || !data.items.length) {
-                panel.innerHTML = '<p class="text-xs text-gray-400 p-2">No library clips for this subject yet.</p>';
-                return;
-            }
-            panel.innerHTML = data.items.map((item) => `
-                <button type="button" class="library-pick-btn w-full text-left px-2 py-1.5 rounded hover:bg-gray-50 text-sm text-gray-700" data-id="${item.id}" data-title="${escapeHtml(item.title)}">
-                    <i class="fa-solid fa-clapperboard text-primary-red mr-2"></i>${escapeHtml(item.title)}
-                </button>
-            `).join('');
-            panel.querySelectorAll('.library-pick-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    pickedLibraryItem = { id: Number(btn.dataset.id), title: btn.dataset.title };
-                    document.getElementById('message-input').value += `${document.getElementById('message-input').value ? ' ' : ''}@${btn.dataset.title}`;
-                    document.getElementById('library-panel').classList.add('hidden');
-                    document.getElementById('message-input').focus();
-                });
+
+        // --- Composer ---------------------------------------------------
+        const input = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sendIcon = document.getElementById('send-icon');
+        let pendingAttachment = null;
+
+        // The trailing button is a microphone until there's something to
+        // send, then it becomes the send button - so one control covers both
+        // without taking extra width in a slim bar.
+        function refreshSendButton() {
+            const hasContent = Boolean(input.value.trim()) || Boolean(pendingAttachment);
+            sendIcon.className = hasContent ? 'fa-solid fa-paper-plane' : 'fa-solid fa-microphone';
+            sendBtn.title = hasContent ? 'Send' : 'Record a voice note';
+        }
+
+        function autoGrow() {
+            input.style.height = 'auto';
+            input.style.height = `${Math.min(input.scrollHeight, 96)}px`;
+        }
+
+        input.addEventListener('input', () => { refreshSendButton(); autoGrow(); });
+
+        function showAttachPreview() {
+            const box = document.getElementById('attach-preview');
+            if (!pendingAttachment) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            const thumb = pendingAttachment.kind === 'image'
+                ? `<img src="${escapeHtml(pendingAttachment.url)}" alt="">`
+                : `<i class="fa-solid ${pendingAttachment.kind === 'video' ? 'fa-film' : pendingAttachment.kind === 'audio' ? 'fa-microphone' : 'fa-file-lines'} text-gray-400"></i>`;
+            box.innerHTML = `${thumb}<span>${escapeHtml(pendingAttachment.name)}</span>
+                <button type="button" class="drop" title="Remove attachment"><i class="fa-solid fa-xmark"></i></button>`;
+            box.classList.remove('hidden');
+            box.querySelector('.drop').addEventListener('click', () => {
+                pendingAttachment = null; showAttachPreview(); refreshSendButton();
             });
         }
 
-        document.getElementById('library-toggle-btn').addEventListener('click', () => {
-            document.getElementById('library-panel').classList.toggle('hidden');
+        async function uploadFile(file) {
+            if (!file) return;
+            const body = new FormData();
+            body.append('file', file);
+            try {
+                const res = await fetch('/api/chat/upload', { method: 'POST', body });
+                const data = await res.json();
+                if (!data.success) return showAlert(data.error || 'Upload failed.', 'error');
+                pendingAttachment = data.attachment;
+                showAttachPreview();
+                refreshSendButton();
+            } catch (e) {
+                showAlert('Upload failed.', 'error');
+            }
+        }
+
+        // Each button just opens its matching hidden picker. Using the file
+        // input's own capture attribute for the camera means the OS camera
+        // app handles it, which works on phones without any getUserMedia
+        // permission dance; desktops fall back to a normal file chooser.
+        [['attach-doc-btn', 'doc-input'], ['attach-media-btn', 'media-input']]
+            .forEach(([btnId, inputId]) => {
+                const picker = document.getElementById(inputId);
+                document.getElementById(btnId).addEventListener('click', () => picker.click());
+                picker.addEventListener('change', () => { uploadFile(picker.files[0]); picker.value = ''; });
+            });
+
+        // --- Camera -------------------------------------------------------
+        // Opens a live preview and grabs a frame, rather than relying on the
+        // file input's capture attribute, which desktop browsers ignore.
+        // Falls back to that input if the camera can't be opened at all.
+        const cameraInput = document.getElementById('camera-input');
+        cameraInput.addEventListener('change', () => { uploadFile(cameraInput.files[0]); cameraInput.value = ''; });
+
+        let camStream = null;
+
+        function closeCamera() {
+            if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+            const modal = document.getElementById('cam-modal');
+            if (modal) modal.remove();
+        }
+
+        async function openCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return cameraInput.click(); // very old browser - use the OS picker
+            }
+            try {
+                camStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }, audio: false,
+                });
+            } catch (err) {
+                // Denied, no camera, or blocked by an insecure origin. On
+                // phones the capture input still reaches the camera app, so
+                // it's a genuinely useful fallback rather than a dead end.
+                if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+                    showAlert('Camera permission is needed to take a photo.', 'error');
+                    return;
+                }
+                return cameraInput.click();
+            }
+
+            const modal = document.createElement('div');
+            modal.id = 'cam-modal';
+            modal.className = 'cam-modal';
+            modal.innerHTML = `
+                <div class="cam-inner">
+                    <video id="cam-video" autoplay playsinline muted></video>
+                    <div class="cam-actions">
+                        <button type="button" id="cam-cancel">Cancel</button>
+                        <button type="button" id="cam-shot" class="cam-shutter" title="Take photo"><i class="fa-solid fa-camera"></i></button>
+                        <button type="button" id="cam-flip" title="Switch camera"><i class="fa-solid fa-camera-rotate"></i></button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            const video = document.getElementById('cam-video');
+            video.srcObject = camStream;
+
+            document.getElementById('cam-cancel').addEventListener('click', closeCamera);
+            modal.addEventListener('click', (e) => { if (e.target === modal) closeCamera(); });
+
+            document.getElementById('cam-flip').addEventListener('click', async () => {
+                const current = camStream.getVideoTracks()[0].getSettings().facingMode;
+                camStream.getTracks().forEach((t) => t.stop());
+                try {
+                    camStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: current === 'environment' ? 'user' : 'environment' }, audio: false,
+                    });
+                    video.srcObject = camStream;
+                } catch (e) { showAlert('Could not switch camera.', 'error'); closeCamera(); }
+            });
+
+            document.getElementById('cam-shot').addEventListener('click', () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.toBlob((blob) => {
+                    closeCamera();
+                    if (!blob) return showAlert('Could not capture the photo.', 'error');
+                    uploadFile(new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+                }, 'image/jpeg', 0.9);
+            });
+        }
+
+        document.getElementById('camera-btn').addEventListener('click', openCamera);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCamera(); });
+
+        // Emoji picker
+        const EMOJI = ['😀','😃','😄','😁','😊','🙂','😉','😍','🥰','😘','😎','🤩','🤔','🙃','😅','😂','🤣','🥲','😢','😭','😤','😳','🥳','🤗','🙌','👏','👍','👎','🙏','💪','👋','🤝','❤️','🧡','💛','💚','💙','💜','🔥','✨','⭐','🎵','🎶','🎹','🎸','🥁','🎤','🎧','🎻','🎺','🎷','📀','⏰','✅','❌','❓','❗','💯','🎉','🎊','📝','📚'];
+        const emojiPanel = document.getElementById('emoji-panel');
+        emojiPanel.innerHTML = EMOJI.map((e) => `<button type="button">${e}</button>`).join('');
+        emojiPanel.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const pos = input.selectionStart ?? input.value.length;
+            input.value = input.value.slice(0, pos) + btn.textContent + input.value.slice(input.selectionEnd ?? pos);
+            input.focus();
+            input.selectionStart = input.selectionEnd = pos + btn.textContent.length;
+            refreshSendButton(); autoGrow();
         });
+        document.getElementById('emoji-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            emojiPanel.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (emojiPanel.classList.contains('hidden')) return;
+            if (emojiPanel.contains(e.target) || e.target.closest('#emoji-btn')) return;
+            emojiPanel.classList.add('hidden');
+        });
+
+        // --- Voice notes -------------------------------------------------
+        let recorder = null;
+        let recChunks = [];
+        let recTimer = null;
+        let recSeconds = 0;
+
+        async function startRecording() {
+            if (!navigator.mediaDevices || !window.MediaRecorder) {
+                return showAlert('Voice notes are not supported in this browser.', 'error');
+            }
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (e) {
+                return showAlert('Microphone permission is needed for voice notes.', 'error');
+            }
+            recChunks = [];
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
+            recorder.onstop = () => stream.getTracks().forEach((t) => t.stop());
+            recorder.start();
+
+            recSeconds = 0;
+            document.getElementById('rec-time').textContent = '0:00';
+            document.getElementById('recording-bar').classList.remove('hidden');
+            sendBtn.classList.add('recording');
+            recTimer = setInterval(() => {
+                recSeconds += 1;
+                const m = Math.floor(recSeconds / 60);
+                const s = String(recSeconds % 60).padStart(2, '0');
+                document.getElementById('rec-time').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopRecordingUI() {
+            clearInterval(recTimer);
+            document.getElementById('recording-bar').classList.add('hidden');
+            sendBtn.classList.remove('recording');
+        }
+
+        async function finishRecording(send) {
+            if (!recorder) return;
+            const done = new Promise((resolve) => { recorder.addEventListener('stop', resolve, { once: true }); });
+            recorder.stop();
+            await done;
+            stopRecordingUI();
+            const blob = new Blob(recChunks, { type: recorder.mimeType || 'audio/webm' });
+            recorder = null;
+            if (!send || !blob.size) return;
+            const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
+            await uploadFile(new File([blob], `voice-note.${ext}`, { type: blob.type }));
+            document.getElementById('compose-form').requestSubmit();
+        }
+
+        document.getElementById('rec-cancel').addEventListener('click', () => finishRecording(false));
+        document.getElementById('rec-send').addEventListener('click', () => finishRecording(true));
 
         document.getElementById('compose-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const input = document.getElementById('message-input');
             const text = input.value.trim();
-            if (!text && !pickedLibraryItem) return;
+
+            // Nothing typed and nothing attached: the button is a mic, so
+            // this press starts (or stops) a voice note instead of sending.
+            if (!text && !pendingAttachment && !pickedLibraryItem) {
+                if (recorder) return finishRecording(true);
+                return startRecording();
+            }
+
             const res = await fetch(`/api/assignments/${assignmentId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, libraryItemId: pickedLibraryItem ? pickedLibraryItem.id : null }),
+                body: JSON.stringify({
+                    text,
+                    libraryItemId: pickedLibraryItem ? pickedLibraryItem.id : null,
+                    attachment: pendingAttachment,
+                }),
             });
             const data = await res.json();
             if (data.success) {
                 input.value = '';
+                input.style.height = 'auto';
                 pickedLibraryItem = null;
+                pendingAttachment = null;
+                showAttachPreview();
+                refreshSendButton();
+                emojiPanel.classList.add('hidden');
                 loadMessages();
             } else {
                 showAlert(data.error || 'Could not send message.', 'error');
             }
         });
 
-        document.getElementById('message-input').addEventListener('keydown', (e) => {
+        input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 document.getElementById('compose-form').requestSubmit();
             }
         });
+
+        refreshSendButton();
 
         // --- Real-time delivery -----------------------------------------
         // The socket only pushes messages that the REST layer already saved,
@@ -243,14 +681,12 @@
         async function init() {
             const category = await loadCounterpart();
             await loadMessages();
-            if (category) loadLibrary(category);
             connectSocket();
             // Fallback only - the socket handles the live case.
             setInterval(() => loadMessages(), 15000);
         }
         init();
     </script>
-    <script src="assets/mobile-nav.js"></script>
-    <script src="assets/geo-location.js"></script>
+    <script src="/assets/mobile-nav.js"></script>
 </body>
 </html>

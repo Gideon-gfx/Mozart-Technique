@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Tutor Page - Mozart Techniques</title>
-    <link rel="shortcut icon" href="mozartLogo.jpg" type="image/x-icon">
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,9 +15,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap">
-    <link rel="stylesheet" href="assets/site.css">
+    <link rel="stylesheet" href="/assets/site.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="assets/redesign.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
     <style>
         body { font-family: 'Montserrat', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
         .chip { display: inline-flex; align-items: center; padding: .35rem .85rem; border-radius: 999px; font-size: .8rem; font-weight: 700; }
@@ -39,7 +39,7 @@
         <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
             <div class="flex items-center gap-3">
                 <a href="/home" class="flex items-center gap-3">
-                    <img src="mozartLogo.jpg" alt="Mozart Techniques" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                    <img src="/mozartLogo.jpg" alt="Mozart Techniques" class="w-10 h-10 rounded-full object-cover shadow-sm">
                     <div class="hidden sm:block">
                         <p id="page-subtitle" class="text-sm text-gray-500 uppercase tracking-[0.2em]">Tutor dashboard</p>
                         <h1 id="page-title" class="text-2xl font-bold text-gray-900">Mozart Techniques</h1>
@@ -78,7 +78,7 @@
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between public-profile-head">
                     <div class="flex items-center gap-4">
                         <div class="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
-                            <img id="public-profile-photo" src="mozartLogo.jpg" alt="Tutor photo" class="w-full h-full object-cover">
+                            <img id="public-profile-photo" src="/mozartLogo.jpg" alt="Tutor photo" class="w-full h-full object-cover">
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase tracking-[0.15em]">Tutor profile</p>
@@ -120,7 +120,7 @@
             <h2 class="text-xl font-bold text-gray-900">Matched student information</h2>
             <div class="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
                 <div class="rounded-3xl border border-gray-200 bg-gray-50 p-4">
-                    <img id="student-info-photo" src="mozartLogo.jpg" alt="Student photo" class="w-full h-56 object-cover rounded-3xl">
+                    <img id="student-info-photo" src="/mozartLogo.jpg" alt="Student photo" class="w-full h-56 object-cover rounded-3xl">
                 </div>
                 <div class="space-y-4">
                     <div>
@@ -484,8 +484,8 @@
                                 </div>
                             </div>
                             <div class="flex flex-col items-end gap-2">
-                                <button class="px-3 py-1.5 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50" onclick="window.location.href='/chat?assignment=${r.id}'">Messages</button>
-                                <button class="px-3 py-1.5 bg-primary-red text-white rounded-md text-sm hover:bg-red-700" onclick="window.location.href='/tutor?openRequest=${r.id}'">Open</button>
+                                <button class="px-3 py-1.5 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50" onclick="window.open('/messages/chat/${r.id}','_blank')">Messages</button>
+                                <button class="px-3 py-1.5 bg-primary-red text-white rounded-md text-sm hover:bg-red-700" onclick="window.open('/messages/chat/${r.id}','_blank')">Open</button>
                             </div>
                         </div>
                     `).join('');
@@ -667,8 +667,8 @@
 
         loadTutorPage().then(() => { if (pageMode === 'self') loadTutorDashboardData(); });
     </script>
-    <script src="assets/nav-auth.js"></script>
-    <script src="assets/mobile-nav.js"></script>
-    <script src="assets/footer.js"></script>
+    <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/mobile-nav.js"></script>
+    <script src="/assets/footer.js"></script>
 </body>
 </html>
