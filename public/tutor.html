@@ -408,10 +408,23 @@
                     </div>`;
             }).join('');
 
+            // Host rights in the Meet call come from being the event's
+            // organizer, and Google only applies that when you join signed
+            // into the same account the calendar was connected with. Showing
+            // the account here makes an otherwise invisible requirement
+            // obvious - joining from a second Google account is the usual
+            // reason a tutor lands in their own lesson as a plain guest.
+            const account = status.googleEmail ? escapeHtml(status.googleEmail) : 'your Google account';
             host.innerHTML = `
-                <div class="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-800 flex items-center justify-between gap-2">
-                    <span><i class="fa-solid fa-circle-check mr-1"></i>Calendar connected</span>
-                    <button type="button" id="calendar-disconnect-btn" class="underline hover:no-underline">Disconnect</button>
+                <div class="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-800 space-y-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <span><i class="fa-solid fa-circle-check mr-1"></i>Calendar connected</span>
+                        <button type="button" id="calendar-disconnect-btn" class="underline hover:no-underline">Disconnect</button>
+                    </div>
+                    <p class="text-[11px] text-green-700/90 leading-snug">
+                        You're the host of lessons you schedule. Join signed in as
+                        <strong>${account}</strong> — joining from another Google account puts you in as a guest.
+                    </p>
                 </div>
                 ${rows || '<p class="text-gray-500 text-sm mt-3">No active students to schedule with yet.</p>'}`;
 

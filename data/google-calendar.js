@@ -90,6 +90,20 @@ async function createLessonEvent({
       start: { dateTime: start.toISOString() },
       end: { dateTime: end.toISOString() },
       attendees: (attendeeEmails || []).filter(Boolean).map((email) => ({ email })),
+      // The event is created with the tutor's own credentials, so Google
+      // makes them the organizer - which is what grants host rights in the
+      // Meet call. Note that the organizer only actually *gets* those rights
+      // when they join signed into that same Google account; joining from a
+      // different signed-in account makes them an ordinary guest. Visible
+      // host controls (the moderation panel) are additionally a Workspace
+      // feature and don't appear for consumer gmail.com organizers.
+      //
+      // Locking the guest permissions below keeps the student from
+      // re-inviting others or editing the lesson, which is the part of
+      // "who's in charge" the API can actually enforce.
+      guestsCanModify: false,
+      guestsCanInviteOthers: false,
+      guestsCanSeeOtherGuests: true,
       conferenceData: {
         createRequest: {
           requestId,
