@@ -326,6 +326,14 @@ app.get('/contact', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'contact.html'));
 });
 
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'privacy-policy.html'));
+});
+
+app.get('/terms-of-service', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'terms-of-service.html'));
+});
+
 app.get('/login', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
 });

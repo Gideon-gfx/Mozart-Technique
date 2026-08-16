@@ -83,6 +83,13 @@ document.addEventListener('DOMContentLoaded', function () {
         </ul>
       </div>
       <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/privacy-policy">Privacy Policy</a></li>
+          <li><a href="/terms-of-service">Terms of Service</a></li>
+        </ul>
+      </div>
+      <div>
         <h4>Teach &amp; Learn</h4>
         <ul>
           <li><a href="/become-tutor">Become a Tutor</a></li>

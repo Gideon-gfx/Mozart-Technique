@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Mozart Techniques</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        :root {
+            --bg: #fff;
+            --surface: #fff;
+            --surface-soft: #f8f8f8;
+            --text: #333;
+            --text-soft: rgba(50, 50, 50, 0.74);
+            --rule: rgba(204, 0, 0, 0.12);
+            --accent: #cc0000;
+            --accent-dark: #990000;
+            --max-width: 1160px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Montserrat', sans-serif; color: var(--text); background: linear-gradient(135deg, #fff 0%, #f8f8f8 100%); min-height: 100vh; }
+        body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); pointer-events: none; z-index: 0; }
+        .serif { font-family: 'Science Gothic', sans-serif; }
+        .wrap { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: var(--max-width); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+
+        .policy-hero { padding: 72px 0 56px; background: linear-gradient(180deg, rgba(204,0,0,0.08), rgba(255,255,255,0.02)); border-bottom: 2px solid rgba(204,0,0,0.12); }
+        .hero-kicker { font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+        .policy-hero h1 { font-size: clamp(2.8rem, 4.2vw, 4.4rem); line-height: 1.02; font-weight: 800; margin-bottom: 20px; max-width: 16ch; color: #333; }
+        .policy-hero p { font-size: 1rem; line-height: 1.8; color: var(--text-soft); max-width: 68ch; }
+
+        .policy-content { padding: 72px 0; }
+        .policy-section { margin-bottom: 48px; }
+        .policy-section h2 { font-family: 'Science Gothic', sans-serif; font-size: clamp(1.8rem, 3vw, 2.4rem); color: #333; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid rgba(204,0,0,0.15); }
+        .policy-section h3 { font-size: 1.1rem; color: #333; margin-top: 24px; margin-bottom: 12px; font-weight: 700; }
+        .policy-section p { line-height: 1.8; color: var(--text-soft); margin-bottom: 14px; }
+        .policy-section ul { margin-left: 20px; margin-bottom: 14px; color: var(--text-soft); line-height: 1.8; }
+        .policy-section li { margin-bottom: 8px; }
+
+        .last-updated { color: var(--text-soft); font-size: 0.95rem; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid rgba(204,0,0,0.12); }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav-container">
+            <div class="logo">
+                <a href="/home">
+                    <img src="/mozartLogo.jpg" alt="Mozart Techniques">
+                    <span>Mozart Techniques</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/about">About</a>
+                <a href="/library">Library</a>
+                <a href="/find-tutor">Find Tutor</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="policy-hero">
+            <div class="wrap">
+                <div class="hero-kicker">Legal</div>
+                <h1>Terms of Service</h1>
+                <p>Please read these terms and conditions carefully before using our platform.</p>
+            </div>
+        </section>
+
+        <section class="policy-content">
+            <div class="wrap">
+                <div class="last-updated">
+                    Last updated: January 2026
+                </div>
+
+                <div class="policy-section">
+                    <h2>1. Agreement to Terms</h2>
+                    <p>By accessing and using the Mozart Techniques website and platform ("Site" or "Services"), you accept and agree to be bound by and abide by these Terms and Conditions. If you do not agree to abide by the above, please do not use this Service.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>2. Use License</h2>
+                    <p>Permission is granted to temporarily download one copy of the materials (information or software) on Mozart Techniques' Site for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:</p>
+                    <ul>
+                        <li>Modify or copying the materials</li>
+                        <li>Using the materials for any commercial purpose or for any public display</li>
+                        <li>Attempting to decompile or reverse engineer any software contained on the Site</li>
+                        <li>Transferring the materials to another person or "mirroring" the materials on any other server</li>
+                        <li>Violating any applicable laws or regulations</li>
+                        <li>Removing any copyright or other proprietary notations from the materials</li>
+                        <li>Transferring the materials to another person or "mirroring" the materials on any other server</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>3. Disclaimer</h2>
+                    <p>The materials on Mozart Techniques' Site are provided on an 'as is' basis. Mozart Techniques makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>4. Limitations</h2>
+                    <p>In no event shall Mozart Techniques or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on Mozart Techniques' Site, even if Mozart Techniques or an authorized representative has been notified orally or in writing of the possibility of such damage.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>5. Accuracy of Materials</h2>
+                    <p>The materials appearing on Mozart Techniques' Site could include technical, typographical, or photographic errors. Mozart Techniques does not warrant that any of the materials on its Site are accurate, complete, or current. Mozart Techniques may make changes to the materials contained on its Site at any time without notice.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>6. Links</h2>
+                    <p>Mozart Techniques has not reviewed all of the sites linked to its website and is not responsible for the contents of any such linked site. The inclusion of any link does not imply endorsement by Mozart Techniques of the site. Use of any such linked website is at the user's own risk.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>7. Modifications</h2>
+                    <p>Mozart Techniques may revise these Terms and Conditions for its Site at any time without notice. By using this Site, you are agreeing to be bound by the then current version of these Terms and Conditions.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>8. User Accounts</h2>
+                    <h3>8.1 Registration</h3>
+                    <p>You may be required to create an account to use certain features of our Services. You agree to provide accurate, current, and complete information during registration and to update such information as necessary.</p>
+                    
+                    <h3>8.2 Account Responsibility</h3>
+                    <p>You are responsible for maintaining the confidentiality of your account credentials and are liable for all activities conducted under your account. You agree to notify Mozart Techniques immediately of any unauthorized use of your account.</p>
+
+                    <h3>8.3 Account Termination</h3>
+                    <p>Mozart Techniques reserves the right to suspend or terminate accounts that violate these Terms or engage in prohibited conduct.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>9. User Conduct</h2>
+                    <p>You agree not to use the Site or Services for:</p>
+                    <ul>
+                        <li>Posting false, misleading, or defamatory content</li>
+                        <li>Harassing, threatening, or intimidating other users</li>
+                        <li>Uploading malware or harmful code</li>
+                        <li>Infringing intellectual property rights</li>
+                        <li>Violating any applicable laws or regulations</li>
+                        <li>Spamming or sending unsolicited communications</li>
+                        <li>Attempting to gain unauthorized access to the Site or Services</li>
+                        <li>Circumventing security measures</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>10. Payment and Billing</h2>
+                    <h3>10.1 Payments</h3>
+                    <p>Payment for Services is processed through Stripe. By providing payment information, you authorize Mozart Techniques and Stripe to process the transaction.</p>
+
+                    <h3>10.2 Refund Policy</h3>
+                    <p>Refund requests must be submitted within 30 days of purchase. Mozart Techniques reserves the right to deny refunds for services already rendered or materials downloaded.</p>
+
+                    <h3>10.3 Recurring Charges</h3>
+                    <p>If you enroll in a recurring subscription, you authorize Mozart Techniques to charge your payment method on a recurring basis until you cancel your subscription.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>11. Intellectual Property Rights</h2>
+                    <p>All content on the Site, including text, graphics, logos, images, audio, and video, is the property of Mozart Techniques or its content suppliers and is protected by international copyright laws. You may not reproduce, distribute, transmit, or modify any content without prior written permission from Mozart Techniques.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>12. Tutor and Student Responsibilities</h2>
+                    <h3>12.1 Tutors</h3>
+                    <ul>
+                        <li>Agree to provide accurate credentials and qualifications</li>
+                        <li>Are responsible for providing quality educational services</li>
+                        <li>Agree to comply with all applicable laws</li>
+                        <li>Must maintain professional conduct at all times</li>
+                    </ul>
+
+                    <h3>12.2 Students</h3>
+                    <ul>
+                        <li>Agree to treat tutors and other users with respect</li>
+                        <li>Are responsible for providing accurate contact information</li>
+                        <li>Agree to comply with all applicable laws</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>13. Limitation of Liability</h2>
+                    <p>To the fullest extent permitted by law, Mozart Techniques shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use of or inability to use the Site or Services.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>14. Indemnification</h2>
+                    <p>You agree to indemnify and hold harmless Mozart Techniques, its officers, directors, employees, and agents from any claims, damages, or costs arising from your use of the Site, violation of these Terms, or infringement of any third-party rights.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>15. Governing Law</h2>
+                    <p>These Terms and Conditions are governed by and construed in accordance with the laws of the jurisdiction in which Mozart Techniques operates, and you irrevocably submit to the exclusive jurisdiction of the courts in that location.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>16. Contact Information</h2>
+                    <p>If you have any questions about these Terms of Service, please contact us:</p>
+                    <ul>
+                        <li><strong>Email:</strong> support@mozarttechniques.com</li>
+                        <li><strong>Website:</strong> <a href="/contact">Contact Form</a></li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>17. Entire Agreement</h2>
+                    <p>These Terms and Conditions constitute the entire agreement between you and Mozart Techniques regarding your use of the Site and Services and supersede all prior agreements and understandings.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/footer.js"></script>
+</body>
+</html>
