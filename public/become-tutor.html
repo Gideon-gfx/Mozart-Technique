@@ -273,7 +273,7 @@
             <textarea id="bio" rows="3" placeholder="Tell prospective students about your teaching style..."
                       class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
 
-            <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+            <button type="submit" id="tutor-submit-btn" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
                 Submit Application
             </button>
         </form>
@@ -424,32 +424,46 @@
             const genres = Array.from(document.querySelectorAll('#genre-chips input:checked')).map((el) => el.value);
             const ageGroups = Array.from(document.querySelectorAll('#age-group-chips input:checked')).map((el) => el.value);
             const levels = Array.from(document.querySelectorAll('#level-chips input:checked')).map((el) => el.value);
+            const submitBtn = document.getElementById('tutor-submit-btn');
 
-            const res = await fetch('/api/tutors/apply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    categories, levels, genres, ageGroups,
-                    city: document.getElementById('city').value.trim(),
-                    address: document.getElementById('address').value.trim(),
-                    commuteRadiusKm: document.getElementById('commute-radius').value,
-                    inPersonVenue: document.getElementById('in-person-venue').value,
-                    phone: document.getElementById('phone').value.trim(),
-                    teachesOnline: document.getElementById('teaches-online').checked,
-                    experienceYears: document.getElementById('experience').value,
-                    hourlyRateUsd: document.getElementById('rate').value,
-                    qualifications: document.getElementById('qualifications').value.trim(),
-                    certificateUrl: document.getElementById('certificate-url').value,
-                    photoUrl: document.getElementById('photo-url').value,
-                    bio: document.getElementById('bio').value.trim(),
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
-                setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
-            } else {
-                showAlert(data.error || 'Could not submit application.', 'error');
+            // Disable button immediately to show processing state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                const res = await fetch('/api/tutors/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        categories, levels, genres, ageGroups,
+                        city: document.getElementById('city').value.trim(),
+                        address: document.getElementById('address').value.trim(),
+                        commuteRadiusKm: document.getElementById('commute-radius').value,
+                        inPersonVenue: document.getElementById('in-person-venue').value,
+                        phone: document.getElementById('phone').value.trim(),
+                        teachesOnline: document.getElementById('teaches-online').checked,
+                        experienceYears: document.getElementById('experience').value,
+                        hourlyRateUsd: document.getElementById('rate').value,
+                        qualifications: document.getElementById('qualifications').value.trim(),
+                        certificateUrl: document.getElementById('certificate-url').value,
+                        photoUrl: document.getElementById('photo-url').value,
+                        bio: document.getElementById('bio').value.trim(),
+                    }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    submitBtn.textContent = '✓ Submitted';
+                    showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 2000);
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Application';
+                    showAlert(data.error || 'Could not submit application.', 'error');
+                }
+            } catch (err) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Application';
+                showAlert('Network error: ' + err.message, 'error');
             }
         });
 

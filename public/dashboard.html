@@ -178,6 +178,25 @@
             <div id="certificates-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         </div>
 
+        <!-- Sponsor Code Redemption Section -->
+        <div id="sponsor-code-section" class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fa-solid fa-gift text-primary-red mr-2"></i>Sponsor Access Code</h2>
+            <p id="sponsor-status" class="text-sm text-gray-600 mb-4">
+                <span id="sponsor-status-text">If a sponsor gave you an access code, you can enter it here to activate sponsored lessons.</span>
+            </p>
+            <div id="sponsor-code-form" class="space-y-3">
+                <div class="flex gap-2">
+                    <input type="text" id="sponsor-code-input" placeholder="Enter access code" 
+                           class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red"
+                           maxlength="8" style="text-transform: uppercase;">
+                    <button id="redeem-code-btn" class="px-6 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                        Redeem Code
+                    </button>
+                </div>
+                <p class="text-xs text-gray-400">Codes are case-insensitive. Your sponsor will provide this code to you.</p>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
             <h2 class="text-2xl font-bold text-gray-800 mb-6">My Courses</h2>
 
@@ -251,6 +270,13 @@
 
             if (data.user.role === 'admin') {
                 document.getElementById('admin-link').classList.remove('hidden');
+            }
+
+            // Handle sponsor status
+            if (data.user.sponsor) {
+                document.getElementById('sponsor-status-text').textContent = 
+                    `You're sponsored by ${data.user.sponsor.orgName}. Your sponsor covers your lesson payments. Thank you for being part of their sponsored network!`;
+                document.getElementById('sponsor-code-form').classList.add('hidden');
             }
 
             document.getElementById('streak-count').textContent = (data.streak && data.streak.count) || 0;
@@ -873,6 +899,35 @@
                 </a>
             `).join('');
         }
+
+        // Sponsor code redemption
+        document.getElementById('redeem-code-btn').addEventListener('click', async () => {
+            const code = document.getElementById('sponsor-code-input').value.trim();
+            if (!code) {
+                showAlert('Please enter a code.', 'error');
+                return;
+            }
+            
+            const res = await fetch('/api/redeem-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert(`Successfully redeemed! You're now under ${data.orgName}'s sponsorship.`, 'success');
+                document.getElementById('sponsor-code-input').value = '';
+                document.getElementById('sponsor-code-form').classList.add('hidden');
+                document.getElementById('sponsor-status-text').textContent = `You're sponsored by ${data.orgName}. You can now apply to tutors and your sponsor will handle payment.`;
+                setTimeout(() => { window.location.reload(); }, 1500);
+            } else {
+                showAlert(data.error || 'Failed to redeem code.', 'error');
+            }
+        });
+
+        document.getElementById('sponsor-code-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('redeem-code-btn').click();
+        });
 
         loadDashboard().catch(() => showAlert('Could not load your dashboard.', 'error'));
         loadNotifications().catch(() => {});

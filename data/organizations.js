@@ -38,13 +38,13 @@ function findByUserId(userId) {
   return listAll().find((o) => o.userId === userId) || null;
 }
 
-async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description }) {
+async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, certificateUrl }) {
   const db = load();
   const coords = address ? await geocodeAddress(address) : null;
   const org = {
     id: db.nextId++,
     userId,
-    name,
+    name: sponsorType === 'individual' ? null : name,
     contactName,
     email,
     phone: phone || null,
@@ -53,8 +53,12 @@ async function apply({ userId, name, contactName, email, phone, registrationNumb
     fullAddress: coords ? coords.fullAddress || null : null,
     locality: coords ? { city: coords.city, state: coords.state, country: coords.country } : null,
     description: description || '',
+    sponsorType: sponsorType || 'individual', // 'individual' | 'ngo'
+    organizationType: organizationType || 'ngo', // 'ngo' | 'institution' (only for sponsor type 'ngo')
+    certificateUrl: certificateUrl || null,
     status: 'pending', // pending | approved | rejected - the application itself
     subscriptionStatus: 'inactive', // inactive | active | expired
+    monthlyAmount: 0, // Amount in currency for monthly subscription (set by admin)
     subscriptionStartAt: null,
     subscriptionEndAt: null,
     studentCodes: [],
@@ -71,6 +75,23 @@ function setStatus(id, status) {
   if (!org) return null;
   org.status = status;
   org.reviewedAt = new Date().toISOString();
+
+  if (status === 'approved' && org.sponsorType === 'ngo') {
+    const existingOrgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
+    if (!existingOrgCode) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      org.studentCodes.push({
+        code,
+        isOrganizationalCode: true,
+        studentId: null,
+        studentName: null,
+        redeemedAt: null,
+        sentToOrganization: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
   persist(db);
   return org;
 }
@@ -91,6 +112,15 @@ function activateSubscription(id) {
   return org;
 }
 
+function setMonthlyAmount(id, monthlyAmount) {
+  const db = load();
+  const org = db.organizations.find((o) => o.id === Number(id));
+  if (!org) return null;
+  org.monthlyAmount = Number(monthlyAmount) || 0;
+  persist(db);
+  return org;
+}
+
 function isSubscriptionActive(org) {
   return org.subscriptionStatus === 'active' && org.subscriptionEndAt && new Date(org.subscriptionEndAt) > new Date();
 }
@@ -104,8 +134,39 @@ function generateStudentCode(orgId) {
   const org = db.organizations.find((o) => o.id === Number(orgId));
   if (!org) return null;
   if (!isSubscriptionActive(org)) return null;
+  
+  // For NGO/Institution type: return existing organizational code if it exists
+  if (org.sponsorType === 'ngo') {
+    const existingOrgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
+    if (existingOrgCode) {
+      return existingOrgCode;
+    }
+    // Generate the single organizational code for NGO
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const entry = { 
+      code, 
+      isOrganizationalCode: true,
+      studentId: null, 
+      studentName: null, 
+      redeemedAt: null,
+      sentToOrganization: false,
+      createdAt: new Date().toISOString() 
+    };
+    org.studentCodes.push(entry);
+    persist(db);
+    return entry;
+  }
+  
+  // For individual sponsors: generate multiple codes
   const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-  const entry = { code, studentId: null, studentName: null, redeemedAt: null, createdAt: new Date().toISOString() };
+  const entry = { 
+    code, 
+    isOrganizationalCode: false,
+    studentId: null, 
+    studentName: null, 
+    redeemedAt: null, 
+    createdAt: new Date().toISOString() 
+  };
   org.studentCodes.push(entry);
   persist(db);
   return entry;
@@ -118,6 +179,15 @@ function redeemCode(code, studentUserId, studentName) {
     if (!isSubscriptionActive(org)) continue;
     const entry = org.studentCodes.find((c) => c.code === normalized);
     if (!entry) continue;
+    
+    // For organizational codes (NGO): allow multiple students to use the same code
+    if (entry.isOrganizationalCode) {
+      // Just return the org - the student will be linked to this org
+      // Don't mark it as redeemed since multiple students need to use it
+      return { org, entry };
+    }
+    
+    // For individual sponsor codes: each code can only be used once
     if (entry.redeemedAt) return { error: 'already-redeemed' };
     entry.studentId = studentUserId;
     entry.studentName = studentName;
@@ -128,11 +198,37 @@ function redeemCode(code, studentUserId, studentName) {
   return { error: 'not-found' };
 }
 
+function markCodeSent(orgId) {
+  const db = load();
+  const org = db.organizations.find((o) => o.id === Number(orgId));
+  if (!org) return null;
+  const orgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
+  if (!orgCode) return null;
+  orgCode.sentToOrganization = true;
+  orgCode.sentAt = new Date().toISOString();
+  persist(db);
+  return org;
+}
+
 function findOrgForStudent(studentUserId) {
   return listAll().find((o) => o.studentCodes.some((c) => c.studentId === studentUserId)) || null;
 }
 
+// Get all students who have redeemed codes from this organization
+function getStudentsForOrganization(orgId) {
+  const org = findById(orgId);
+  if (!org) return [];
+  return org.studentCodes
+    .filter((c) => c.studentId && c.redeemedAt)
+    .map((c) => ({
+      studentId: c.studentId,
+      studentName: c.studentName,
+      redeemedAt: c.redeemedAt,
+    }));
+}
+
 module.exports = {
   listAll, findById, findByUserId, apply, setStatus,
-  activateSubscription, isSubscriptionActive, generateStudentCode, redeemCode, findOrgForStudent,
+  activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
+  getStudentsForOrganization, markCodeSent,
 };

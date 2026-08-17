@@ -199,10 +199,43 @@
 
         <form id="sponsor-form" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
             <h1 class="text-2xl font-bold text-gray-800 mb-1">Sponsor Students</h1>
-            <p class="text-gray-500 mb-6">Subscribe your organization annually and give your students access to Mozart Techniques' tutors. An admin reviews every application before activation.</p>
+            <p class="text-gray-500 mb-6">Subscribe to give students access to Mozart Techniques' tutors. An admin reviews every application before activation.</p>
 
-            <label class="block text-sm font-semibold text-gray-600 mb-1">Organization name</label>
-            <input id="org-name" type="text" placeholder="e.g. Bright Futures Foundation" required class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+            <!-- Sponsor Type Toggle -->
+            <div class="mb-8">
+                <label class="block text-sm font-semibold text-gray-600 mb-4">Sponsor Type</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="radio" id="sponsor-type-individual" name="sponsorType" value="individual" checked class="hidden">
+                        <span class="px-6 py-3 rounded-lg font-semibold text-sm transition duration-200 border-2 border-gray-300 text-gray-700 hover:border-primary-red" id="sponsor-label-individual">Individual Sponsor</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="radio" id="sponsor-type-ngo" name="sponsorType" value="ngo" class="hidden">
+                        <span class="px-6 py-3 rounded-lg font-semibold text-sm transition duration-200 border-2 border-gray-300 text-gray-700 hover:border-primary-red" id="sponsor-label-ngo">Organization/NGO</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Organization name - only shown for NGO type -->
+            <!-- Organization type selector - only shown for NGO type -->
+            <div id="org-type-section" class="hidden mb-6">
+                <label class="block text-sm font-semibold text-gray-600 mb-3">Organization Type <span class="text-primary-red">*</span></label>
+                <div class="flex gap-4">
+                    <label class="flex items-center">
+                        <input type="radio" id="org-type-ngo" name="organizationType" value="ngo" checked class="mr-2">
+                        <span class="text-sm">NGO (Non-Governmental Organization)</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" id="org-type-institution" name="organizationType" value="institution" class="mr-2">
+                        <span class="text-sm">Educational Institution</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="org-name-section" class="hidden">
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Organization name</label>
+                <input id="org-name" type="text" placeholder="e.g. Bright Futures Foundation" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+            </div>
 
             <label class="block text-sm font-semibold text-gray-600 mb-1">Contact person</label>
             <input id="contact-name" type="text" placeholder="Full name" required class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
@@ -213,8 +246,15 @@
             <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
             <input id="org-phone" type="text" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
 
-            <label class="block text-sm font-semibold text-gray-600 mb-1">Registration number (optional)</label>
-            <input id="org-reg-number" type="text" placeholder="e.g. CAC/IT/NO 123456" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+            <!-- Registration number - shown only for NGO type -->
+            <div id="reg-number-section" class="hidden">
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Registration number <span class="text-primary-red">*</span></label>
+                <input id="org-reg-number" type="text" placeholder="e.g. CAC/IT/NO 123456" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Upload Certificate <span class="text-primary-red">*</span></label>
+                <input id="org-certificate" type="file" accept="image/*,.pdf,application/pdf" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+                <p class="text-xs text-gray-400 mb-4">Accepted formats: Images (JPG, PNG) or PDF. Max 15MB.</p>
+            </div>
 
             <label class="block text-sm font-semibold text-gray-600 mb-1">Address</label>
             <button type="button" id="use-location-btn" class="inline-flex items-center gap-2 text-xs font-semibold text-primary-red mb-2 hover:underline">
@@ -226,9 +266,21 @@
             <label class="block text-sm font-semibold text-gray-600 mb-1">About your organization</label>
             <textarea id="org-description" rows="3" placeholder="Who you serve and how many students you're looking to sponsor..." class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
 
-            <button type="submit" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+            <button type="submit" id="sponsor-submit-btn" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
                 Submit Application
             </button>
+
+            <!-- Information about code generation -->
+            <div class="mt-8 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+                <h3 class="font-semibold text-blue-900 mb-3">How Access Codes Work</h3>
+                <div id="code-info-individual" class="text-sm text-blue-800">
+                    <p class="mb-2"><strong>Individual Sponsor:</strong> Once approved, you can generate multiple access codes for individual students. Each code can be used by one student to join the platform.</p>
+                </div>
+                <div id="code-info-ngo" style="display: none;" class="text-sm text-blue-800">
+                    <p class="mb-2"><strong>NGO/Institution:</strong> Once approved and after subscription payment, you'll generate a single organizational code. All teachers and students at your organization share this one code to join under your sponsorship.</p>
+                    <p class="text-xs text-blue-700 mt-2">💡 This single code shows all users that they're affiliated with your organization.</p>
+                </div>
+            </div>
         </form>
     </main>
 
@@ -268,27 +320,134 @@
 
         document.getElementById('sponsor-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const res = await fetch('/api/organizations/apply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: document.getElementById('org-name').value.trim(),
-                    contactName: document.getElementById('contact-name').value.trim(),
-                    email: document.getElementById('org-email').value.trim(),
-                    phone: document.getElementById('org-phone').value.trim(),
-                    registrationNumber: document.getElementById('org-reg-number').value.trim(),
-                    address: document.getElementById('org-address').value.trim(),
-                    description: document.getElementById('org-description').value.trim(),
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
-                setTimeout(() => { window.location.reload(); }, 1000);
-            } else {
-                showAlert(data.error || 'Could not submit application.', 'error');
+            const sponsorType = document.querySelector('input[name="sponsorType"]:checked').value;
+            const certificateFile = document.getElementById('org-certificate').files[0];
+            const submitBtn = document.getElementById('sponsor-submit-btn');
+            
+            // Validate NGO/Institution requirements
+            if (sponsorType === 'ngo') {
+                if (!document.getElementById('org-name').value.trim()) {
+                    showAlert('Organization name is required for NGO/Institution type.', 'error');
+                    return;
+                }
+                if (!document.getElementById('org-reg-number').value.trim()) {
+                    showAlert('Registration number is required for NGO/Institution type.', 'error');
+                    return;
+                }
+                if (!document.getElementById('org-phone').value.trim()) {
+                    showAlert('Phone number is required for NGO/Institution type.', 'error');
+                    return;
+                }
+                if (!certificateFile) {
+                    showAlert('Certificate upload is required for NGO/Institution type.', 'error');
+                    return;
+                }
+            }
+            
+            // Disable button immediately to show processing state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('org-name').value.trim());
+            formData.append('contactName', document.getElementById('contact-name').value.trim());
+            formData.append('email', document.getElementById('org-email').value.trim());
+            formData.append('phone', document.getElementById('org-phone').value.trim());
+            formData.append('registrationNumber', document.getElementById('org-reg-number').value.trim());
+            formData.append('address', document.getElementById('org-address').value.trim());
+            formData.append('description', document.getElementById('org-description').value.trim());
+            formData.append('sponsorType', sponsorType);
+            if (sponsorType === 'ngo') {
+                formData.append('organizationType', document.querySelector('input[name="organizationType"]:checked').value);
+            }
+            if (certificateFile) {
+                formData.append('certificate', certificateFile);
+            }
+            
+            try {
+                const res = await fetch('/api/organizations/apply', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await res.json();
+                if (data.success) {
+                    submitBtn.textContent = '✓ Submitted';
+                    showAlert('Application submitted! We\'ll notify you once reviewed.', 'success');
+                    setTimeout(() => { window.location.reload(); }, 2000);
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Application';
+                    showAlert(data.error || 'Could not submit application.', 'error');
+                }
+            } catch (err) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Application';
+                showAlert('Network error: ' + err.message, 'error');
             }
         });
+
+        // Toggle sponsor type styling and form fields
+        const sponsorRadios = document.querySelectorAll('input[name="sponsorType"]');
+        const sponsorLabelIndividual = document.getElementById('sponsor-label-individual');
+        const sponsorLabelNgo = document.getElementById('sponsor-label-ngo');
+        const orgTypeSection = document.getElementById('org-type-section');
+        const orgNameSection = document.getElementById('org-name-section');
+        const orgNameInput = document.getElementById('org-name');
+        const regNumberSection = document.getElementById('reg-number-section');
+        const regNumberInput = document.getElementById('org-reg-number');
+        const phoneInput = document.getElementById('org-phone');
+        const certificateInput = document.getElementById('org-certificate');
+
+        function updateSponsorTypeStyle() {
+            const selected = document.querySelector('input[name="sponsorType"]:checked').value;
+            const codeInfoIndividual = document.getElementById('code-info-individual');
+            const codeInfoNgo = document.getElementById('code-info-ngo');
+            
+            if (selected === 'individual') {
+                sponsorLabelIndividual.classList.add('border-primary-red', 'bg-red-50', 'text-primary-red');
+                sponsorLabelIndividual.classList.remove('border-gray-300', 'text-gray-700');
+                sponsorLabelNgo.classList.remove('border-primary-red', 'bg-red-50', 'text-primary-red');
+                sponsorLabelNgo.classList.add('border-gray-300', 'text-gray-700');
+                
+                // Hide org-specific fields for individual sponsors
+                orgTypeSection.classList.add('hidden');
+                orgNameSection.classList.add('hidden');
+                regNumberSection.classList.add('hidden');
+                orgNameInput.required = false;
+                regNumberInput.required = false;
+                certificateInput.required = false;
+                phoneInput.required = false;
+                
+                // Show individual code info
+                codeInfoIndividual.style.display = 'block';
+                codeInfoNgo.style.display = 'none';
+            } else {
+                sponsorLabelNgo.classList.add('border-primary-red', 'bg-red-50', 'text-primary-red');
+                sponsorLabelNgo.classList.remove('border-gray-300', 'text-gray-700');
+                sponsorLabelIndividual.classList.remove('border-primary-red', 'bg-red-50', 'text-primary-red');
+                sponsorLabelIndividual.classList.add('border-gray-300', 'text-gray-700');
+                
+                // Show org-specific fields for NGO/organizations and make them required
+                orgTypeSection.classList.remove('hidden');
+                orgNameSection.classList.remove('hidden');
+                regNumberSection.classList.remove('hidden');
+                orgNameInput.required = true;
+                regNumberInput.required = true;
+                certificateInput.required = true;
+                phoneInput.required = true;
+                
+                // Show NGO code info
+                codeInfoIndividual.style.display = 'none';
+                codeInfoNgo.style.display = 'block';
+            }
+        }
+
+        sponsorRadios.forEach(radio => {
+            radio.addEventListener('change', updateSponsorTypeStyle);
+        });
+
+        // Initialize styling on page load
+        updateSponsorTypeStyle();
 
         function codeRowHtml(entry) {
             return `

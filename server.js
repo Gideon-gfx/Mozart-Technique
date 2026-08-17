@@ -20,6 +20,7 @@ const reels = require('./data/reels');
 const certificates = require('./data/certificates');
 const payments = require('./data/payments');
 const chat = require('./data/chat');
+const orgChat = require('./data/org-chat');
 const allowedLocations = require('./data/allowed-locations');
 const organizations = require('./data/organizations');
 const mailer = require('./data/mailer');
@@ -352,6 +353,10 @@ app.get('/dashboard', requireAuthPage, (req, res) => {
 
 app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
+});
+
+app.get('/ngo-dashboard', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
 });
 
 app.get('/admin', requireAdminPage, (req, res) => {
@@ -985,25 +990,57 @@ app.post('/api/admin/payouts/:tutorId/process', requireAdminApi, (req, res) => {
 // payment is confirmed (simulated, same as the rest of this app's
 // payments), then the org can generate access codes for the students it
 // sponsors. A student redeems a code to link their account to the org. ---
-app.post('/api/organizations/apply', requireAuthApi, async (req, res) => {
+app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certificate'), async (req, res) => {
   const user = currentUser(req);
   if (organizations.findByUserId(user.id)) {
     return res.status(409).json({ success: false, error: 'You already have an organization application on file.' });
   }
-  const { name, contactName, email, phone, registrationNumber, address, description } = req.body || {};
-  if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Organization name is required.' });
+  const { name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType } = req.body || {};
   if (!contactName || !contactName.trim()) return res.status(400).json({ success: false, error: 'A contact person is required.' });
   if (!email || !email.trim() || !email.includes('@')) return res.status(400).json({ success: false, error: 'A valid email is required.' });
+  
+  const type = sponsorType || 'individual';
+  
+  // For NGO/Institution type - all fields are required
+  if (type === 'ngo') {
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Organization name is required for NGO/Institution type.' });
+    }
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ success: false, error: 'Phone number is required for NGO/Institution type.' });
+    }
+    if (!registrationNumber || !registrationNumber.trim()) {
+      return res.status(400).json({ success: false, error: 'Registration number is required for NGO/Institution type.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Certificate upload is required for NGO/Institution type.' });
+    }
+  }
+
+  let certificateUrl = null;
+  if (req.file) {
+    certificateUrl = `/uploads/certificates/${req.file.filename}`;
+  }
 
   const org = await organizations.apply({
-    userId: user.id, name: name.trim(), contactName: contactName.trim(), email: email.trim(),
-    phone, registrationNumber, address, description,
+    userId: user.id, 
+    name: type === 'ngo' ? name.trim() : null, 
+    contactName: contactName.trim(), 
+    email: email.trim(),
+    phone, 
+    registrationNumber, 
+    address, 
+    description,
+    sponsorType: type,
+    organizationType: organizationType || 'ngo',
+    certificateUrl,
   });
 
+  const displayName = type === 'ngo' ? org.name : `${org.contactName} (Individual Sponsor)`;
   notifyAdmins({
     type: 'org-application',
-    subject: `New sponsor application - ${org.name}`,
-    message: `New organization sponsorship application from ${org.name} - review it in the admin panel.`,
+    subject: `New sponsor application - ${displayName}`,
+    message: `New sponsor application from ${displayName} - review it in the admin panel.`,
     excludeUserId: user.id,
   });
 
@@ -1036,6 +1073,230 @@ app.post('/api/redeem-code', requireAuthApi, (req, res) => {
   if (result.error === 'already-redeemed') return res.status(409).json({ success: false, error: 'That code has already been used.' });
   store.setSponsor(user.id, { orgId: result.org.id, orgName: result.org.name });
   res.json({ success: true, orgName: result.org.name });
+});
+
+app.get('/api/organizations/me', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') {
+    return res.status(404).json({ success: false, error: 'No approved organization found.' });
+  }
+  res.json({ success: true, organization: org });
+});
+
+app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+
+  const user = currentUser(req);
+  const { billingPeriod } = req.body || {}; // 'monthly' or 'yearly'
+  if (!billingPeriod || !['monthly', 'yearly'].includes(billingPeriod)) {
+    return res.status(400).json({ success: false, error: 'Invalid billing period.' });
+  }
+
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') {
+    return res.status(404).json({ success: false, error: 'No approved organization found.' });
+  }
+
+  try {
+    const isMonthly = billingPeriod === 'monthly';
+    const amount = isMonthly ? org.monthlyAmount * 100 : org.monthlyAmount * 12 * 100; // Convert to cents
+    const description = isMonthly 
+      ? `Monthly subscription for ${org.name}`
+      : `Yearly subscription for ${org.name}`;
+
+    const session = await client.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: isMonthly ? 'subscription' : 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'ngn',
+          product_data: { name: `${org.name} - ${isMonthly ? 'Monthly' : 'Yearly'} Subscription` },
+          unit_amount: amount,
+          ...(isMonthly && {
+            recurring: { interval: 'month', interval_count: 1 }
+          })
+        },
+        quantity: 1,
+      }],
+      customer_email: org.email,
+      success_url: `${process.env.BASE_URL || 'http://localhost:3000'}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}&orgId=${org.id}`,
+      cancel_url: `${process.env.BASE_URL || 'http://localhost:3000'}/ngo-dashboard`,
+      metadata: { orgId: org.id, billingPeriod },
+    });
+
+    res.json({ success: true, sessionId: session.id, url: session.url });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/organizations/checkout/success', async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) {
+    return res.redirect('/ngo-dashboard?payment=error');
+  }
+
+  const { sessionId, orgId } = req.query;
+  if (!sessionId || !orgId) {
+    return res.redirect('/ngo-dashboard?payment=error');
+  }
+
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== 'paid') {
+      return res.redirect('/ngo-dashboard?payment=pending');
+    }
+
+    // Activate the subscription for this organization
+    const updated = organizations.activateSubscription(orgId);
+    if (!updated) {
+      return res.redirect('/ngo-dashboard?payment=error');
+    }
+
+    store.addNotification(updated.userId, {
+      type: 'organization',
+      message: `Payment confirmed! Your subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes.`,
+    });
+
+    res.redirect('/ngo-dashboard?payment=success');
+  } catch (err) {
+    res.redirect('/ngo-dashboard?payment=error');
+  }
+});
+
+// --- ORGANIZATION-TO-TUTOR MESSAGING: Organizations can message tutors who teach their sponsored students ---
+
+// Get tutors for an organization (those teaching org's students)
+app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  // Get all students linked to this organization
+  const students = organizations.getStudentsForOrganization(org.id);
+  const studentIds = students.map((s) => s.studentId);
+
+  // Find all tutors assigned to these students
+  const orgTutors = new Map();
+  const allAssignments = assignments.listAll();
+  
+  for (const assignment of allAssignments) {
+    if (studentIds.includes(assignment.studentId) && assignment.tutorId) {
+      const tutor = tutors.findById(assignment.tutorId);
+      if (tutor && tutor.status === 'approved') {
+        if (!orgTutors.has(tutor.id)) {
+          orgTutors.set(tutor.id, {
+            id: tutor.id,
+            userId: tutor.userId,
+            name: tutor.name,
+            categories: tutor.categories || [],
+            phone: tutor.phone || null,
+            email: tutor.email || null,
+            profileUrl: tutor.photo ? `/uploads/photos/${tutor.photo}` : null,
+            studentCount: 0,
+          });
+        }
+        // Increment student count for this tutor
+        const tutorData = orgTutors.get(tutor.id);
+        tutorData.studentCount += 1;
+      }
+    }
+  }
+
+  res.json({ success: true, tutors: Array.from(orgTutors.values()) });
+});
+
+// Get conversations for organization
+app.get('/api/organizations/conversations', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  const conversations = orgChat.listForOrganization(org.id);
+  const convWithTutors = conversations.map((conv) => {
+    const tutor = tutors.findById(conv.tutorId);
+    return {
+      id: conv.id,
+      tutorId: conv.tutorId,
+      tutorName: tutor ? tutor.name : 'Unknown Tutor',
+      lastMessage: conv.messages && conv.messages.length > 0 
+        ? conv.messages[conv.messages.length - 1].text 
+        : 'No messages yet',
+      lastMessageAt: conv.messages && conv.messages.length > 0
+        ? conv.messages[conv.messages.length - 1].createdAt
+        : conv.createdAt,
+      unreadCount: orgChat.getUnreadCount(conv.id, 'org'),
+      createdAt: conv.createdAt,
+    };
+  });
+
+  res.json({ success: true, conversations: convWithTutors });
+});
+
+// Get messages for a specific conversation
+app.get('/api/organizations/conversations/:id/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  const conversationId = req.params.id;
+  const messages = orgChat.getMessages(conversationId);
+  
+  // Verify user has access to this conversation
+  const conv = messages.length > 0 ? orgChat.getOrCreateConversation(org.id, 0) : null;
+  
+  res.json({ success: true, messages });
+});
+
+// Send a message from organization to tutor
+app.post('/api/organizations/conversations/:tutorId/message', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  const { text } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Message text is required.' });
+  }
+
+  const tutorId = Number(req.params.tutorId);
+  const tutor = tutors.findById(tutorId);
+  if (!tutor) {
+    return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  }
+
+  // Get or create conversation
+  const conv = orgChat.getOrCreateConversation(org.id, tutorId);
+  const message = orgChat.sendMessage(conv.id, {
+    senderId: user.id,
+    senderType: 'org',
+    senderName: org.name || org.contactName,
+    text: text.trim(),
+  });
+
+  res.json({ success: true, message });
+});
+
+// Mark conversation as read for organization
+app.post('/api/organizations/conversations/:id/mark-read', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  orgChat.markRead(Number(req.params.id), 'org');
+  res.json({ success: true });
 });
 
 // --- TUTOR QUALIFICATION EVALUATION: assigns which levels a tutor may
@@ -1974,6 +2235,30 @@ app.post('/api/admin/organizations/:id/activate', requireAdminApi, (req, res) =>
   store.addNotification(updated.userId, {
     type: 'organization',
     message: `Your annual subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes for the students you sponsor.`,
+  });
+  res.json({ success: true, organization: updated });
+});
+
+app.post('/api/admin/organizations/:id/monthly-amount', requireAdminApi, (req, res) => {
+  const { monthlyAmount } = req.body || {};
+  if (monthlyAmount == null) return res.status(400).json({ success: false, error: 'Monthly amount is required.' });
+  
+  const updated = organizations.setMonthlyAmount(req.params.id, monthlyAmount);
+  if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
+  
+  store.addNotification(updated.userId, {
+    type: 'organization',
+    message: `Your monthly subscription amount has been set to ₦${monthlyAmount}. Choose to pay monthly or yearly when you activate your subscription.`,
+  });
+  res.json({ success: true, organization: updated });
+});
+
+app.post('/api/admin/organizations/:id/code-sent', requireAdminApi, (req, res) => {
+  const updated = organizations.markCodeSent(req.params.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
+  store.addNotification(updated.userId, {
+    type: 'organization',
+    message: 'Your sponsor access code has been sent to your organization after payment confirmation.',
   });
   res.json({ success: true, organization: updated });
 });

@@ -120,7 +120,8 @@
             <nav class="admin-tab-list">
                 <div class="admin-tab active" data-panel="tutors"><i class="fa-solid fa-chalkboard-user"></i><span class="tab-label">Tutors &amp; Matching</span></div>
                 <div class="admin-tab" data-panel="users"><i class="fa-solid fa-users"></i><span class="tab-label">Applicants / Users</span></div>
-                <div class="admin-tab" data-panel="ngos"><i class="fa-solid fa-hand-holding-heart"></i><span class="tab-label">NGOs &amp; Sponsors</span></div>
+                <div class="admin-tab" data-panel="ngos"><i class="fa-solid fa-hand-holding-heart"></i><span class="tab-label">Sponsors</span></div>
+                <div class="admin-tab" data-panel="ngo-institutions"><i class="fa-solid fa-building"></i><span class="tab-label">NGO &amp; Institutions</span></div>
                 <div class="admin-tab" data-panel="educator"><i class="fa-solid fa-book-open"></i><span class="tab-label">Educator Tools</span></div>
                 <div class="admin-tab" data-panel="activity"><i class="fa-solid fa-flag"></i><span class="tab-label">Activity &amp; Flags</span></div>
                 <div class="admin-tab" data-panel="analytics"><i class="fa-solid fa-chart-line"></i><span class="tab-label">Analytics</span></div>
@@ -144,6 +145,7 @@
                                 <th>Approved Levels</th>
                                 <th>Rating</th>
                                 <th>Orientation</th>
+                                <th>Documents</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -204,10 +206,10 @@
             </div>
         </div>
 
-        <!-- NGOs & sponsors panel -->
+        <!-- Sponsors panel -->
         <div id="panel-ngos" class="hidden admin-card p-6 sm:p-8">
-            <h1 class="text-2xl font-bold text-gray-800 mb-1">NGOs &amp; Sponsors</h1>
-            <p class="text-gray-500 mb-4">Organizations subscribing annually to sponsor students. Approve the application first, then activate the subscription once payment is confirmed - that's what lets them generate student access codes.</p>
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Sponsors</h1>
+            <p class="text-gray-500 mb-4">Individual sponsors and organizations sponsoring students. Approve the application first, then activate the subscription once payment is confirmed - that's what lets them generate student access codes.</p>
             <div class="overflow-x-auto">
                 <table>
                     <thead>
@@ -224,6 +226,14 @@
                     <tbody id="ngos-tbody"></tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- NGO & Institutions panel -->
+        <div id="panel-ngo-institutions" class="hidden admin-card p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">NGO & Institutions Management</h1>
+            <p class="text-gray-500 mb-6">Manage subscription pricing and payment activation for NGOs and educational institutions.</p>
+            
+            <div class="space-y-4" id="ngo-institutions-list"></div>
         </div>
 
         <!-- Educator tools panel -->
@@ -462,13 +472,14 @@
         if (localStorage.getItem('mt-admin-sidebar-collapsed') === '1') setSidebarCollapsed(true);
 
         // --- Tabs ---
-        const PANELS = ['tutors', 'users', 'ngos', 'educator', 'activity', 'analytics'];
+        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'analytics'];
         document.querySelectorAll('.admin-tab').forEach((tab) => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.admin-tab').forEach((t) => t.classList.remove('active'));
                 tab.classList.add('active');
                 PANELS.forEach((p) => document.getElementById(`panel-${p}`).classList.toggle('hidden', tab.dataset.panel !== p));
                 if (tab.dataset.panel === 'users') loadUsers();
+                if (tab.dataset.panel === 'ngo-institutions') loadNgoInstitutions();
                 if (tab.dataset.panel === 'tutors') loadTutorsAndRequests();
                 if (tab.dataset.panel === 'ngos') loadOrganizations();
                 if (tab.dataset.panel === 'educator') loadEducatorTools();
@@ -555,6 +566,9 @@
             const thumb = t.photoUrl
                 ? `<img src="${escapeHtml(t.photoUrl)}" alt="" class="w-8 h-8 rounded-full object-cover inline-block mr-2 align-middle">`
                 : `<span class="w-8 h-8 rounded-full inline-flex items-center justify-center mr-2 align-middle text-white text-xs font-bold" style="background:linear-gradient(135deg,#cc0000,#7e0e14)">${escapeHtml((t.name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase())}</span>`;
+            const certificateBtn = t.certificateUrl
+                ? `<a href="${escapeHtml(t.certificateUrl)}" target="_blank" rel="noopener noreferrer" class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition inline-block"><i class="fa-solid fa-file-pdf mr-1"></i>Certificate</a>`
+                : `<span class="text-gray-400 text-xs">None</span>`;
             return `
                 <tr>
                     <td class="font-semibold text-gray-800">${thumb}${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}${t.phone ? ' &middot; ' + escapeHtml(t.phone) : ''}</span>${t.flagged ? '<br><span class="text-xs text-red-600 font-semibold">Flagged</span>' : ''}${t.expelled ? '<br><span class="text-xs text-gray-400 font-semibold">Expelled</span>' : ''}</td>
@@ -564,6 +578,7 @@
                     <td class="text-xs">${approvedLevelsText(t)}</td>
                     <td>${avgRating ? `<i class="fa-solid fa-star text-amber-500"></i> ${avgRating} (${t.ratingCount})` : '<span class="text-gray-400 text-xs">No ratings</span>'}${avgProfessionalism ? `<br><span class="text-xs text-gray-500">Prof. ${avgProfessionalism}</span>` : ''}</td>
                     <td>${t.orientationCompleted ? '<span class="text-green-600 text-xs font-semibold">Done</span>' : '<span class="text-gray-400 text-xs">Pending</span>'}</td>
+                    <td>${certificateBtn}</td>
                     <td>${statusBadge(t.status)}</td>
                     <td>
                         <div class="flex flex-col gap-1">
@@ -742,6 +757,137 @@
                     const data2 = await res2.json();
                     if (data2.success) { showAlert('Subscription activated.', 'success'); loadOrganizations(); }
                     else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
+        }
+
+        async function loadNgoInstitutions() {
+            const res = await fetch('/api/admin/organizations');
+            const data = await res.json();
+            if (!data.success) return;
+            
+            const ngoInstitutions = data.organizations.filter(org => org.sponsorType === 'ngo');
+            const container = document.getElementById('ngo-institutions-list');
+
+            container.innerHTML = ngoInstitutions.length ? ngoInstitutions.map(org => {
+                const orgCode = (org.studentCodes || []).find((code) => code.isOrganizationalCode);
+                const codeStatusText = orgCode
+                    ? (orgCode.sentToOrganization ? 'Sent to organization' : 'Ready to send after payment')
+                    : 'Awaiting approval';
+
+                return `
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div class="flex items-start justify-between mb-4 gap-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-800">${escapeHtml(org.name || 'Organization')}</h3>
+                            <p class="text-xs text-gray-600 mt-1">Type: <strong>${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'}</strong></p>
+                            <p class="text-xs text-gray-600">Contact: ${escapeHtml(org.contactName)} (${escapeHtml(org.email)})</p>
+                        </div>
+                        <span class="px-2 py-1 bg-${org.status === 'approved' ? 'green' : org.status === 'pending' ? 'yellow' : 'red'}-100 text-${org.status === 'approved' ? 'green' : org.status === 'pending' ? 'yellow' : 'red'}-800 text-xs font-semibold rounded">
+                            ${org.status.charAt(0).toUpperCase() + org.status.slice(1)}
+                        </span>
+                    </div>
+
+                    <div class="space-y-3 border-t border-gray-200 pt-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                            <div class="space-y-2">
+                                <div><span class="font-semibold text-gray-600">Phone:</span> ${escapeHtml(org.phone || '-')}</div>
+                                <div><span class="font-semibold text-gray-600">Registration:</span> ${escapeHtml(org.registrationNumber || '-')}</div>
+                                <div><span class="font-semibold text-gray-600">Address:</span> ${escapeHtml(org.address || org.fullAddress || '-')}</div>
+                            </div>
+                            <div class="space-y-2">
+                                <div><span class="font-semibold text-gray-600">Description:</span> ${escapeHtml(org.description || 'No description provided.')}</div>
+                                <div>
+                                    <span class="font-semibold text-gray-600">Document:</span>
+                                    ${org.certificateUrl
+                                        ? `<a href="${org.certificateUrl}" target="_blank" rel="noopener noreferrer" class="ml-1 text-primary-red underline">View uploaded document</a>`
+                                        : '<span class="ml-1 text-gray-400">No document uploaded</span>'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-dashed border-gray-300 bg-white p-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Organization code</div>
+                            <div class="font-mono text-lg font-bold text-gray-800">${orgCode ? escapeHtml(orgCode.code) : 'Not generated yet'}</div>
+                            <div class="text-xs text-gray-500 mt-1">${codeStatusText}</div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-2">Monthly Amount (₦)</label>
+                                <input type="number" class="monthly-amount-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                                       data-org-id="${org.id}" value="${org.monthlyAmount || 0}" min="0" step="1000">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-2">Subscription Status</label>
+                                <div class="text-sm font-semibold text-${org.subscriptionStatus === 'active' ? 'green' : 'red'}-600">
+                                    ${org.subscriptionStatus === 'active' 
+                                        ? `Active (until ${new Date(org.subscriptionEndAt).toLocaleDateString()})`
+                                        : 'Inactive'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button class="save-amount-btn px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700" data-org-id="${org.id}">
+                                Save Amount
+                            </button>
+                            ${org.status === 'approved' && orgCode && !orgCode.sentToOrganization ? `
+                                <button class="mark-code-sent-btn px-3 py-2 bg-purple-600 text-white rounded text-xs font-semibold hover:bg-purple-700" data-org-id="${org.id}">
+                                    Mark code sent
+                                </button>
+                            ` : ''}
+                            ${org.status === 'approved' && org.subscriptionStatus !== 'active' ? `
+                                <button class="activate-ngo-sub-btn px-3 py-2 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700" data-org-id="${org.id}">
+                                    Activate Subscription
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+            }).join('') : '<p class="text-gray-400 text-center py-8">No NGOs or Institutions registered yet.</p>';
+            
+            document.querySelectorAll('.save-amount-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const orgId = btn.dataset.orgId;
+                    const input = document.querySelector(`.monthly-amount-input[data-org-id="${orgId}"]`);
+                    const amount = Number(input.value);
+                    
+                    const res2 = await fetch(`/api/admin/organizations/${orgId}/monthly-amount`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ monthlyAmount: amount })
+                    });
+                    const data2 = await res2.json();
+                    if (data2.success) { 
+                        showAlert('Amount saved successfully.', 'success'); 
+                        loadNgoInstitutions();
+                    } else showAlert(data2.error || 'Failed to save amount.', 'error');
+                });
+            });
+
+            document.querySelectorAll('.mark-code-sent-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const orgId = btn.dataset.orgId;
+                    const res2 = await fetch(`/api/admin/organizations/${orgId}/code-sent`, { method: 'POST' });
+                    const data2 = await res2.json();
+                    if (data2.success) {
+                        showAlert('Organization code marked as sent.', 'success');
+                        loadNgoInstitutions();
+                    } else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
+            
+            document.querySelectorAll('.activate-ngo-sub-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const orgId = btn.dataset.orgId;
+                    const res2 = await fetch(`/api/admin/organizations/${orgId}/activate`, { method: 'POST' });
+                    const data2 = await res2.json();
+                    if (data2.success) { 
+                        showAlert('Subscription activated.', 'success'); 
+                        loadNgoInstitutions();
+                    } else showAlert(data2.error || 'Failed.', 'error');
                 });
             });
         }
