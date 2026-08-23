@@ -99,8 +99,10 @@
     const avatarInner = user.photoUrl
       ? `<img src="${escapeHtml(user.photoUrl)}" alt="${name}">`
       : `<span class="mt-auth-initials">${initials(user.name || user.email)}</span>`;
+    const editProfileLink = `<a href="/edit-profile"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>`;
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
+    const sponsorLink = user.hasSponsorAccess ? `<a href="/ngo-dashboard"><i class="fa-solid fa-building"></i> Sponsor Dashboard</a>` : '';
 
     target.innerHTML = `
       <div class="mt-auth-wrap">
@@ -109,6 +111,8 @@
           <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
           <a href="/messages" target="_blank" rel="noopener" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
+          ${editProfileLink}
+          ${sponsorLink}
           ${adminLink}
           ${tutorLink}
           <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>

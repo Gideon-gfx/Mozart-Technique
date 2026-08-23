@@ -356,6 +356,14 @@
             return convo.category;
         }
 
+        function linkifyHtml(text) {
+            const safe = escapeHtml(String(text || ''));
+            return safe.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
+                const href = match.startsWith('http') ? match : `https://${match}`;
+                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
+            });
+        }
+
         function messageBubbleHtml(m) {
             const mine = m.senderRole === myRole;
             const clip = m.libraryItem
@@ -381,7 +389,7 @@
                 <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
                     <div class="bubble ${mine ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-800'}">
                         ${attachmentHtml}
-                        ${m.text ? `<p class="whitespace-pre-wrap">${escapeHtml(m.text)}<span class="stamp">${stamp}</span></p>` : `<span class="stamp" style="float:none;top:0;display:block;margin:2px 0 0">${stamp}</span>`}
+                        ${m.text ? `<p class="whitespace-pre-wrap">${linkifyHtml(m.text)}<span class="stamp">${stamp}</span></p>` : `<span class="stamp" style="float:none;top:0;display:block;margin:2px 0 0">${stamp}</span>`}
                         ${clip}
                     </div>
                 </div>

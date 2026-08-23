@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile - Mozart Techniques</title>
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-red': '#cc0000',
+                        'primary-dark': '#1F2937',
+                    },
+                    fontFamily: { sans: ['Montserrat', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            color: #333;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%) !important;
+        }
+        h1, h2, h3 { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: 1160px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; gap: 16px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+        @media (max-width: 768px) { .nav-links { display: none; } }
+    </style>
+</head>
+<body>
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="/mozartLogo.jpg" alt="Mozart Techniques logo">Mozart Techniques</a>
+            </div>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/library">Library</a>
+                <a href="/dashboard" class="active">Dashboard</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+        <div class="mb-8">
+            <a href="/dashboard" class="text-primary-red hover:text-red-700 font-semibold text-sm flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Edit Profile</h1>
+            <p class="text-gray-600 mb-6">Update your account information</p>
+
+            <form id="edit-profile-form" class="space-y-6">
+                <!-- Photo Upload -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Profile Photo</label>
+                    <div class="flex flex-col sm:flex-row gap-4 items-start">
+                        <div class="w-24 h-24 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center border-2 border-gray-200 flex-shrink-0">
+                            <img id="profile-preview" src="/mozartLogo.jpg" alt="Profile photo" class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <input type="file" id="photo-input" accept="image/*" class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-red file:text-white hover:file:bg-red-700 transition">
+                            <p class="text-xs text-gray-500 mt-2">JPG, PNG or GIF (Max 5MB)</p>
+                            <p id="photo-status" class="text-xs mt-2"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Name -->
+                <div>
+                    <label for="name-input" class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                    <input type="text" id="name-input" placeholder="Your full name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red" maxlength="100">
+                </div>
+
+                <!-- Tutor Courses -->
+                <div id="tutor-courses-section" class="hidden">
+                    <label for="tutor-courses" class="block text-sm font-semibold text-gray-700 mb-2">Courses you teach</label>
+                    <select id="tutor-courses" multiple size="8" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red"></select>
+                    <p class="text-xs text-gray-500 mt-2">Hold Ctrl (Windows) or Command (Mac) to select multiple courses.</p>
+                </div>
+                <!-- Email (Read-only) -->
+                <div>
+                    <label for="email-display" class="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                    <input type="email" id="email-display" disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600">
+                    <p class="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                </div>
+
+                <!-- Country -->
+                <div>
+                    <label for="country-select" class="block text-sm font-semibold text-gray-700 mb-2">Country</label>
+                    <select id="country-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red"></select>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 pt-6 border-t border-gray-200">
+                    <a href="/dashboard" class="flex-1 px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition text-center">
+                        Cancel
+                    </a>
+                    <button type="submit" id="save-btn" class="flex-1 px-6 py-2 bg-primary-red text-white rounded-lg font-semibold hover:bg-red-700 transition">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script src="/assets/nav-auth.js"></script>
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        async function loadProfile() {
+            try {
+                const res = await fetch('/api/session');
+                const data = await res.json();
+                if (!data.user) {
+                    window.location.href = '/login?redirect=' + encodeURIComponent('/edit-profile');
+                    return;
+                }
+                const user = data.user;
+                document.getElementById('name-input').value = user.name || '';
+                document.getElementById('email-display').value = user.email || '';
+                if (user.photoUrl) {
+                    document.getElementById('profile-preview').src = user.photoUrl;
+                }
+
+                const tutorRes = await fetch('/api/tutors/me');
+                const tutorData = await tutorRes.json();
+                if (tutorData.success && tutorData.profile) {
+                    const section = document.getElementById('tutor-courses-section');
+                    const courses = document.getElementById('tutor-courses');
+                    const taxonomyRes = await fetch('/api/taxonomy');
+                    const taxonomy = await taxonomyRes.json();
+                    section.classList.remove('hidden');
+                    courses.innerHTML = (taxonomy.subjects || []).map((subject) =>
+                        `<option value="${escapeHtml(subject)}" ${((tutorData.profile.categories || []).includes(subject)) ? 'selected' : ''}>${escapeHtml(subject)}</option>`
+                    ).join('');
+                }
+                // Load countries
+                const geoRes = await fetch('/api/geo');
+                const geoData = await geoRes.json();
+                const countrySelect = document.getElementById('country-select');
+                countrySelect.innerHTML = geoData.countries.map((c) => 
+                    `<option value="${escapeHtml(c)}" ${user.countryCode === c ? 'selected' : ''}>${escapeHtml(c)}</option>`
+                ).join('');
+            } catch (err) {
+                console.error(err);
+                showAlert('Could not load profile.', 'error');
+            }
+        }
+
+        document.getElementById('photo-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                showAlert('File is too large. Max 5MB.', 'error');
+                e.target.value = '';
+                return;
+            }
+
+            const statusEl = document.getElementById('photo-status');
+            statusEl.textContent = 'Uploading...';
+            statusEl.style.color = '#666';
+
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            try {
+                const res = await fetch('/api/profile/photo', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!data.success) {
+                    statusEl.textContent = data.error || 'Upload failed.';
+                    statusEl.style.color = '#B91C1C';
+                    e.target.value = '';
+                    return;
+                }
+                document.getElementById('profile-preview').src = data.photoUrl;
+                statusEl.textContent = 'Photo updated!';
+                statusEl.style.color = '#059669';
+            } catch (err) {
+                statusEl.textContent = 'Upload failed.';
+                statusEl.style.color = '#B91C1C';
+                e.target.value = '';
+            }
+        });
+
+        document.getElementById('edit-profile-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name-input').value.trim();
+            const country = document.getElementById('country-select').value;
+            const tutorCourses = Array.from(document.getElementById('tutor-courses').selectedOptions).map((option) => option.value);
+
+            if (!name) {
+                showAlert('Please enter your name.', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            try {
+                const promises = [];
+                if (name) {
+                    promises.push(fetch('/api/profile/name', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    }));
+                }
+                if (!document.getElementById('tutor-courses-section').classList.contains('hidden')) {
+                    if (!tutorCourses.length) {
+                        showAlert('Choose at least one course.', 'error');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Changes';
+                        return;
+                    }
+                    promises.push(fetch('/api/tutors/me/categories', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ categories: tutorCourses })
+                    }));
+                }                if (country) {
+                    promises.push(fetch('/api/profile/country', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ countryCode: country })
+                    }));
+                }
+
+                const results = await Promise.all(promises);
+                const allSuccess = results.every((r) => r.status === 200);
+
+                if (!allSuccess) {
+                    showAlert('Could not save changes.', 'error');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Changes';
+                    return;
+                }
+
+                showAlert('Profile updated successfully!', 'success');
+                setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+            } catch (err) {
+                console.error(err);
+                showAlert('Could not save profile.', 'error');
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadProfile);
+    </script>
+    <script src="/assets/footer.js"></script>
+</body>
+</html>

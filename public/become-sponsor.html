@@ -503,6 +503,24 @@
                     document.getElementById('subscription-end-date').textContent = new Date(org.subscriptionEndAt).toLocaleDateString();
                     renderCodes(org.studentCodes || []);
                 }
+                if (org.status === 'rejected') {
+                    const statusBlock = document.getElementById('applied-status');
+                    statusBlock.textContent = 'Your application was not approved this time. Please reapply with updated information.';
+                    const reapplyBtn = document.createElement('button');
+                    reapplyBtn.type = 'button';
+                    reapplyBtn.className = 'mt-4 px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition';
+                    reapplyBtn.textContent = 'Reapply';
+                    reapplyBtn.addEventListener('click', () => {
+                        document.getElementById('already-applied').classList.add('hidden');
+                        document.getElementById('sponsor-form').classList.remove('hidden');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+                    const existingBtn = document.querySelector('#already-applied button[data-reapply]');
+                    if (!existingBtn) {
+                        reapplyBtn.setAttribute('data-reapply', 'true');
+                        document.getElementById('already-applied').appendChild(reapplyBtn);
+                    }
+                }
                 document.getElementById('already-applied').classList.remove('hidden');
             } else {
                 document.getElementById('sponsor-form').classList.remove('hidden');

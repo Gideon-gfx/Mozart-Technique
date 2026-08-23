@@ -274,9 +274,23 @@
 
             // Handle sponsor status
             if (data.user.sponsor) {
-                document.getElementById('sponsor-status-text').textContent = 
-                    `You're sponsored by ${data.user.sponsor.orgName}. Your sponsor covers your lesson payments. Thank you for being part of their sponsored network!`;
+                document.getElementById('sponsor-status-text').innerHTML = `
+                    <span class="font-semibold text-emerald-700">Code Redeemed.</span> You're under ${escapeHtml(data.user.sponsor.orgName)}'s sponsorship plan. You can now message them directly and continue with sponsored lessons.
+                    <a href="/messages" class="ml-2 inline-flex items-center text-primary-red font-semibold hover:underline">Message sponsor <i class="fa-solid fa-arrow-right ml-1"></i></a>
+                `;
                 document.getElementById('sponsor-code-form').classList.add('hidden');
+            }
+            if (data.user.hasSponsorOrg) {
+                const sponsorSection = document.getElementById('sponsor-code-section');
+                if (sponsorSection) {
+                    sponsorSection.innerHTML = `
+                        <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fa-solid fa-building text-primary-red mr-2"></i>Sponsor Dashboard</h2>
+                        <p class="text-sm text-gray-600 mb-4">Your organization is approved and active. You can manage students, tutors, and sponsored access from the sponsor dashboard.</p>
+                        <a href="/ngo-dashboard" class="inline-flex items-center px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                            Open Sponsor Dashboard <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </a>
+                    `;
+                }
             }
 
             document.getElementById('streak-count').textContent = (data.streak && data.streak.count) || 0;
@@ -915,10 +929,13 @@
             });
             const data = await res.json();
             if (data.success) {
-                showAlert(`Successfully redeemed! You're now under ${data.orgName}'s sponsorship.`, 'success');
+                showAlert(`Code redeemed. You're now under ${data.orgName}'s sponsorship.`, 'success');
                 document.getElementById('sponsor-code-input').value = '';
                 document.getElementById('sponsor-code-form').classList.add('hidden');
-                document.getElementById('sponsor-status-text').textContent = `You're sponsored by ${data.orgName}. You can now apply to tutors and your sponsor will handle payment.`;
+                document.getElementById('sponsor-status-text').innerHTML = `
+                    <span class="font-semibold text-emerald-700">Code Redeemed.</span> You're under ${escapeHtml(data.orgName)}'s sponsorship plan. You can now message them directly and continue with sponsored lessons.
+                    <a href="/messages" class="ml-2 inline-flex items-center text-primary-red font-semibold hover:underline">Message sponsor <i class="fa-solid fa-arrow-right ml-1"></i></a>
+                `;
                 setTimeout(() => { window.location.reload(); }, 1500);
             } else {
                 showAlert(data.error || 'Failed to redeem code.', 'error');

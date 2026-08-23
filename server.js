@@ -26,6 +26,7 @@ const organizations = require('./data/organizations');
 const mailer = require('./data/mailer');
 const stripeClient = require('./data/stripe-client');
 const realtime = require('./data/realtime');
+const mongoPersistence = require('./data/mongo-persistence');
 const googleCalendar = require('./data/google-calendar');
 const { geocodeAddress, reverseGeocode, distanceKm } = require('./data/geocode');
 
@@ -240,6 +241,9 @@ function requireTutorProfileApi(req, res, next) {
 
 function publicUser(user) {
   const tutorProfile = tutors.findByUserId(user.id);
+  const org = organizations.findByUserId(user.id);
+  const hasSponsorOrg = Boolean(org && org.status === 'approved');
+  const hasSponsorAccess = Boolean(user.sponsor || hasSponsorOrg);
   return {
     id: user.id,
     name: user.name,
@@ -250,6 +254,9 @@ function publicUser(user) {
     hasTutorProfile: Boolean(tutorProfile),
     tutorProfileId: tutorProfile ? tutorProfile.id : null,
     tutorStatus: tutorProfile ? tutorProfile.status : null,
+    sponsor: user.sponsor || null,
+    hasSponsorOrg,
+    hasSponsorAccess,
   };
 }
 
@@ -348,15 +355,33 @@ app.get('/reset-password', (req, res) => {
 });
 
 app.get('/dashboard', requireAuthPage, (req, res) => {
+  const user = currentUser(req);
+  if (user && user.role !== 'admin') {
+    const org = organizations.findByUserId(user.id);
+    if (org && org.status === 'approved') {
+      return res.redirect('/ngo-dashboard');
+    }
+  }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
 });
 
 app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
+  const user = currentUser(req);
+  if (user && user.role !== 'admin') {
+    const org = organizations.findByUserId(user.id);
+    if (org && org.status === 'approved') {
+      return res.redirect('/ngo-dashboard');
+    }
+  }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
 });
 
 app.get('/ngo-dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
+});
+
+app.get('/edit-profile', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'edit-profile.html'));
 });
 
 app.get('/admin', requireAdminPage, (req, res) => {
@@ -622,6 +647,28 @@ app.post('/api/profile/country', requireAuthApi, (req, res) => {
   res.json({ success: true, user: publicUser(updated) });
 });
 
+app.post('/api/profile/name', requireAuthApi, (req, res) => {
+  const { name } = req.body || {};
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ success: false, error: 'Name is required.' });
+  }
+  const user = currentUser(req);
+  user.name = String(name).trim();
+  store.updateUser(user);
+  res.json({ success: true, user: publicUser(user) });
+});
+
+app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No file uploaded.' });
+  }
+  const user = currentUser(req);
+  const photoPath = `/uploads/photos/${req.file.filename}`;
+  user.photoUrl = photoPath;
+  store.updateUser(user);
+  res.json({ success: true, photoUrl: photoPath });
+});
+
 // --- STRIPE: card on file, used to authorize (hold) and later capture
 // escrow payments. Mozart Techniques' own Stripe account collects every
 // charge directly - there's no per-tutor Connect account, so a tutor's
@@ -847,6 +894,15 @@ app.get('/api/tutors/me', requireAuthApi, (req, res) => {
   res.json({ success: true, profile });
 });
 
+app.post('/api/tutors/me/categories', requireTutorProfileApi, (req, res) => {
+  const categories = Array.isArray(req.body.categories)
+    ? [...new Set(req.body.categories.map((category) => String(category).trim()).filter((category) => taxonomy.SUBJECTS.includes(category)))]
+    : [];
+  if (!categories.length) return res.status(400).json({ success: false, error: 'Choose at least one course.' });
+  const updated = tutors.setCategories(req.tutorProfile.id, categories);
+  res.json({ success: true, profile: updated });
+});
+
 app.get('/api/tutors/me/intake-form', requireTutorProfileApi, (req, res) => {
   res.json({ success: true, questions: req.tutorProfile.studentIntakeQuestions || [] });
 });
@@ -992,8 +1048,12 @@ app.post('/api/admin/payouts/:tutorId/process', requireAdminApi, (req, res) => {
 // sponsors. A student redeems a code to link their account to the org. ---
 app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certificate'), async (req, res) => {
   const user = currentUser(req);
-  if (organizations.findByUserId(user.id)) {
+  const existing = organizations.findByUserId(user.id);
+  if (existing && existing.status !== 'rejected') {
     return res.status(409).json({ success: false, error: 'You already have an organization application on file.' });
+  }
+  if (existing && existing.status === 'rejected') {
+    organizations.removeByUserId(user.id);
   }
   const { name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType } = req.body || {};
   if (!contactName || !contactName.trim()) return res.status(400).json({ success: false, error: 'A contact person is required.' });
@@ -2593,7 +2653,15 @@ function startServer(attempt = 1) {
   });
 }
 
-seedSpecialAccounts().then(() => {
+mongoPersistence.initialize().then((result) => {
+  if (result.connected) {
+    mongoPersistence.installWriteThroughHook();
+    console.log('MongoDB persistence enabled for JSON snapshots.');
+  } else {
+    console.warn('MongoDB persistence is disabled in development; local JSON files are in use.');
+  }
+  return seedSpecialAccounts();
+}).then(() => {
   startServer();
 }).catch((err) => {
   console.error('Failed to seed initial accounts, server did not start:', err);

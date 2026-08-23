@@ -33,7 +33,9 @@
         .badge-approved { background: #dcfce7; color: #166534; }
         .badge-pending { background: #fef3c7; color: #92400e; }
         .badge-active { background: #dbeafe; color: #1e40af; }
-        .code-display { font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #cc0000; }
+        #tab-codes { color: #1f2937; }
+        #tab-codes h2, #tab-codes h3, #tab-codes p, #tab-codes strong { color: #1f2937; }
+        .code-display { font-family: 'Courier New', monospace; font-size: 24px; font-weight: bold; letter-spacing: 3px; color: #991b1b; background: #fff; padding: 8px 12px; border-radius: 6px; display: inline-block; }
     </style>
 </head>
 <body>
@@ -134,19 +136,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4">Add Students by Code</h3>
-                        <p class="text-gray-600 text-sm mb-4">Students can input your organization code to link themselves to your organization for sponsored lessons.</p>
-                        <div class="flex gap-3">
-                            <input type="text" id="student-code-input" placeholder="Enter student's access code..." maxlength="8" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red uppercase">
-                            <button id="redeem-student-code-btn" class="px-6 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
-                                Add Student
-                            </button>
-                        </div>
-                        <p class="text-xs text-gray-400 mt-2">Codes are case-insensitive</p>
-                    </div>
-
                     <div class="bg-white rounded-lg shadow-lg p-6">
                         <h3 class="text-lg font-bold text-gray-800 mb-4">Recent Activity</h3>
                         <div id="activity-list" class="space-y-2">
@@ -403,6 +392,14 @@
             }
         }
 
+        function linkifyHtml(text) {
+            const safe = escapeHtml(String(text || ''));
+            return safe.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
+                const href = match.startsWith('http') ? match : `https://${match}`;
+                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
+            });
+        }
+
         // Render messages
         function renderMessages(messages) {
             const container = document.getElementById('messages-container');
@@ -415,7 +412,7 @@
                 <div class="flex ${msg.senderType === 'org' ? 'justify-end' : 'justify-start'}">
                     <div class="max-w-xs px-3 py-2 rounded-lg ${msg.senderType === 'org' ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-800'}">
                         <p class="text-xs font-semibold mb-1">${msg.senderName}</p>
-                        <p class="text-sm">${escapeHtml(msg.text)}</p>
+                        <p class="text-sm whitespace-pre-wrap">${linkifyHtml(msg.text)}</p>
                         <p class="text-xs mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString()}</p>
                     </div>
                 </div>
@@ -462,43 +459,6 @@
             document.getElementById('no-tutor-selected').classList.remove('hidden');
             document.getElementById('message-input').value = '';
         });
-
-        // Handle code input to add student
-        document.getElementById('redeem-student-code-btn').addEventListener('click', async () => {
-            const codeInput = document.getElementById('student-code-input');
-            const code = codeInput.value.trim().toUpperCase();
-            
-            if (!code) {
-                showAlert('Please enter a code', 'error');
-                return;
-            }
-
-            if (code.length !== 8) {
-                showAlert('Code must be 8 characters', 'error');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/redeem-code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                });
-
-                const data = await res.json();
-                if (!data.success) {
-                    showAlert(data.error || 'Invalid code', 'error');
-                    return;
-                }
-
-                showAlert(`Student added to ${data.orgName}!`, 'success');
-                codeInput.value = '';
-                loadDashboard(); // Reload to update student count
-            } catch (err) {
-                showAlert('Error adding student: ' + err.message, 'error');
-            }
-        });
-
         // Load organization dashboard
         async function loadDashboard() {
             // Check for payment status from redirect
@@ -558,8 +518,9 @@
 
             // Display access code
             if (org.studentCodes && org.studentCodes.length > 0) {
-                const orgCode = org.studentCodes.find(c => c.isOrganizationalCode);
-                if (orgCode) {
+                // Older organization records may not have the organizational flag.
+                const orgCode = org.studentCodes.find(c => c.isOrganizationalCode) || org.studentCodes[0];
+                if (orgCode && orgCode.code) {
                     document.getElementById('org-access-code').textContent = orgCode.code;
                 }
             }

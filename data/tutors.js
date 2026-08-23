@@ -265,6 +265,15 @@ function setPhoto(id, photoUrl) {
   return tutor;
 }
 
+function setCategories(id, categories) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.categories = Array.isArray(categories) ? categories : [];
+  persist(db);
+  return tutor;
+}
+
 function setIntakeQuestions(id, questions) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
@@ -289,6 +298,6 @@ module.exports = {
   listAll, listApproved, findById, findByUserId, apply, setStatus,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
-  creditBalance, debitBalance, setRealLocation, setPhoto, setIntakeQuestions, findBySlug,
+  creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setIntakeQuestions, findBySlug,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

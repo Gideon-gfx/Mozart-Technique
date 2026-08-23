@@ -38,6 +38,15 @@ function findByUserId(userId) {
   return listAll().find((o) => o.userId === userId) || null;
 }
 
+function removeByUserId(userId) {
+  const db = load();
+  const filtered = db.organizations.filter((o) => o.userId !== userId);
+  if (filtered.length === db.organizations.length) return false;
+  db.organizations = filtered;
+  persist(db);
+  return true;
+}
+
 async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, certificateUrl }) {
   const db = load();
   const coords = address ? await geocodeAddress(address) : null;
@@ -75,6 +84,12 @@ function setStatus(id, status) {
   if (!org) return null;
   org.status = status;
   org.reviewedAt = new Date().toISOString();
+
+  if (status === 'rejected') {
+    org.subscriptionStatus = 'inactive';
+    org.subscriptionStartAt = null;
+    org.subscriptionEndAt = null;
+  }
 
   if (status === 'approved' && org.sponsorType === 'ngo') {
     const existingOrgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
@@ -228,7 +243,7 @@ function getStudentsForOrganization(orgId) {
 }
 
 module.exports = {
-  listAll, findById, findByUserId, apply, setStatus,
+  listAll, findById, findByUserId, removeByUserId, apply, setStatus,
   activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
   getStudentsForOrganization, markCodeSent,
 };
