@@ -13,8 +13,10 @@ const SNAPSHOT_FILES = [
   'reels.json',
   'certificates.json',
   'payments.json',
+  'payouts.json',
   'chat.json',
   'org-chat.json',
+  'support-chat.json',
 ];
 
 const snapshotSchema = new mongoose.Schema({

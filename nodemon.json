@@ -1,3 +1,5 @@
 {
-  "ignore": ["data/*.json", "public/uploads/*"]
+  "watch": ["server.js", "data", "public"],
+  "ext": "js,mjs,cjs,html,css",
+  "ignore": ["data/**/*.json", "public/uploads/**", "node_modules/**"]
 }

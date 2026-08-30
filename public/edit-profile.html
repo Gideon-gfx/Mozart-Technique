@@ -102,6 +102,12 @@
                     <select id="tutor-courses" multiple size="8" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red"></select>
                     <p class="text-xs text-gray-500 mt-2">Hold Ctrl (Windows) or Command (Mac) to select multiple courses.</p>
                 </div>
+
+                <div id="tutor-rate-section" class="hidden">
+                    <label for="hourly-rate" class="block text-sm font-semibold text-gray-700 mb-2">Hourly charge (USD)</label>
+                    <input type="number" id="hourly-rate" min="0.01" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="e.g. 25.00">
+                    <p class="text-xs text-gray-500 mt-1">Students see this amount converted to their local currency.</p>
+                </div>
                 <!-- Email (Read-only) -->
                 <div>
                     <label for="email-display" class="block text-sm font-semibold text-gray-700 mb-2">Email</label>
@@ -167,6 +173,8 @@
                     const taxonomyRes = await fetch('/api/taxonomy');
                     const taxonomy = await taxonomyRes.json();
                     section.classList.remove('hidden');
+                    document.getElementById('tutor-rate-section').classList.remove('hidden');
+                    document.getElementById('hourly-rate').value = tutorData.profile.hourlyRateUsd || '';
                     courses.innerHTML = (taxonomy.subjects || []).map((subject) =>
                         `<option value="${escapeHtml(subject)}" ${((tutorData.profile.categories || []).includes(subject)) ? 'selected' : ''}>${escapeHtml(subject)}</option>`
                     ).join('');
@@ -175,9 +183,10 @@
                 const geoRes = await fetch('/api/geo');
                 const geoData = await geoRes.json();
                 const countrySelect = document.getElementById('country-select');
-                countrySelect.innerHTML = geoData.countries.map((c) => 
-                    `<option value="${escapeHtml(c)}" ${user.countryCode === c ? 'selected' : ''}>${escapeHtml(c)}</option>`
+                countrySelect.innerHTML = geoData.countries.map((country) =>
+                    `<option value="${escapeHtml(country.code)}" ${geoData.countryCode === country.code ? 'selected' : ''}>${escapeHtml(country.name)}</option>`
                 ).join('');
+                countrySelect.disabled = true;
             } catch (err) {
                 console.error(err);
                 showAlert('Could not load profile.', 'error');
@@ -226,6 +235,7 @@
             const name = document.getElementById('name-input').value.trim();
             const country = document.getElementById('country-select').value;
             const tutorCourses = Array.from(document.getElementById('tutor-courses').selectedOptions).map((option) => option.value);
+            const hourlyRateUsd = Number(document.getElementById('hourly-rate').value);
 
             if (!name) {
                 showAlert('Please enter your name.', 'error');
@@ -257,11 +267,16 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ categories: tutorCourses })
                     }));
-                }                if (country) {
-                    promises.push(fetch('/api/profile/country', {
+                    if (!Number.isFinite(hourlyRateUsd) || hourlyRateUsd <= 0) {
+                        showAlert('Enter a valid hourly charge.', 'error');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Changes';
+                        return;
+                    }
+                    promises.push(fetch('/api/tutors/me/hourly-rate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ countryCode: country })
+                        body: JSON.stringify({ hourlyRateUsd })
                     }));
                 }
 

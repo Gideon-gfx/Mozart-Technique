@@ -40,11 +40,12 @@ function findById(id) {
   return listAll().find((r) => r.id === Number(id)) || null;
 }
 
-function create({ title, url, category, genre, addedBy, isFile }) {
+function create({ title, description, url, category, genre, addedBy, isFile }) {
   const db = load();
   const reel = {
     id: db.nextId++,
     title,
+    description: description || '',
     url,
     isFile: Boolean(isFile),
     category: category || null,
@@ -61,11 +62,12 @@ function create({ title, url, category, genre, addedBy, isFile }) {
 
 // Used both to edit details and to swap in a replacement link/title when the
 // original goes dead - same operation, just re-pointing url/title.
-function update(id, { title, url, category, genre, isFile }) {
+function update(id, { title, description, url, category, genre, isFile }) {
   const db = load();
   const reel = db.reels.find((r) => r.id === Number(id));
   if (!reel) return null;
   if (title !== undefined) reel.title = title;
+  if (description !== undefined) reel.description = description || '';
   if (url !== undefined) reel.url = url;
   if (category !== undefined) reel.category = category || null;
   if (genre !== undefined) reel.genre = genre || null;
@@ -73,6 +75,15 @@ function update(id, { title, url, category, genre, isFile }) {
   reel.updatedAt = new Date().toISOString();
   persist(db);
   return reel;
+}
+
+function remove(id) {
+  const db = load();
+  const index = db.reels.findIndex((r) => r.id === Number(id));
+  if (index === -1) return null;
+  const [removed] = db.reels.splice(index, 1);
+  persist(db);
+  return removed;
 }
 
 function setStatus(id, status) {
@@ -85,4 +96,4 @@ function setStatus(id, status) {
   return reel;
 }
 
-module.exports = { listAll, listActive, findById, create, update, setStatus };
+module.exports = { listAll, listActive, findById, create, update, remove, setStatus };

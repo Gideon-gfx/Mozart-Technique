@@ -65,7 +65,11 @@
         @media (max-width: 768px) {
             .admin-sidebar { width: 60px; padding: 20px 8px; }
             .admin-sidebar .tab-label, .admin-sidebar .toggle-label { display: none; }
-            .admin-sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
+            /* Keep the menu toggle available after collapsing. Previously the
+               whole sidebar became width:0, including its only reopen button. */
+            .admin-sidebar.collapsed { width: 60px; padding: 20px 8px; border-right: 1px solid var(--rule); overflow: visible; }
+            .admin-sidebar.collapsed .sidebar-toggle-btn { display: flex; }
+            .admin-sidebar.collapsed .admin-tab-list { display: none; }
             .admin-main { padding: 20px 16px; }
         }
 
@@ -93,6 +97,9 @@
             border-radius: 12px;
             box-shadow: 0 1px 2px rgba(23,19,15,.03);
         }
+        /* Curriculum/evaluation administration is intentionally not part of
+           the live admin interface; orientation and library tools remain. */
+        #panel-educator > .admin-card:first-child { display: none; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
@@ -124,11 +131,15 @@
                 <div class="admin-tab" data-panel="ngo-institutions"><i class="fa-solid fa-building"></i><span class="tab-label">NGO &amp; Institutions</span></div>
                 <div class="admin-tab" data-panel="educator"><i class="fa-solid fa-book-open"></i><span class="tab-label">Educator Tools</span></div>
                 <div class="admin-tab" data-panel="activity"><i class="fa-solid fa-flag"></i><span class="tab-label">Activity &amp; Flags</span></div>
+                <div class="admin-tab" data-panel="payouts"><i class="fa-solid fa-money-bill-transfer"></i><span class="tab-label">Tutor Payouts</span></div>
                 <div class="admin-tab" data-panel="analytics"><i class="fa-solid fa-chart-line"></i><span class="tab-label">Analytics</span></div>
             </nav>
         </aside>
 
         <main class="admin-main">
+        <section class="admin-card mb-6 p-4" aria-label="Region filter">
+            <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-gray-700 mr-2"><i class="fa-solid fa-globe mr-1 text-primary-red"></i>Region</span><div id="region-tabs" class="flex flex-wrap gap-2"></div></div>
+        </section>
         <!-- Tutors & matching panel -->
         <div id="panel-tutors" class="space-y-6">
             <div class="admin-card p-6 sm:p-8">
@@ -270,17 +281,14 @@
             <div class="admin-card p-6 sm:p-8">
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor Orientation</h1>
                 <p class="text-gray-500 mb-4">New tutors watch/read this primer and take the quiz; passing grants a one-time reward.</p>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Show this orientation to</label>
+                <select id="orientation-audience" class="w-full sm:w-80 px-3 py-2 mb-3 border border-gray-300 rounded-lg"><option value="tutor">Tutors</option><option value="student">Students</option><option value="admin">Admins</option><option value="sponsor">Sponsors</option><option value="organization">NGO / Organizations</option><option value="support_agent">Support Agents</option></select>
                 <label class="block text-sm font-medium text-gray-600 mb-1">Title</label>
                 <input id="orientation-title" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
                 <label class="block text-sm font-medium text-gray-600 mb-1">Video URL (optional)</label>
                 <input id="orientation-video" type="text" placeholder="https://..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
                 <label class="block text-sm font-medium text-gray-600 mb-1">Notes</label>
                 <textarea id="orientation-notes" rows="3" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg"></textarea>
-                <label class="block text-sm font-medium text-gray-600 mb-1">Reward for completing</label>
-                <select id="orientation-reward" class="w-full sm:w-80 px-3 py-2 mb-4 border border-gray-300 rounded-lg">
-                    <option value="bonus_student">Bonus-matched student (priority on next match)</option>
-                    <option value="monetary">One-time monetary bonus (admin fulfills manually)</option>
-                </select>
 
                 <div id="orientation-quiz-editor" class="space-y-4 mb-3"></div>
                 <button id="add-orientation-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition">
@@ -386,6 +394,12 @@
             </div>
         </div>
 
+        <div id="panel-payouts" class="hidden admin-card p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor payout requests</h1>
+            <p class="text-gray-500 mb-5">Review the bank details, send the transfer outside the platform, then mark the request processed.</p>
+            <div class="overflow-x-auto"><table><thead><tr><th>Tutor</th><th>Amount</th><th>Bank details</th><th>Requested</th><th>Status</th><th>Action</th></tr></thead><tbody id="payouts-tbody"></tbody></table></div>
+        </div>
+
         <!-- Analytics panel -->
         <div id="panel-analytics" class="hidden space-y-6">
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -472,7 +486,20 @@
         if (localStorage.getItem('mt-admin-sidebar-collapsed') === '1') setSidebarCollapsed(true);
 
         // --- Tabs ---
-        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'analytics'];
+        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'payouts', 'analytics'];
+        let selectedRegion = 'All';
+        const preferredRegions = ['All', 'Nigeria', 'Ghana', 'Canada'];
+        function recordCountry(record) {
+            return String((record && ((record.locality && record.locality.country) || record.studentCountry || record.country || record.locationCountry)) || '').trim();
+        }
+        function inSelectedRegion(record) { return selectedRegion === 'All' || recordCountry(record).toLowerCase() === selectedRegion.toLowerCase(); }
+        function renderRegionTabs(records = []) {
+            const countries = [...new Set(records.map(recordCountry).filter(Boolean))].sort();
+            const regions = [...new Set([...preferredRegions, ...countries])];
+            if (!regions.includes(selectedRegion)) selectedRegion = 'All';
+            document.getElementById('region-tabs').innerHTML = regions.map((region) => `<button type="button" class="region-tab px-3 py-1.5 rounded-full text-xs font-semibold ${region === selectedRegion ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}" data-region="${escapeHtml(region)}">${escapeHtml(region)}</button>`).join('');
+            document.querySelectorAll('.region-tab').forEach((button) => button.addEventListener('click', () => { selectedRegion = button.dataset.region; const active = document.querySelector('.admin-tab.active'); if (active) active.click(); }));
+        }
         document.querySelectorAll('.admin-tab').forEach((tab) => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.admin-tab').forEach((t) => t.classList.remove('active'));
@@ -484,6 +511,7 @@
                 if (tab.dataset.panel === 'ngos') loadOrganizations();
                 if (tab.dataset.panel === 'educator') loadEducatorTools();
                 if (tab.dataset.panel === 'activity') loadActivityAndFlags();
+                if (tab.dataset.panel === 'payouts') loadPayouts();
                 if (tab.dataset.panel === 'analytics') loadAnalytics();
             });
         });
@@ -502,9 +530,10 @@
                     <td>
                         <select class="role-select border border-gray-300 rounded px-2 py-1 text-xs" data-user-id="${user.id}">
                             <option value="user" ${user.role === 'user' ? 'selected' : ''}>user</option>
-                            <option value="demo" ${user.role === 'demo' ? 'selected' : ''}>demo</option>
-                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>admin</option>
+                            <option value="support_agent" ${(user.supportAgent || user.role === 'support_agent') ? 'selected' : ''}>support agent</option>
+                            ${window.mtIsPrimaryAdmin ? `<option value="country_admin" ${user.adminCountryCode ? 'selected' : ''}>country admin</option><option value="admin" ${user.role === 'admin' && !user.adminCountryCode ? 'selected' : ''}>main admin</option><option value="demo" ${user.role === 'demo' ? 'selected' : ''}>demo</option>` : ''}
                         </select>
+                        ${user.adminCountryCode ? `<span class="ml-2 text-xs text-emerald-700">Country admin: ${escapeHtml(user.adminCountryCode)}</span>` : ''}
                     </td>
                 </tr>
             `;
@@ -520,6 +549,7 @@
                     });
                     const data = await res.json();
                     showAlert(data.success ? 'Role updated.' : (data.error || 'Failed.'), data.success ? 'success' : 'error');
+                    if (data.success) loadUsers();
                 });
             });
         }
@@ -529,7 +559,10 @@
             const res = await fetch(`/api/admin/users?search=${encodeURIComponent(search)}`);
             const data = await res.json();
             if (!data.success) return;
-            document.getElementById('users-tbody').innerHTML = data.users.map(userRowHtml).join('');
+            window.mtIsPrimaryAdmin = Boolean(data.isPrimaryAdmin);
+            renderRegionTabs(data.users);
+            const regionalUsers = data.users.filter(inSelectedRegion);
+            document.getElementById('users-tbody').innerHTML = regionalUsers.map(userRowHtml).join('') || '<tr><td colspan="6" class="text-gray-400 text-center py-4">No users in this region.</td></tr>';
             wireUserRowEvents();
         }
 
@@ -574,7 +607,7 @@
                     <td class="font-semibold text-gray-800">${thumb}${escapeHtml(t.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(t.email)}${t.phone ? ' &middot; ' + escapeHtml(t.phone) : ''}</span>${t.flagged ? '<br><span class="text-xs text-red-600 font-semibold">Flagged</span>' : ''}${t.expelled ? '<br><span class="text-xs text-gray-400 font-semibold">Expelled</span>' : ''}</td>
                     <td class="text-xs">${tagsLine}</td>
                     <td>${t.city ? escapeHtml(t.city) : ''}${t.city && t.teachesOnline ? ' + ' : ''}${t.teachesOnline ? 'Online' : ''}${t.fullAddress || t.address ? `<br><span class="text-xs text-gray-400">${escapeHtml(t.fullAddress || t.address)}</span>` : ''}${t.commuteRadiusKm ? `<br><span class="text-xs text-gray-400">${t.commuteRadiusKm}km radius, ${venueLabels[t.inPersonVenue] || ''}</span>` : ''}</td>
-                    <td>$${t.hourlyRateUsd || 0}/hr<br><span class="text-xs text-green-600 font-semibold">Bal: $${(t.balanceUsd || 0).toFixed(2)}</span></td>
+                    <td>$${t.hourlyRateUsd || 0}/hr<br><span class="text-xs text-green-600 font-semibold">Manual wallet: $${(t.balanceUsd || 0).toFixed(2)}</span>${t.stripeConnectAccountId ? `<br><span class="text-[10px] ${t.stripeConnectPayoutsEnabled ? 'text-sky-700' : 'text-amber-700'}">Stripe ${t.stripeConnectPayoutsEnabled ? 'ready' : 'setup pending'} · ${escapeHtml(t.stripeConnectAccountId)}</span>` : '<br><span class="text-[10px] text-gray-400">Stripe not connected</span>'}</td>
                     <td class="text-xs">${approvedLevelsText(t)}</td>
                     <td>${avgRating ? `<i class="fa-solid fa-star text-amber-500"></i> ${avgRating} (${t.ratingCount})` : '<span class="text-gray-400 text-xs">No ratings</span>'}${avgProfessionalism ? `<br><span class="text-xs text-gray-500">Prof. ${avgProfessionalism}</span>` : ''}</td>
                     <td>${t.orientationCompleted ? '<span class="text-green-600 text-xs font-semibold">Done</span>' : '<span class="text-gray-400 text-xs">Pending</span>'}</td>
@@ -691,12 +724,15 @@
             if (!tutorsData.success || !requestsData.success) return;
 
             allTutors = tutorsData.tutors;
-            document.getElementById('tutors-tbody').innerHTML = allTutors.length
-                ? allTutors.map(tutorRowHtml).join('')
+            renderRegionTabs([...allTutors, ...requestsData.requests]);
+            const regionalTutors = allTutors.filter(inSelectedRegion);
+            const regionalRequests = requestsData.requests.filter(inSelectedRegion);
+            document.getElementById('tutors-tbody').innerHTML = regionalTutors.length
+                ? regionalTutors.map(tutorRowHtml).join('')
                 : '<tr><td colspan="9" class="text-gray-400 text-center py-4">No tutor applications yet.</td></tr>';
 
-            document.getElementById('requests-tbody').innerHTML = requestsData.requests.length
-                ? requestsData.requests.map(requestRowHtml).join('')
+            document.getElementById('requests-tbody').innerHTML = regionalRequests.length
+                ? regionalRequests.map(requestRowHtml).join('')
                 : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No student requests yet.</td></tr>';
 
             wireTutorEvents();
@@ -735,8 +771,10 @@
             const res = await fetch('/api/admin/organizations');
             const data = await res.json();
             if (!data.success) return;
-            document.getElementById('ngos-tbody').innerHTML = data.organizations.length
-                ? data.organizations.map(orgRowHtml).join('')
+            renderRegionTabs(data.organizations);
+            const regionalOrganizations = data.organizations.filter(inSelectedRegion);
+            document.getElementById('ngos-tbody').innerHTML = regionalOrganizations.length
+                ? regionalOrganizations.map(orgRowHtml).join('')
                 : '<tr><td colspan="7" class="text-gray-400 text-center py-4">No organization applications yet.</td></tr>';
 
             document.querySelectorAll('.org-status-btn').forEach((btn) => {
@@ -766,7 +804,8 @@
             const data = await res.json();
             if (!data.success) return;
             
-            const ngoInstitutions = data.organizations.filter(org => org.sponsorType === 'ngo');
+            renderRegionTabs(data.organizations);
+            const ngoInstitutions = data.organizations.filter(org => org.sponsorType === 'ngo' && inSelectedRegion(org));
             const container = document.getElementById('ngo-institutions-list');
 
             container.innerHTML = ngoInstitutions.length ? ngoInstitutions.map(org => {
@@ -1029,13 +1068,12 @@
         });
 
         async function loadOrientation() {
-            const res = await fetch('/api/admin/orientation');
+            const res = await fetch(`/api/admin/orientation?audience=${encodeURIComponent(document.getElementById('orientation-audience').value)}`);
             const data = await res.json();
             const content = data.content;
             document.getElementById('orientation-title').value = content ? content.title : '';
             document.getElementById('orientation-video').value = content ? content.videoUrl : '';
             document.getElementById('orientation-notes').value = content ? content.notes : '';
-            document.getElementById('orientation-reward').value = (content && content.rewardType) || 'bonus_student';
             orientationQuiz.set(data.questions || []);
         }
 
@@ -1047,7 +1085,7 @@
                     title: document.getElementById('orientation-title').value,
                     videoUrl: document.getElementById('orientation-video').value,
                     notes: document.getElementById('orientation-notes').value,
-                    rewardType: document.getElementById('orientation-reward').value,
+                    audience: document.getElementById('orientation-audience').value,
                     questions: orientationQuiz.collect(),
                 }),
             });
@@ -1055,6 +1093,7 @@
             if (data.success) { showAlert('Orientation saved.', 'success'); orientationQuiz.set(data.questions); }
             else showAlert(data.error || 'Failed.', 'error');
         });
+        document.getElementById('orientation-audience').addEventListener('change', loadOrientation);
 
         // --- Video library ---
         function libraryRowHtml(item) {
@@ -1233,11 +1272,33 @@
             `;
         }
 
+        function payoutRowHtml(payout) {
+            const details = payout.payoutDetails || {};
+            const action = payout.status === 'requested'
+                ? `<button type="button" class="process-payout-btn px-3 py-1.5 bg-primary-red text-white rounded text-xs" data-id="${payout.id}">Mark processed</button>`
+                : '<span class="text-emerald-700 text-xs font-semibold">Processed</span>';
+            return `<tr><td class="font-semibold">${escapeHtml(payout.tutorName || '')}</td><td>$${Number(payout.amountUsd || 0).toFixed(2)}</td><td>${escapeHtml(details.accountName || '')}<br><span class="text-xs text-gray-500">${escapeHtml(details.bankName || '')} · ${escapeHtml(details.accountNumber || '')}</span></td><td>${new Date(payout.requestedAt).toLocaleString()}</td><td>${escapeHtml(payout.status || '')}</td><td>${action}</td></tr>`;
+        }
+        async function loadPayouts() {
+            const response = await fetch(`/api/admin/payouts${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`);
+            const data = await response.json();
+            const tbody = document.getElementById('payouts-tbody');
+            if (!data.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-red-600">Could not load payout requests.</td></tr>'; return; }
+            tbody.innerHTML = data.payouts.length ? data.payouts.map(payoutRowHtml).join('') : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No payout requests yet.</td></tr>';
+            tbody.querySelectorAll('.process-payout-btn').forEach((button) => button.addEventListener('click', async () => {
+                button.disabled = true; button.textContent = 'Processing…';
+                const response = await fetch(`/api/admin/payout-requests/${button.dataset.id}/process`, { method: 'POST' });
+                const result = await response.json();
+                showAlert(result.success ? 'Payout marked as processed.' : (result.error || 'Could not process payout.'), result.success ? 'success' : 'error');
+                loadPayouts();
+            }));
+        }
+
         async function loadActivityAndFlags() {
             const [flaggedRes, activityRes, chatRes] = await Promise.all([
                 fetch('/api/admin/flagged'),
-                fetch('/api/admin/activity'),
-                fetch('/api/admin/chat-activity'),
+                fetch(`/api/admin/activity${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`),
+                fetch(`/api/admin/chat-activity${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`),
             ]);
             const flaggedData = await flaggedRes.json();
             const activityData = await activityRes.json();
@@ -1429,7 +1490,7 @@
         });
 
         async function loadAnalytics() {
-            const res = await fetch('/api/admin/analytics');
+            const res = await fetch(`/api/admin/analytics${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`);
             const data = await res.json();
             if (!data.success) return;
 

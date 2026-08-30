@@ -302,8 +302,9 @@
             let data;
             try { data = await fetch('/api/my-assignments').then((r) => r.json()); } catch (e) { return; }
             if (!data.success) return;
-            const record = [...(data.asStudent || []), ...(data.asTutor || [])]
-                .find((r) => String(r.id) === String(assignmentId));
+            const studentRecord = (data.asStudent || []).find((r) => String(r.id) === String(assignmentId));
+            const tutorRecord = (data.asTutor || []).find((r) => String(r.id) === String(assignmentId));
+            const record = studentRecord || tutorRecord;
             if (!record) return;
 
             const parts = [];
@@ -336,8 +337,23 @@
                     </div>`);
             }
 
+            const pendingBills = (record.sessions || []).filter((session) => session.paymentStatus === 'held');
+            if (pendingBills.length) {
+                parts.push(`<div class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><p class="font-bold"><i class="fa-solid fa-receipt mr-1"></i>Lesson payment</p>${pendingBills.map((session) => `<div class="mt-2 flex flex-wrap items-center justify-between gap-2"><span>${session.durationMinutes} minutes · <strong>$${Number(session.totalUsd || 0).toFixed(2)}</strong> awaiting confirmation</span>${studentRecord && studentRecord.sponsoredBy ? `<span class="text-xs font-semibold">Paid by ${escapeHtml(studentRecord.sponsoredBy.orgName)}</span>` : studentRecord ? `<button type="button" class="confirm-chat-bill px-3 py-1.5 rounded-lg bg-primary-red text-white text-xs font-bold" data-session-id="${session.id}">Confirm class & pay</button>` : '<span class="text-xs">Waiting for student</span>'}</div>`).join('')}</div>`);
+            }
+
             strip.innerHTML = parts.join('');
             strip.classList.toggle('hidden', parts.length === 0);
+            strip.querySelectorAll('.confirm-chat-bill').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    button.disabled = true;
+                    const response = await fetch(`/api/assignments/${assignmentId}/sessions/${button.dataset.sessionId}/confirm`, { method: 'POST' });
+                    const result = await response.json();
+                    if (!result.success) { button.disabled = false; showAlert(result.error || 'Could not confirm payment.', 'error'); return; }
+                    showAlert('Class confirmed and payment released.', 'success');
+                    loadLessonStrip();
+                });
+            });
         }
 
         // Uses the same conversations feed as /messages, so the name, photo

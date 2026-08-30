@@ -1,6 +1,14 @@
 // Shared site footer, injected on every page. Self-contained (its own
 // scoped styles) so it renders identically whether the page loads
 // Tailwind, site.css, both, or neither.
+if (!/^\/(?:messages\/)?chat(?:\/|$)/.test(location.pathname) && !document.getElementById('mozart-ai-loader')) {
+  const css = document.createElement('link');
+  css.id = 'mozart-ai-loader'; css.rel = 'stylesheet'; css.href = '/assets/mozart-ai.css?v=20260830b';
+  document.head.appendChild(css);
+  const script = document.createElement('script'); script.src = '/assets/mozart-ai.js?v=20260830a'; script.defer = true;
+  document.head.appendChild(script);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   const STYLE_ID = 'mt-footer-style';
 

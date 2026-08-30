@@ -50,7 +50,7 @@ function findBySlug(slug) {
 
 async function apply({
   userId, name, email, categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-  qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
+  qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl, agreementAccepted,
 }) {
   const db = load();
   const coords = address || city ? await geocodeAddress(address || city) : null;
@@ -80,6 +80,7 @@ async function apply({
     experienceYears: Number(experienceYears) || 0,
     hourlyRateUsd: Math.max(0, Number(hourlyRateUsd) || 0),
     bio: bio || '',
+    agreementAcceptedAt: agreementAccepted ? new Date().toISOString() : null,
     studentIntakeQuestions: [],
     status: 'pending',
     // Self-declared per-category levels above are a starting point; a
@@ -98,6 +99,12 @@ async function apply({
     lessonsCompletedCount: 0,
     balanceUsd: 0,
     totalEarnedUsd: 0,
+    stripeConnectAccountId: null,
+    stripeConnectOnboardingComplete: false,
+    stripeConnectPayoutsEnabled: false,
+    stripeConnectDetailsSubmitted: false,
+    stripeConnectUpdatedAt: null,
+    approvedByUserId: null,
     flagged: false,
     flaggedAt: null,
     expelled: false,
@@ -108,12 +115,26 @@ async function apply({
   return tutor;
 }
 
-function setStatus(id, status) {
+function setStatus(id, status, reviewedByUserId = null) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
   if (!tutor) return null;
   tutor.status = status;
   tutor.reviewedAt = new Date().toISOString();
+  if (status === 'approved' && reviewedByUserId) tutor.approvedByUserId = Number(reviewedByUserId);
+  persist(db);
+  return tutor;
+}
+
+function setStripeConnectAccount(id, account) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.stripeConnectAccountId = account && account.id ? account.id : tutor.stripeConnectAccountId;
+  tutor.stripeConnectOnboardingComplete = Boolean(account && account.details_submitted);
+  tutor.stripeConnectPayoutsEnabled = Boolean(account && account.payouts_enabled);
+  tutor.stripeConnectDetailsSubmitted = Boolean(account && account.details_submitted);
+  tutor.stripeConnectUpdatedAt = new Date().toISOString();
   persist(db);
   return tutor;
 }
@@ -274,6 +295,15 @@ function setCategories(id, categories) {
   return tutor;
 }
 
+function setHourlyRate(id, hourlyRateUsd) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.hourlyRateUsd = Math.max(0, Number(hourlyRateUsd) || 0);
+  persist(db);
+  return tutor;
+}
+
 function setIntakeQuestions(id, questions) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
@@ -295,9 +325,9 @@ function avgProfessionalism(tutor) {
 }
 
 module.exports = {
-  listAll, listApproved, findById, findByUserId, apply, setStatus,
+  listAll, listApproved, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
-  creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setIntakeQuestions, findBySlug,
+  creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setHourlyRate, setIntakeQuestions, findBySlug,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

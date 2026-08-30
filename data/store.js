@@ -88,7 +88,7 @@ function getBadges(user) {
   return badges;
 }
 
-function addNotification(userId, { type, message }) {
+function addNotification(userId, { type, message, href = null }) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
@@ -98,6 +98,7 @@ function addNotification(userId, { type, message }) {
     id: user.nextNotificationId++,
     type,
     message,
+    href,
     read: false,
     createdAt: new Date().toISOString(),
   });
@@ -124,6 +125,24 @@ function setCountry(userId, countryCode) {
   return user;
 }
 
+function setName(userId, name) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.name = name;
+  persist(db);
+  return user;
+}
+
+function setPhoto(userId, photoUrl) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.photoUrl = photoUrl;
+  persist(db);
+  return user;
+}
+
 // A student's saved card, used to authorize (hold) and later capture escrow
 // payments off-session when a tutor logs/confirms a lesson. Only the
 // non-sensitive display bits (brand/last4) and Stripe's own IDs are stored
@@ -136,6 +155,21 @@ function setStripePaymentMethod(userId, { customerId, paymentMethodId, brand, la
   user.stripePaymentMethodId = paymentMethodId;
   user.cardBrand = brand || null;
   user.cardLast4 = last4 || null;
+  persist(db);
+  return user;
+}
+
+// Connect account data is deliberately limited to Stripe identifiers and
+// status flags. Bank account and identity details remain only with Stripe.
+function setStripeConnectAccount(userId, account) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.stripeConnectAccountId = account && account.id ? account.id : user.stripeConnectAccountId;
+  user.stripeConnectOnboardingComplete = Boolean(account && account.details_submitted);
+  user.stripeConnectPayoutsEnabled = Boolean(account && account.payouts_enabled);
+  user.stripeConnectDetailsSubmitted = Boolean(account && account.details_submitted);
+  user.stripeConnectUpdatedAt = new Date().toISOString();
   persist(db);
   return user;
 }
@@ -179,7 +213,7 @@ function clearGoogleCalendarToken(userId) {
 
 // Profile details used for tutor matching: age band, preferred genres, sex,
 // and (geocoded) location for in-person proximity matching.
-async function setStudentProfile(userId, { name, ageGroup, genres, city, address, sex, photoUrl }) {
+async function setStudentProfile(userId, { name, ageGroup, genres, city, address, sex, photoUrl, agreementAccepted }) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
@@ -193,6 +227,7 @@ async function setStudentProfile(userId, { name, ageGroup, genres, city, address
   user.studentProfile.city = city || null;
   user.studentProfile.address = address || null;
   user.studentProfile.sex = sex != null ? (sex || null) : (user.studentProfile.sex || null);
+  if (agreementAccepted === true) user.studentProfile.agreementAcceptedAt = new Date().toISOString();
   if (photoUrl) {
     user.photoUrl = photoUrl;
   }
@@ -314,6 +349,32 @@ function setRole(userId, role) {
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
   user.role = role;
+  // Store support access independently of the display role so it remains
+  // available for a normal Mozart account even after later role updates.
+  if (role === 'support_agent') user.supportAgent = true;
+  if (role === 'user' || role === 'demo') user.supportAgent = false;
+  if (role !== 'admin') user.adminCountryCode = null;
+  persist(db);
+  return user;
+}
+
+function setPayoutDetails(userId, details) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.payoutDetails = { accountName: details.accountName, bankName: details.bankName, accountNumber: details.accountNumber, updatedAt: new Date().toISOString() };
+  persist(db);
+  return user;
+}
+
+// Country administrators remain normal admin-role users, but their approval
+// powers are limited to the country chosen by the platform owner.
+function setCountryAdmin(userId, countryCode) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.role = 'admin';
+  user.adminCountryCode = countryCode || null;
   persist(db);
   return user;
 }
@@ -393,12 +454,12 @@ function clearCalendarTokens(userId) {
 }
 
 module.exports = {
-  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry,
+  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, getBadges, addNotification, markNotificationsRead, setRole, listUsers,
+  markActive, getBadges, addNotification, markNotificationsRead, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
-  setStripePaymentMethod, clearStripePaymentMethod,
+  setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };
 

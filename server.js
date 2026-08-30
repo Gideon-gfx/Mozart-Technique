@@ -19,7 +19,10 @@ const curriculum = require('./data/curriculum');
 const reels = require('./data/reels');
 const certificates = require('./data/certificates');
 const payments = require('./data/payments');
+const payouts = require('./data/payouts');
 const chat = require('./data/chat');
+const supportChat = require('./data/support-chat');
+const orientation = require('./data/orientation');
 const orgChat = require('./data/org-chat');
 const allowedLocations = require('./data/allowed-locations');
 const organizations = require('./data/organizations');
@@ -30,7 +33,26 @@ const mongoPersistence = require('./data/mongo-persistence');
 const googleCalendar = require('./data/google-calendar');
 const { geocodeAddress, reverseGeocode, distanceKm } = require('./data/geocode');
 
+const MOZART_AI_PROMPT = `You are Mozart AI, a friendly guide for Mozart Techniques. You may answer only about Mozart Techniques features and how to use them, or music learning, instruments, practice and theory. For all other topics, politely say you can help with Mozart Techniques or music only. Never invent site features, payment status, policies or account information. Never ask for passwords, bank details, card details or private keys. Be kind with complaints and suggest the “Talk to a person” option for account-specific issues, disputes or payments.`;
+
+async function askMozartAi(messages) {
+  const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({ model: process.env.OLLAMA_MODEL || 'qwen3.8', stream: false, messages: [{ role: 'system', content: MOZART_AI_PROMPT }, ...messages] }),
+  });
+  if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
+  const payload = await response.json();
+  const answer = String(payload?.message?.content || '').trim();
+  if (!answer) throw new Error('Ollama returned an empty reply');
+  return answer.slice(0, 2500);
+}
+
 const app = express();
+app.use(express.static(__dirname));
+
 const PORT = process.env.PORT || 3000;
 
 if (!process.env.SESSION_SECRET) {
@@ -249,6 +271,7 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     role: user.role || 'user',
+    supportAgent: Boolean(user.supportAgent || user.role === 'support_agent'),
     countryCode: user.countryCode || null,
     photoUrl: user.photoUrl || (tutorProfile && tutorProfile.photoUrl) || null,
     hasTutorProfile: Boolean(tutorProfile),
@@ -313,8 +336,47 @@ function sameCountry(a, b) {
 }
 function inViewerCountry(tutor, viewerCountryName) {
   const tutorCountry = tutor.locality && tutor.locality.country;
-  if (!tutorCountry) return true;
   return sameCountry(tutorCountry, viewerCountryName);
+}
+
+function notifySupportAgents({ message, subject, excludeUserId, href = '/support-agent' }) {
+  store.listUsers()
+    .filter((u) => (u.supportAgent || u.role === 'support_agent') && u.id !== excludeUserId)
+    .forEach((agent) => {
+      store.addNotification(agent.id, { type: 'support_request', message, href });
+      mailer.sendMail({ to: agent.email, subject: subject || 'Mozart Techniques - New live support request', text: message });
+    });
+}
+
+function isSupportAgent(user) {
+  return Boolean(user && (user.supportAgent || user.role === 'support_agent' || user.role === 'admin'));
+}
+function requireSupportAgentPage(req, res, next) {
+  if (!isSupportAgent(currentUser(req))) return res.redirect('/dashboard');
+  next();
+}
+function requireSupportAgentApi(req, res, next) {
+  if (!isSupportAgent(currentUser(req))) return res.status(403).json({ success: false, error: 'Support-agent access required.' });
+  next();
+}
+
+function isPrimaryAdmin(user) {
+  return Boolean(user && user.role === 'admin' && !user.adminCountryCode);
+}
+
+function countryForUser(user) {
+  return user && (user.countryCode || (user.studentProfile && user.studentProfile.locality && user.studentProfile.locality.countryCode)) || null;
+}
+
+function canManageUser(admin, user) {
+  return isPrimaryAdmin(admin) || Boolean(admin && admin.adminCountryCode && admin.adminCountryCode === countryForUser(user));
+}
+
+function requirePrimaryAdminApi(req, res, next) {
+  const user = currentUser(req);
+  if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
+  if (!isPrimaryAdmin(user)) return res.status(403).json({ success: false, error: 'Only the platform administrator can manage country administrators.' });
+  next();
 }
 
 // --- PAGE ROUTES ---
@@ -423,8 +485,7 @@ app.get('/find-tutor', (req, res) => {
 app.get('/orientation', (req, res) => {
   const user = currentUser(req);
   if (!user) return res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
-  if (!tutors.findByUserId(user.id)) return res.redirect('/become-tutor');
-  res.sendFile(path.join(PUBLIC_DIR, 'orientation.html'));
+  res.sendFile(path.join(PUBLIC_DIR, 'orientation-hub.html'));
 });
 
 app.get('/tutor-evaluation', (req, res) => {
@@ -486,8 +547,17 @@ app.get('/messages/chat/:id', requireAuthPage, serveChatPage);
 // Kept so older links (notifications, emails already sent) still work.
 app.get('/chat/:id', requireAuthPage, serveChatPage);
 
+app.get('/support-agent', requireAuthPage, requireSupportAgentPage, (req, res) => {
+  const page = fs.readFileSync(path.join(PUBLIC_DIR, 'support-agent.html'), 'utf8')
+    .replace('</body>', '<script src="/assets/attachment-render.js"></script></body>');
+  res.type('html').send(page);
+});
+
 app.get('/library', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
+});
+app.get('/schedule', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'schedule.html'));
 });
 
 // --- AUTH API ---
@@ -612,6 +682,114 @@ app.get('/api/session', (req, res) => {
   res.json({ success: true, user: user ? publicUser(user) : null });
 });
 
+// --- MOZART AI / HUMAN SUPPORT ---
+app.get('/api/mozart-ai/thread', requireAuthApi, (req, res) => {
+  res.json({ success: true, thread: supportChat.getOrCreate(currentUser(req)) });
+});
+
+app.post('/api/mozart-ai/message', requireAuthApi, async (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 1600);
+  if (!text) return res.status(400).json({ success: false, error: 'Please enter a message.' });
+  const thread = supportChat.getOrCreate(currentUser(req));
+  const needsAgentNotification = !['waiting_for_agent', 'assigned'].includes(thread.status);
+  const added = supportChat.addMessage(thread.id, { sender: 'user', text });
+  const escalated = added.thread.status === 'waiting_for_agent' || added.thread.status === 'assigned'
+    ? added.thread : supportChat.escalate(thread.id);
+  if (needsAgentNotification) {
+    const user = currentUser(req);
+    notifySupportAgents({ message: `New live support request from ${user.name || user.email}.`, subject: 'Mozart Techniques - New live support request', excludeUserId: user.id, href: '/support-agent' });
+  }
+  res.json({ success: true, thread: escalated, reply: null });
+});
+
+app.post('/api/mozart-ai/attachment', requireAuthApi, (req, res) => {
+  chatUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file first.' });
+    const thread = supportChat.getOrCreate(currentUser(req));
+    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: `/uploads/chat/${req.file.filename}` };
+    const added = supportChat.addMessage(thread.id, { sender: 'user', text: `Attachment: ${req.file.originalname}`, attachment });
+    res.json({ success: true, thread: added.thread, message: added.message });
+  });
+});
+
+app.post('/api/mozart-ai/escalate', requireAuthApi, (req, res) => {
+  try {
+    const thread = supportChat.getOrCreate(currentUser(req));
+    const escalated = supportChat.escalate(thread.id);
+    const user = currentUser(req);
+    try {
+      notifyAdmins({ type: 'support_request', subject: 'Mozart Techniques - Support request', message: `${user.name || user.email} requested human support in Mozart AI.`, excludeUserId: user.id });
+    } catch (error) {
+      console.warn('Support notification could not be sent:', error.message);
+    }
+    res.json({ success: true, thread: escalated });
+  } catch (error) {
+    console.error('Support handoff failed:', error.message);
+    res.status(500).json({ success: false, error: 'Unable to create the support request. Please try again.' });
+  }
+});
+
+app.get('/api/admin/support-threads', requireAdminApi, (req, res) => {
+  res.json({ success: true, threads: supportChat.listAll() });
+});
+
+app.post('/api/admin/support-threads/:id/message', requireAdminApi, (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 1600);
+  if (!text) return res.status(400).json({ success: false, error: 'Please enter a reply.' });
+  const added = supportChat.addMessage(req.params.id, { sender: 'admin', adminId: currentUser(req).id, text });
+  if (!added) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
+  store.addNotification(added.thread.userId, { type: 'support_reply', message: 'Mozart Techniques support replied to your live support request.', href: '/dashboard?open-live-support=1' });
+  res.json({ success: true, thread: added.thread });
+});
+
+app.get('/api/support-agent/threads', requireSupportAgentApi, (req, res) => {
+  const agent = currentUser(req);
+  const threads = supportChat.listAll()
+    .filter((thread) => agent.role === 'admin' || thread.status === 'waiting_for_agent' || thread.assignedAgentId === agent.id)
+    .map((thread) => {
+      const customer = store.findById(thread.userId);
+      return { ...thread, customerRole: customer ? (customer.role || 'user') : 'user', customerSupportAgent: Boolean(customer && customer.supportAgent) };
+    });
+  res.json({ success: true, threads });
+});
+app.post('/api/support-agent/threads/:id/claim', requireSupportAgentApi, (req, res) => {
+  const result = supportChat.claim(req.params.id, currentUser(req));
+  if (!result) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
+  if (result.error) return res.status(409).json({ success: false, error: result.error });
+  res.json({ success: true, thread: result.thread });
+});
+app.post('/api/support-agent/threads/:id/message', requireSupportAgentApi, (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 1600);
+  if (!text) return res.status(400).json({ success: false, error: 'Please enter a reply.' });
+  const agent = currentUser(req);
+  const thread = supportChat.findById(req.params.id);
+  if (!thread) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
+  if (agent.role !== 'admin' && thread.assignedAgentId !== agent.id) return res.status(403).json({ success: false, error: 'Claim this conversation before replying.' });
+  const added = supportChat.addMessage(thread.id, { sender: 'agent', adminId: agent.id, text });
+  store.addNotification(added.thread.userId, { type: 'support_reply', message: 'A Mozart Techniques support agent replied to your live support request.', href: '/dashboard?open-live-support=1' });
+  res.json({ success: true, thread: added.thread });
+});
+app.post('/api/support-agent/threads/:id/attachment', requireSupportAgentApi, (req, res) => {
+  chatUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
+    const agent = currentUser(req); const thread = supportChat.findById(req.params.id);
+    if (!thread) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
+    if (agent.role !== 'admin' && thread.assignedAgentId !== agent.id) return res.status(403).json({ success: false, error: 'Claim this conversation before sending a file.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file first.' });
+    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: `/uploads/chat/${req.file.filename}` };
+    const added = supportChat.addMessage(thread.id, { sender: 'agent', adminId: agent.id, text: `Attachment: ${req.file.originalname}`, attachment });
+    store.addNotification(added.thread.userId, { type: 'support_reply', message: `${agent.name || 'A Mozart Techniques support agent'} sent you a file.`, href: '/dashboard?open-live-support=1' });
+    res.json({ success: true, thread: added.thread, message: added.message });
+  });
+});
+app.post('/api/support-agent/threads/:id/close', requireSupportAgentApi, (req, res) => {
+  const agent = currentUser(req); const thread = supportChat.findById(req.params.id);
+  if (!thread) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
+  if (agent.role !== 'admin' && thread.assignedAgentId !== agent.id) return res.status(403).json({ success: false, error: 'Only the assigned agent can close this conversation.' });
+  res.json({ success: true, thread: supportChat.close(thread.id) });
+});
+
 // --- GEO / CURRENCY API ---
 app.get('/api/geo', async (req, res) => {
   const geoInfo = await getGeoInfo(req);
@@ -653,9 +831,8 @@ app.post('/api/profile/name', requireAuthApi, (req, res) => {
     return res.status(400).json({ success: false, error: 'Name is required.' });
   }
   const user = currentUser(req);
-  user.name = String(name).trim();
-  store.updateUser(user);
-  res.json({ success: true, user: publicUser(user) });
+  const updated = store.setName(user.id, String(name).trim());
+  res.json({ success: true, user: publicUser(updated) });
 });
 
 app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), (req, res) => {
@@ -664,8 +841,12 @@ app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), (req
   }
   const user = currentUser(req);
   const photoPath = `/uploads/photos/${req.file.filename}`;
-  user.photoUrl = photoPath;
-  store.updateUser(user);
+  store.setPhoto(user.id, photoPath);
+  // Tutor cards and public tutor profiles read their image from the tutor
+  // profile, not the user account. Keep both records in sync when a tutor
+  // changes their picture from Edit Profile.
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile) tutors.setPhoto(tutorProfile.id, photoPath);
   res.json({ success: true, photoUrl: photoPath });
 });
 
@@ -794,18 +975,19 @@ app.get('/api/dashboard', requireAuthApi, async (req, res) => {
       preferredTutorIds: r.preferredTutorIds || [],
     }));
   const enrolledCourses = studentAssignments
-    .filter((r) => r.status === 'active')
+    .filter((r) => r.status === 'active' || r.status === 'pending')
     .map((r) => ({
       id: r.id,
       category: r.category,
       level: r.desiredLevel || 'Verified',
       title: `${r.category} ${r.lessonType ? `(${r.lessonType})` : ''}`.trim(),
       slug: `course-${r.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${r.id}`,
-      status: 'verified',
-      statusText: 'Verified',
+      status: r.status === 'active' ? 'verified' : 'pending',
+      statusText: r.status === 'active' ? 'Verified' : 'Tutor request pending',
       lessonType: r.lessonType,
       tutorName: r.tutorName || null,
       tutorId: r.tutorId || null,
+      requestedTutorNames: (r.preferredTutorIds || []).map((id) => tutors.findById(id)).filter(Boolean).map((t) => t.name),
     }));
   res.json({
     success: true,
@@ -853,7 +1035,7 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.json({ success: true, tutors: [] });
 
   const geoInfo = await getGeoInfo(req);
-  const matchedTutors = tutors.listApproved().filter((t) => (
+  const matchedTutors = tutors.listApproved().filter((t) => inViewerCountry(t, geoInfo.name) && (
     t.name.toLowerCase().includes(q)
     || t.categories.some((c) => c.toLowerCase().includes(q))
     || (t.genres || []).some((g) => g.toLowerCase().includes(q))
@@ -903,6 +1085,15 @@ app.post('/api/tutors/me/categories', requireTutorProfileApi, (req, res) => {
   res.json({ success: true, profile: updated });
 });
 
+app.post('/api/tutors/me/hourly-rate', requireTutorProfileApi, (req, res) => {
+  const hourlyRateUsd = Number(req.body && req.body.hourlyRateUsd);
+  if (!Number.isFinite(hourlyRateUsd) || hourlyRateUsd <= 0) {
+    return res.status(400).json({ success: false, error: 'Enter a valid hourly rate.' });
+  }
+  const updated = tutors.setHourlyRate(req.tutorProfile.id, hourlyRateUsd);
+  res.json({ success: true, profile: updated });
+});
+
 app.get('/api/tutors/me/intake-form', requireTutorProfileApi, (req, res) => {
   res.json({ success: true, questions: req.tutorProfile.studentIntakeQuestions || [] });
 });
@@ -919,9 +1110,10 @@ app.post('/api/tutors/me/intake-form', requireTutorProfileApi, async (req, res) 
   res.json({ success: true, questions: updated.studentIntakeQuestions || [] });
 });
 
-app.get('/api/tutors/:id/intake-form', requireAuthApi, (req, res) => {
+app.get('/api/tutors/:id/intake-form', requireAuthApi, async (req, res) => {
   const tutor = tutors.findById(req.params.id);
-  if (!tutor || tutor.status !== 'approved' || tutor.expelled) {
+  const geoInfo = await getGeoInfo(req);
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled || !inViewerCountry(tutor, geoInfo.name)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   res.json({ success: true, questions: tutor.studentIntakeQuestions || [] });
@@ -931,7 +1123,8 @@ app.get('/api/tutors/:id/intake-form', requireAuthApi, (req, res) => {
 app.get('/api/tutors/slug/:slug', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
   const t = tutors.findBySlug(slug);
-  if (!t || t.status !== 'approved' || t.expelled) {
+  const geoInfo = await getGeoInfo(req);
+  if (!t || t.status !== 'approved' || t.expelled || !inViewerCountry(t, geoInfo.name)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   // expose a safe public shape
@@ -985,17 +1178,21 @@ app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
 
   const {
     categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
+    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl, agreementAccepted,
   } = req.body || {};
   if (!Array.isArray(categories) || categories.length === 0) {
     return res.status(400).json({ success: false, error: 'Choose at least one subject you can teach.' });
   }
+  if (!Array.isArray(genres) || !genres.length || !Array.isArray(ageGroups) || !ageGroups.length || !Array.isArray(levels) || !levels.length) {
+    return res.status(400).json({ success: false, error: 'Choose at least one genre, age group, and teaching level.' });
+  }
   if (!qualifications || !qualifications.trim()) {
     return res.status(400).json({ success: false, error: 'Describe your qualifications.' });
   }
-  if (!city && !teachesOnline) {
-    return res.status(400).json({ success: false, error: 'Provide a city or offer online lessons.' });
+  if (!city || !address || !phone || !bio || !certificateUrl || !photoUrl || experienceYears === '' || experienceYears == null || !commuteRadiusKm || !inPersonVenue) {
+    return res.status(400).json({ success: false, error: 'Complete every required field, including your photo and CV/certificate upload.' });
   }
+  if (agreementAccepted !== true) return res.status(400).json({ success: false, error: 'Read and accept the Tutor Agreement before applying.' });
   if (!hourlyRateUsd || Number(hourlyRateUsd) <= 0) {
     return res.status(400).json({ success: false, error: 'Set your hourly rate.' });
   }
@@ -1003,7 +1200,7 @@ app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
   const profile = await tutors.apply({
     userId: user.id, name: user.name, email: user.email,
     categories, levels, genres, ageGroups, city, address, teachesOnline, phone,
-    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl,
+    qualifications, experienceYears, bio, hourlyRateUsd, commuteRadiusKm, certificateUrl, inPersonVenue, photoUrl, agreementAccepted,
   });
 
   notifyAdmins({
@@ -1016,15 +1213,198 @@ app.post('/api/tutors/apply', requireAuthApi, async (req, res) => {
   res.json({ success: true, profile });
 });
 
-// Tutor requests a payout - create a notification for admins to process.
+app.get('/api/tutors/me/payouts', requireTutorProfileApi, (req, res) => {
+  const user = currentUser(req);
+  res.json({ success: true, payoutDetails: user.payoutDetails || null, payouts: payouts.listForTutor(req.tutorProfile.id), availableBalanceUsd: req.tutorProfile.balanceUsd || 0, pendingAmountUsd: payouts.pendingAmountForTutor(req.tutorProfile.id) });
+});
+
+function stripeConnectCountry(user) {
+  const value = String((user && (user.countryCode || user.country)) || process.env.STRIPE_CONNECT_DEFAULT_COUNTRY || 'NG').trim();
+  if (/^[A-Za-z]{2}$/.test(value)) return value.toUpperCase();
+  return ({ nigeria: 'NG', 'united states': 'US', usa: 'US', 'united kingdom': 'GB', uk: 'GB' }[value.toLowerCase()] || process.env.STRIPE_CONNECT_DEFAULT_COUNTRY || 'NG').toUpperCase();
+}
+
+function publicAppUrl(req) {
+  const configured = process.env.BASE_URL || process.env.APP_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production') return 'https://mozarttechniques.com';
+  return req ? `${req.protocol}://${req.get('host')}` : 'http://localhost:3000';
+}
+
+async function refreshTutorConnectStatus(tutor) {
+  const client = stripeClient.getClient();
+  if (!client || !tutor || !tutor.stripeConnectAccountId) return tutor;
+  const account = await client.accounts.retrieve(tutor.stripeConnectAccountId);
+  return tutors.setStripeConnectAccount(tutor.id, account);
+}
+
+function stripeObjectId(value) {
+  return typeof value === 'string' ? value : (value && value.id) || null;
+}
+
+// Our platform collects the class payment.  Once the student (or their
+// organization) confirms it, this moves the tutor's 90% share to their own
+// Stripe Express account.  `source_transaction` ties the transfer to the
+// exact captured card charge, so Stripe waits for those funds to settle
+// rather than using unrelated platform balance.
+async function tryAutomaticTutorTransfer(record, session, paymentIntentId) {
+  if (!paymentIntentId || !session || session.stripeTransferId) return null;
+  const client = stripeClient.getClient();
+  const tutor = tutors.findById(record.tutorId);
+  if (!client || !tutor || !tutor.stripeConnectAccountId) {
+    assignments.setSessionStripeTransfer(record.id, session.id, { status: 'manual_available' });
+    return null;
+  }
+
+  try {
+    const account = await client.accounts.retrieve(tutor.stripeConnectAccountId);
+    const refreshedTutor = tutors.setStripeConnectAccount(tutor.id, account);
+    if (!refreshedTutor.stripeConnectPayoutsEnabled) {
+      assignments.setSessionStripeTransfer(record.id, session.id, { status: 'pending_setup' });
+      return null;
+    }
+
+    const intent = await client.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] });
+    if (intent.status !== 'succeeded') {
+      assignments.setSessionStripeTransfer(record.id, session.id, { status: 'failed', error: 'Payment is not captured yet.' });
+      return null;
+    }
+    const chargeId = stripeObjectId(intent.latest_charge);
+    if (!chargeId) {
+      assignments.setSessionStripeTransfer(record.id, session.id, { status: 'failed', error: 'Stripe did not return the captured charge.' });
+      return null;
+    }
+
+    const amount = Math.round(Number(session.tutorPayoutUsd || 0) * 100);
+    if (amount <= 0) return null;
+    const transfer = await client.transfers.create({
+      amount,
+      currency: 'usd',
+      destination: refreshedTutor.stripeConnectAccountId,
+      source_transaction: chargeId,
+      transfer_group: `mozart_lesson_${record.id}_${session.id}`,
+      metadata: {
+        mozart_assignment_id: String(record.id),
+        mozart_session_id: String(session.id),
+        mozart_tutor_id: String(tutor.id),
+      },
+    }, { idempotencyKey: `mozart-transfer-${record.id}-${session.id}` });
+    assignments.setSessionStripeTransfer(record.id, session.id, { transferId: transfer.id, status: 'automatic' });
+    return transfer;
+  } catch (err) {
+    // The earnings remain in Mozart's manual wallet rather than disappearing
+    // if Stripe needs more verification, a country is unsupported, or a
+    // transfer is temporarily unavailable.
+    assignments.setSessionStripeTransfer(record.id, session.id, { status: 'manual_available', error: err.message || 'Automatic transfer failed.' });
+    return null;
+  }
+}
+
+async function releaseTutorEarnings(record, session, { paymentIntentId = null, payerType = 'student', organizationId = null } = {}) {
+  const payoutUsd = session.tutorPayoutUsd != null ? session.tutorPayoutUsd : session.totalUsd;
+  const transfer = await tryAutomaticTutorTransfer(record, session, paymentIntentId || session.paymentIntentId);
+  const tutor = tutors.findById(record.tutorId);
+  if (!transfer) tutors.creditBalance(record.tutorId, payoutUsd);
+  payments.record({
+    studentId: record.studentId, studentName: record.studentName,
+    tutorId: record.tutorId, tutorName: record.tutorName,
+    category: record.category, lessonType: record.lessonType,
+    priceUsd: session.totalUsd, platformFeeUsd: session.platformFeeUsd || 0, tutorPayoutUsd: payoutUsd,
+    assignmentId: record.id, sessionId: session.id, payerType, organizationId,
+    payoutMethod: transfer ? 'stripe_connect' : 'manual_wallet',
+    stripeTransferId: transfer ? transfer.id : null,
+  });
+  if (tutor) {
+    const message = transfer
+      ? `${record.studentName}'s ${record.category} lesson payment was sent to your Stripe payout account.`
+      : `${record.studentName} confirmed your ${record.category} lesson - $${payoutUsd} released to your manual withdrawal balance.`;
+    store.addNotification(tutor.userId, { type: 'payment', message });
+  }
+  return { payoutUsd, transfer };
+}
+
+// A sponsor pays only when the learner is taught by a tutor linked to that
+// same organization. A sponsored learner can still choose an outside tutor,
+// but that lesson follows the normal student payment flow.
+function coveredOrganizationForAssignment(record, student) {
+  if (!record || !student || !student.sponsor) return null;
+  const tutor = tutors.findById(record.tutorId);
+  const tutorUser = tutor && store.findById(tutor.userId);
+  if (!tutorUser || !tutorUser.sponsor || tutorUser.sponsor.orgId !== student.sponsor.orgId) return null;
+  const org = organizations.findById(student.sponsor.orgId);
+  return org && organizations.isSubscriptionActive(org) ? org : null;
+}
+
+app.get('/api/tutors/me/stripe-connect', requireApprovedTutorApi, async (req, res) => {
+  try {
+    const profile = await refreshTutorConnectStatus(req.tutorProfile);
+    res.json({ success: true, configured: Boolean(stripeClient.getClient()), accountId: profile.stripeConnectAccountId || null, detailsSubmitted: Boolean(profile.stripeConnectDetailsSubmitted), payoutsEnabled: Boolean(profile.stripeConnectPayoutsEnabled) });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Could not read Stripe payout status.' });
+  }
+});
+
+app.post('/api/tutors/me/stripe-connect/onboard', requireApprovedTutorApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Stripe is not configured on this server yet.' });
+  try {
+    const user = currentUser(req);
+    let profile = req.tutorProfile;
+    if (!profile.stripeConnectAccountId) {
+      const account = await client.accounts.create({ type: 'express', country: stripeConnectCountry(user), email: user.email, metadata: { mozart_role: 'tutor', mozart_tutor_id: String(profile.id), mozart_user_id: String(user.id) } });
+      profile = tutors.setStripeConnectAccount(profile.id, account);
+    }
+    const baseUrl = publicAppUrl(req);
+    const link = await client.accountLinks.create({ account: profile.stripeConnectAccountId, refresh_url: `${baseUrl}/api/tutors/me/stripe-connect/refresh`, return_url: `${baseUrl}/api/tutors/me/stripe-connect/return`, type: 'account_onboarding' });
+    res.json({ success: true, url: link.url, accountId: profile.stripeConnectAccountId });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Could not start Stripe payout setup.' });
+  }
+});
+
+app.get('/api/tutors/me/stripe-connect/refresh', requireApprovedTutorApi, (req, res) => res.redirect('/tutor?connect=retry'));
+
+app.get('/api/tutors/me/stripe-connect/return', requireApprovedTutorApi, async (req, res) => {
+  try {
+    const before = req.tutorProfile;
+    const profile = await refreshTutorConnectStatus(before);
+    if (profile.stripeConnectPayoutsEnabled && !before.stripeConnectPayoutsEnabled) store.addNotification(profile.userId, { type: 'payout', message: 'Your Stripe payout account is ready. Eligible class earnings can now be paid automatically.' });
+    res.redirect(`/tutor?connect=${profile.stripeConnectPayoutsEnabled ? 'ready' : 'pending'}`);
+  } catch (err) { res.redirect('/tutor?connect=error'); }
+});
+
+app.post('/api/tutors/me/payout-details', requireTutorProfileApi, (req, res) => {
+  const { accountName, bankName, accountNumber } = req.body || {};
+  if (!accountName || !bankName || !accountNumber) return res.status(400).json({ success: false, error: 'Account name, bank name, and account number are required.' });
+  store.setPayoutDetails(currentUser(req).id, { accountName: String(accountName).trim(), bankName: String(bankName).trim(), accountNumber: String(accountNumber).trim() });
+  res.json({ success: true });
+});
+
+// A withdrawal is a recorded request for manual bank settlement. No money is
+// sent automatically until the platform has a verified payout provider.
 app.post('/api/tutors/me/withdraw', requireTutorProfileApi, (req, res) => {
   const amount = Number(req.body && req.body.amount) || 0;
   const tutor = req.tutorProfile;
   if (!tutor) return res.status(404).json({ success: false, error: 'No tutor profile.' });
   if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount.' });
-  notifyAdmins({ type: 'payout-request', subject: 'Payout request', message: `Tutor ${tutor.name} requested payout of $${amount.toFixed(2)}` });
+  const user = currentUser(req);
+  if (!user.payoutDetails) return res.status(400).json({ success: false, error: 'Add your bank payout details before requesting withdrawal.' });
+  const withdrawable = Math.round(((tutor.balanceUsd || 0) - payouts.pendingAmountForTutor(tutor.id)) * 100) / 100;
+  if (amount > withdrawable) return res.status(400).json({ success: false, error: `You can request up to $${withdrawable.toFixed(2)}.` });
+  const payout = payouts.create({ tutorId: tutor.id, tutorUserId: user.id, tutorName: tutor.name, amountUsd: amount, payoutDetails: user.payoutDetails });
+  notifyAdmins({ type: 'payout-request', subject: 'Payout request', message: `Tutor ${tutor.name} requested payout of $${amount.toFixed(2)}. Payout request #${payout.id}.` });
   store.addNotification(tutor.userId, { type: 'payout-request', message: `Requested payout of $${amount.toFixed(2)}. Admin will process it.` });
-  res.json({ success: true });
+  res.json({ success: true, payout });
+});
+
+app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
+  const region = String(req.query.region || '').trim().toLowerCase();
+  const list = payouts.listAll().filter((item) => {
+    if (!region) return true;
+    const tutor = tutors.findById(item.tutorId);
+    return String(tutor && tutor.locality && tutor.locality.country || '').toLowerCase() === region;
+  });
+  res.json({ success: true, payouts: list });
 });
 
 // Admin: process a payout request and debit tutor balance
@@ -1158,6 +1538,7 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
   if (!org || org.status !== 'approved') {
     return res.status(404).json({ success: false, error: 'No approved organization found.' });
   }
+  if (!org.monthlyAmount || Number(org.monthlyAmount) <= 0) return res.status(400).json({ success: false, error: 'Your subscription amount has not been set by an administrator.' });
 
   try {
     const isMonthly = billingPeriod === 'monthly';
@@ -1181,8 +1562,8 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
         quantity: 1,
       }],
       customer_email: org.email,
-      success_url: `${process.env.BASE_URL || 'http://localhost:3000'}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}&orgId=${org.id}`,
-      cancel_url: `${process.env.BASE_URL || 'http://localhost:3000'}/ngo-dashboard`,
+      success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/ngo-dashboard`,
       metadata: { orgId: org.id, billingPeriod },
     });
 
@@ -1192,14 +1573,33 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
   }
 });
 
+app.get('/api/organizations/lesson-bills', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+  const bills = assignments.listAll().flatMap((record) => {
+    const student = store.findById(record.studentId);
+    if (!student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student)) return [];
+    return (record.sessions || []).filter((session) => session.paymentStatus === 'held').map((session) => ({ assignmentId: record.id, sessionId: session.id, studentName: record.studentName, tutorName: record.tutorName, category: record.category, durationMinutes: session.durationMinutes, totalUsd: session.totalUsd }));
+  });
+  res.json({ success: true, bills });
+});
+
+app.post('/api/organizations/lesson-bills/:assignmentId/:sessionId/checkout', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient(); const org = organizations.findByUserId(currentUser(req).id); const record = assignments.findById(req.params.assignmentId); const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId)); const student = record && store.findById(record.studentId);
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  if (!org || !organizations.isSubscriptionActive(org) || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student) || !lesson || lesson.paymentStatus !== 'held') return res.status(404).json({ success: false, error: 'Sponsored lesson bill not found.' });
+  const checkout = await client.checkout.sessions.create({ payment_method_types: ['card'], mode: 'payment', line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson for ${record.studentName}` }, unit_amount: Math.round(lesson.totalUsd * 100) }, quantity: 1 }], customer_email: org.email, success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`, cancel_url: `${publicAppUrl(req)}/ngo-dashboard`, metadata: { type: 'lesson-bill', orgId: String(org.id), assignmentId: String(record.id), sessionId: String(lesson.id) } });
+  res.json({ success: true, url: checkout.url });
+});
+
 app.get('/api/organizations/checkout/success', async (req, res) => {
   const client = stripeClient.getClient();
   if (!client) {
     return res.redirect('/ngo-dashboard?payment=error');
   }
 
-  const { sessionId, orgId } = req.query;
-  if (!sessionId || !orgId) {
+  const { sessionId } = req.query;
+  if (!sessionId) {
     return res.redirect('/ngo-dashboard?payment=error');
   }
 
@@ -1209,8 +1609,25 @@ app.get('/api/organizations/checkout/success', async (req, res) => {
       return res.redirect('/ngo-dashboard?payment=pending');
     }
 
-    // Activate the subscription for this organization
-    const updated = organizations.activateSubscription(orgId);
+    if (session.metadata && session.metadata.type === 'lesson-bill') {
+      const record = assignments.findById(session.metadata.assignmentId);
+      const lesson = record && (record.sessions || []).find((item) => item.id === Number(session.metadata.sessionId));
+      const org = organizations.findById(Number(session.metadata.orgId));
+      const student = record && store.findById(record.studentId);
+      if (!record || !lesson || lesson.paymentStatus !== 'held' || !org || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student)) return res.redirect('/ngo-dashboard?payment=error');
+      const released = assignments.confirmSession(record.id, lesson.id);
+      if (!released) return res.redirect('/ngo-dashboard?payment=error');
+      const paymentIntentId = stripeObjectId(session.payment_intent);
+      await releaseTutorEarnings(record, lesson, { paymentIntentId, payerType: 'organization', organizationId: org.id });
+      return res.redirect('/ngo-dashboard?payment=success');
+    }
+
+    const orgId = Number(session.metadata && session.metadata.orgId);
+    const billingPeriod = session.metadata && session.metadata.billingPeriod;
+    const org = organizations.findById(orgId);
+    if (!org || !['monthly', 'yearly'].includes(billingPeriod)) return res.redirect('/ngo-dashboard?payment=error');
+    // Activate only for the period actually paid for in Stripe Checkout.
+    const updated = organizations.activateSubscription(orgId, billingPeriod === 'monthly' ? 1 : 12);
     if (!updated) {
       return res.redirect('/ngo-dashboard?payment=error');
     }
@@ -1421,8 +1838,10 @@ app.post('/api/tutors/orientation/submit', requireTutorProfileApi, (req, res) =>
 // --- STUDENT PROFILE + PLACEMENT ---
 app.post('/api/profile/student', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
-  const { name, ageGroup, genres, city, address, sex, photoUrl } = req.body || {};
-  const updated = await store.setStudentProfile(user.id, { name, ageGroup, genres, city, address, sex, photoUrl });
+  const { name, ageGroup, genres, city, address, sex, photoUrl, agreementAccepted } = req.body || {};
+  const existing = user.studentProfile || {};
+  if (!existing.agreementAcceptedAt && agreementAccepted !== true) return res.status(400).json({ success: false, error: 'Read and accept the Student Agreement before saving your profile.' });
+  const updated = await store.setStudentProfile(user.id, { name, ageGroup, genres, city, address, sex, photoUrl, agreementAccepted });
   res.json({ success: true, studentProfile: updated.studentProfile });
 });
 
@@ -1525,6 +1944,9 @@ app.get('/api/tutors/:id/public', async (req, res) => {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   const geoInfo = await getGeoInfo(req);
+  if (!inViewerCountry(tutor, geoInfo.name)) {
+    return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  }
   const viewer = currentUser(req);
   const addressUnlocked = Boolean(viewer) && (
     viewer.role === 'admin'
@@ -1592,6 +2014,7 @@ app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   const selfTutor = tutors.findByUserId(user.id);
   const selfTutorId = selfTutor ? selfTutor.id : null;
+  const geoInfo = await getGeoInfo(req);
   // Geocoding returns {lat,lng,city,state,country} in one shape, so the
   // same resolved object serves as both the in-person distance anchor and
   // the online locality-tier anchor (same city/region/country).
@@ -1600,7 +2023,7 @@ app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
   const candidates = assignments.generateCandidates({
     category, genre: genre || null, ageGroup: ageGroup || null, level: level || null,
     studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
-  }).filter((c) => c.tutor.id !== selfTutorId);
+  }).filter((c) => c.tutor.id !== selfTutorId && inViewerCountry(c.tutor, geoInfo.name));
 
   res.json({
     success: true,
@@ -1625,20 +2048,27 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   const selfTutor = tutors.findByUserId(user.id);
   const selfTutorId = selfTutor ? selfTutor.id : null;
   const requestTutorIds = Array.isArray(preferredTutorIds) ? preferredTutorIds.map(Number) : [];
+  const geoInfo = await getGeoInfo(req);
   if (selfTutorId && requestTutorIds.includes(selfTutorId)) {
     return res.status(400).json({ success: false, error: 'You cannot request yourself as a tutor.' });
+  }
+  if (requestTutorIds.some((id) => {
+    const tutor = tutors.findById(id);
+    return !tutor || !inViewerCountry(tutor, geoInfo.name);
+  })) {
+    return res.status(403).json({ success: false, error: 'Tutors can only be requested within your country.' });
   }
 
   const studentGeo = city ? await geocodeAddress(city) : null;
   const candidates = assignments.generateCandidates({
     category, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
-  });
+  }).filter((c) => inViewerCountry(c.tutor, geoInfo.name));
 
   const request = assignments.createRequest({
     studentId: user.id, studentName: user.name, studentEmail: user.email,
     category, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
     preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
-    intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [],
+    intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [], studentCountry: geoInfo.name,
   });
 
   notifyAdmins({
@@ -1648,12 +2078,51 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     excludeUserId: user.id,
   });
 
+  requestTutorIds.forEach((id) => {
+    const preferredTutor = tutors.findById(id);
+    if (preferredTutor && preferredTutor.status === 'approved') {
+      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${category}. Open your Tutor Profile to review and accept the request.` });
+    }
+  });
+
   store.addNotification(user.id, {
     type: 'tutor-request',
-    message: `Your request for ${category} has been submitted. An admin will match you with a tutor soon.`,
+    message: `Your request for ${category} has been sent to your chosen tutor. You will be notified when they accept.`,
   });
 
   res.json({ success: true, request });
+});
+
+app.post('/api/admin/payout-requests/:id/process', requireAdminApi, (req, res) => {
+  const request = payouts.listAll().find((item) => item.id === Number(req.params.id));
+  if (!request || request.status !== 'requested') return res.status(404).json({ success: false, error: 'Payout request not found.' });
+  const tutor = tutors.findById(request.tutorId);
+  if (!tutor || (tutor.balanceUsd || 0) < request.amountUsd) return res.status(400).json({ success: false, error: 'Insufficient tutor balance for this payout.' });
+  tutors.debitBalance(tutor.id, request.amountUsd);
+  const processed = payouts.process(request.id, currentUser(req).id);
+  store.addNotification(request.tutorUserId, { type: 'payout-processed', message: `Your withdrawal of $${request.amountUsd.toFixed(2)} has been marked as processed.` });
+  res.json({ success: true, payout: processed });
+});
+
+app.get('/api/tutors/me/pending-requests', requireApprovedTutorApi, (req, res) => {
+  const requests = assignments.listAll()
+    .filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(req.tutorProfile.id))
+    .map((record) => {
+      const student = store.findById(record.studentId);
+      const profile = student && student.studentProfile || {};
+      return { ...record, studentPhotoUrl: student ? student.photoUrl || null : null, studentAgeGroup: profile.ageGroup || null, studentCity: profile.city || record.city || null, studentBio: profile.bio || null };
+    });
+  res.json({ success: true, requests });
+});
+
+app.post('/api/tutors/me/pending-requests/:id/accept', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.status !== 'pending' || !(record.preferredTutorIds || []).includes(req.tutorProfile.id)) {
+    return res.status(404).json({ success: false, error: 'Student request not found.' });
+  }
+  const updated = assignments.assignTutor(record.id, req.tutorProfile, null);
+  store.addNotification(updated.studentId, { type: 'tutor', message: `${req.tutorProfile.name} accepted your ${updated.category} tutor request. Your dashboard is ready.` });
+  res.json({ success: true, request: updated });
 });
 
 app.get('/api/my-assignments', requireAuthApi, (req, res) => {
@@ -1661,10 +2130,11 @@ app.get('/api/my-assignments', requireAuthApi, (req, res) => {
   // For studio lessons (student travels to the tutor), the student needs
   // the tutor's exact address once actually matched.
   const asStudent = assignments.listForStudent(user.id).map((r) => {
-    if (r.lessonType !== 'studio' || r.status !== 'active' || !r.tutorId) return r;
-    const tutorProfile = tutors.findById(r.tutorId);
+    const tutorProfile = r.tutorId ? tutors.findById(r.tutorId) : null;
+    const withTutorPhoto = { ...(tutorProfile ? { ...r, tutorPhotoUrl: tutorProfile.photoUrl || null } : r), sponsoredBy: user.sponsor || null };
+    if (r.lessonType !== 'studio' || r.status !== 'active' || !r.tutorId) return withTutorPhoto;
     const tutorAddress = tutorProfile ? (tutorProfile.fullAddress || tutorProfile.address) : null;
-    return tutorAddress ? { ...r, tutorFullAddress: tutorAddress } : r;
+    return tutorAddress ? { ...withTutorPhoto, tutorFullAddress: tutorAddress } : withTutorPhoto;
   });
   const tutorProfile = tutors.findByUserId(user.id);
   // For physical lessons (tutor travels to the student), the matched tutor
@@ -1747,6 +2217,16 @@ app.get('/api/library/my-subjects', requireAuthApi, (req, res) => {
   res.json({ success: true, subjects: Array.from(enrolledCategoriesForUser(user)), isAdmin: false });
 });
 
+// A tutor's upload panel must show only clips they personally added. The
+// public library remains subject-scoped for students and other tutors.
+app.get('/api/library/mine', requireApprovedTutorApi, (req, res) => {
+  const items = reels.listAll().filter((item) => (
+    item.addedBy === currentUser(req).id
+    && item.status === 'active'
+  ));
+  res.json({ success: true, items });
+});
+
 app.post('/api/library/upload', requireApprovedTutorApi, (req, res) => {
   videoUpload.single('video')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
@@ -1760,15 +2240,33 @@ app.post('/api/library/upload', requireApprovedTutorApi, (req, res) => {
 });
 
 app.post('/api/library', requireApprovedTutorApi, (req, res) => {
-  const { title, url, category, genre, isFile } = req.body || {};
+  const { title, description, url, category, genre, isFile } = req.body || {};
   if (!title || !url) return res.status(400).json({ success: false, error: 'Title and link/file are required.' });
   const selectedCategory = category ? String(category).trim() : null;
   const tutorCategories = req.tutorProfile.categories || [];
   if (selectedCategory && !tutorCategories.includes(selectedCategory)) {
     return res.status(403).json({ success: false, error: 'You can only add library videos for your approved subjects.' });
   }
-  const item = reels.create({ title, url, category: selectedCategory, genre, addedBy: currentUser(req).id, isFile });
+  const item = reels.create({ title, description, url, category: selectedCategory, genre, addedBy: currentUser(req).id, isFile });
   res.json({ success: true, item });
+});
+
+app.post('/api/library/:id', requireApprovedTutorApi, (req, res) => {
+  const item = reels.findById(req.params.id);
+  if (!item || item.addedBy !== currentUser(req).id) return res.status(404).json({ success: false, error: 'Video not found.' });
+  const { title, description, category, genre } = req.body || {};
+  const selectedCategory = category ? String(category).trim() : null;
+  if (!title || !selectedCategory || !(req.tutorProfile.categories || []).includes(selectedCategory)) {
+    return res.status(400).json({ success: false, error: 'Use a title and one of your teaching subjects.' });
+  }
+  res.json({ success: true, item: reels.update(item.id, { title, description, category: selectedCategory, genre }) });
+});
+
+app.delete('/api/library/:id', requireApprovedTutorApi, (req, res) => {
+  const item = reels.findById(req.params.id);
+  if (!item || item.addedBy !== currentUser(req).id) return res.status(404).json({ success: false, error: 'Video not found.' });
+  reels.remove(item.id);
+  res.json({ success: true });
 });
 
 app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, res) => {
@@ -1777,23 +2275,32 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
   if (record.status !== 'active') return res.status(400).json({ success: false, error: 'This assignment is not active.' });
 
   const { teacherNotes, assignmentText, reelIds, recordingUrl, durationMinutes } = req.body || {};
-  if (!durationMinutes || Number(durationMinutes) <= 0) {
+  const timedLesson = !durationMinutes ? assignments.consumeLessonTimer(record.id, req.tutorProfile.id) : null;
+  const billableMinutes = timedLesson ? timedLesson.durationMinutes : Number(durationMinutes);
+  if (!billableMinutes || billableMinutes <= 0) {
     return res.status(400).json({ success: false, error: 'Lesson duration (minutes) is required.' });
   }
   const curriculumContent = curriculum.getForCategory(record.category);
   const resolvedReels = (Array.isArray(reelIds) ? reelIds : []).map((id) => reels.findById(id)).filter(Boolean);
+  // One free introductory class per tutor/student pair. Looking across all
+  // assignments prevents a second request for the same tutor from creating
+  // another free lesson.
+  const hasCompletedClassWithTutor = assignments.listForTutor(req.tutorProfile.id)
+    .some((item) => item.studentId === record.studentId && (item.sessions || []).length > 0);
+  const isFreeTrial = !hasCompletedClassWithTutor;
   const session = assignments.addSession(record.id, {
     curriculumTitle: curriculumContent ? curriculumContent.title : null,
-    teacherNotes, assignmentText, reels: resolvedReels, recordingUrl, durationMinutes,
-    hourlyRateUsd: req.tutorProfile.hourlyRateUsd,
+    teacherNotes, assignmentText, reels: resolvedReels, recordingUrl, durationMinutes: billableMinutes,
+    hourlyRateUsd: req.tutorProfile.hourlyRateUsd, isFreeTrial,
   });
   tutors.incrementLessonsCompleted(req.tutorProfile.id);
+  chat.send(record.id, { senderId: currentUser(req).id, senderRole: 'tutor', text: `🔔 Class ended. You spent ${session.durationMinutes} minute${session.durationMinutes === 1 ? '' : 's'} with ${record.tutorName} today.${isFreeTrial ? ' This first class is free.' : ` Lesson bill: $${session.totalUsd.toFixed(2)}.`}` });
 
   // Real Stripe hold, only if the student has a card on file - keeps the
   // simulated (no card) path working exactly as it did before Stripe was
   // wired in, so existing data/flows don't break.
   const student = store.findById(record.studentId);
-  if (student && student.stripeCustomerId && student.stripePaymentMethodId) {
+  if (!isFreeTrial && student && student.stripeCustomerId && student.stripePaymentMethodId) {
     const client = stripeClient.getClient();
     if (client) {
       try {
@@ -1817,11 +2324,41 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
     }
   }
 
-  store.addNotification(record.studentId, {
-    type: 'lesson',
-    message: `${req.tutorProfile.name} logged a completed lesson for ${record.category} ($${session.totalUsd} held in escrow). Confirm it from your dashboard to release payment.`,
-  });
+  const sponsoringOrganization = coveredOrganizationForAssignment(record, student);
+  if (!isFreeTrial && sponsoringOrganization) {
+    store.addNotification(sponsoringOrganization.userId, {
+      type: 'payment',
+      message: `${req.tutorProfile.name} sent a $${session.totalUsd} ${record.category} lesson bill for sponsored student ${record.studentName}.`,
+    });
+    store.addNotification(record.studentId, {
+      type: 'lesson',
+      message: `${req.tutorProfile.name} completed your ${record.category} lesson. Your sponsoring organization will receive the bill.`,
+    });
+  } else {
+    store.addNotification(record.studentId, {
+      type: 'lesson',
+      message: isFreeTrial ? `${req.tutorProfile.name} completed your free introductory ${record.category} class. No payment is due.` : `${req.tutorProfile.name} sent a ${session.durationMinutes}-minute ${record.category} lesson bill for $${session.totalUsd}. Confirm it to release payment.`,
+    });
+  }
   res.json({ success: true, session });
+});
+
+// The tutor explicitly begins the billable clock only after both people have
+// joined the lesson. Starting a Meet alone never creates a charge.
+app.post('/api/assignments/:id/lesson-start', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  const started = assignments.startLesson(record.id, req.tutorProfile.id);
+  if (!started) return res.status(400).json({ success: false, error: 'Only active assignments can start a lesson.' });
+  chat.send(record.id, { senderId: currentUser(req).id, senderRole: 'tutor', text: `🔔 ${req.tutorProfile.name} started your ${record.category} class. The lesson clock is now running.` });
+  res.json({ success: true, lessonStartedAt: started.lessonStartedAt });
+});
+
+app.post('/api/assignments/:id/tutor-acknowledgements', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  const updated = assignments.setTutorAcknowledgements(record.id, req.tutorProfile.id, req.body || {});
+  res.json({ success: true, acknowledgements: updated.tutorAcknowledgements });
 });
 
 // The student's attestation that the lesson happened as logged - captures
@@ -1832,9 +2369,10 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   const user = currentUser(req);
   const record = assignments.findById(req.params.id);
   if (!record || record.studentId !== user.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  if (coveredOrganizationForAssignment(record, user)) return res.status(403).json({ success: false, error: 'Your sponsoring organization is responsible for this lesson bill.' });
 
   const pending = (record.sessions || []).find((s) => s.id === Number(req.params.sessionId));
-  if (!pending || pending.paymentStatus === 'released') {
+  if (!pending || pending.paymentStatus !== 'held') {
     return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
   }
 
@@ -1853,23 +2391,9 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   if (!result) return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
 
   const { session } = result;
-  // Legacy sessions logged before the commission model don't have these
-  // fields - fall back to crediting the full total for those.
-  const payoutUsd = session.tutorPayoutUsd != null ? session.tutorPayoutUsd : session.totalUsd;
-  tutors.creditBalance(record.tutorId, payoutUsd);
-  payments.record({
-    studentId: record.studentId, studentName: record.studentName,
-    tutorId: record.tutorId, tutorName: record.tutorName,
-    category: record.category, lessonType: record.lessonType,
-    priceUsd: session.totalUsd, platformFeeUsd: session.platformFeeUsd || 0, tutorPayoutUsd: payoutUsd,
-    assignmentId: record.id, sessionId: session.id,
-  });
-  store.addNotification(
-    tutors.findById(record.tutorId).userId,
-    { type: 'payment', message: `${record.studentName} confirmed your ${record.category} lesson - $${payoutUsd} released to your balance.` },
-  );
+  const settlement = await releaseTutorEarnings(record, session, { paymentIntentId: pending.paymentIntentId });
 
-  res.json({ success: true, session });
+  res.json({ success: true, session, automaticTransfer: Boolean(settlement.transfer) });
 });
 
 // Tutor sets/updates their own externally-created meeting link (Google
@@ -1894,6 +2418,30 @@ app.post('/api/assignments/:id/meeting-link', requireApprovedTutorApi, (req, res
 // send the reminders. Sign In With Google only proves identity (ID token,
 // no API access), so this needs its own authorization-code consent flow.
 
+const CALENDAR_STATE_TTL_MS = 15 * 60 * 1000;
+function createCalendarState(userId) {
+  const issuedAt = Date.now();
+  const payload = `${userId}.${issuedAt}`;
+  const signature = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'dev-insecure-secret-change-me')
+    .update(payload).digest('base64url');
+  return Buffer.from(`${payload}.${signature}`).toString('base64url');
+}
+
+function readCalendarState(state) {
+  try {
+    const decoded = Buffer.from(String(state || ''), 'base64url').toString('utf8');
+    const [userId, issuedAt, signature] = decoded.split('.');
+    const payload = `${userId}.${issuedAt}`;
+    const expected = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'dev-insecure-secret-change-me')
+      .update(payload).digest('base64url');
+    if (!userId || !issuedAt || !signature || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    if (Date.now() - Number(issuedAt) > CALENDAR_STATE_TTL_MS || Number(issuedAt) > Date.now() + 60_000) return null;
+    return Number(userId) || null;
+  } catch {
+    return null;
+  }
+}
+
 app.get('/api/calendar/status', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const cal = user.googleCalendar;
@@ -1910,7 +2458,7 @@ app.get('/api/calendar/connect', requireApprovedTutorApi, (req, res) => {
   if (!googleCalendar.isConfigured()) {
     return res.status(503).json({ success: false, error: 'Google Calendar is not configured on this server.' });
   }
-  const url = googleCalendar.getAuthUrl(currentUser(req).id);
+  const url = googleCalendar.getAuthUrl(createCalendarState(currentUser(req).id));
   res.redirect(url);
 });
 
@@ -1921,9 +2469,14 @@ app.get('/api/calendar/callback', async (req, res) => {
   if (error || !code) return res.redirect('/tutor?calendar=denied');
   try {
     const tokens = await googleCalendar.exchangeCode(code);
-    const userId = Number(state);
+    const userId = readCalendarState(state);
     const user = store.findById(userId);
-    if (!user) return res.redirect('/tutor?calendar=error');
+    // The currently signed-in tutor must be the same person who started
+    // consent.  This prevents one user from attaching a calendar to another
+    // tutor's account by altering the OAuth callback URL.
+    if (!user || !currentUser(req) || currentUser(req).id !== userId || !tutors.findByUserId(userId)) {
+      return res.redirect('/tutor?calendar=error');
+    }
     // Google only returns a refresh token on the first consent (we force
     // prompt=consent to make it reliable); keep the existing one if this
     // round somehow didn't include a fresh one.
@@ -2047,6 +2600,11 @@ app.post('/api/assignments/:id/sessions/:sessionId/rate', requireAuthApi, (req, 
   }
 
   const role = isStudent ? 'student' : 'tutor';
+  const existing = (record.sessions || []).find((item) => item.id === Number(req.params.sessionId));
+  if (!existing) return res.status(404).json({ success: false, error: 'Session not found.' });
+  if ((role === 'student' && existing.studentRating) || (role === 'tutor' && existing.tutorRating)) {
+    return res.status(400).json({ success: false, error: 'This class has already been rated.' });
+  }
   const session = assignments.rateSession(record.id, req.params.sessionId, role, { score, professionalism, comment });
   if (!session) return res.status(404).json({ success: false, error: 'Session not found.' });
 
@@ -2248,7 +2806,9 @@ app.get('/api/messages/unread-count', requireAuthApi, (req, res) => {
 
 // --- ADMIN: TUTOR REVIEW & MATCHING ---
 app.get('/api/admin/tutors', requireAdminApi, (req, res) => {
-  res.json({ success: true, tutors: tutors.listAll() });
+  const admin = currentUser(req);
+  const scoped = tutors.listAll().filter((profile) => canManageUser(admin, store.findById(profile.userId)));
+  res.json({ success: true, tutors: scoped });
 });
 
 app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
@@ -2256,11 +2816,13 @@ app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
   if (!['approved', 'rejected', 'pending'].includes(status)) {
     return res.status(400).json({ success: false, error: 'Invalid status.' });
   }
-  const updated = tutors.setStatus(req.params.id, status);
+  const profile = tutors.findById(req.params.id);
+  if (!profile || !canManageUser(currentUser(req), store.findById(profile.userId))) return res.status(403).json({ success: false, error: 'You can only review tutors in your country.' });
+  const updated = tutors.setStatus(req.params.id, status, currentUser(req).id);
   if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
 
   if (status === 'approved') {
-    store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application has been approved! Students can now be matched to you.' });
+    store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application has been approved! Set up your Stripe payout account from the Tutor Dashboard so paid classes can be paid automatically.' });
   } else if (status === 'rejected') {
     store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application was not approved this time.' });
   }
@@ -2347,7 +2909,8 @@ app.post('/api/admin/users/:id/clear-flag', requireAdminApi, (req, res) => {
 // admin monitor all tutor/student activity in one place rather than having
 // to open each assignment individually.
 app.get('/api/admin/activity', requireAdminApi, (req, res) => {
-  const sessions = assignments.listAll().flatMap((r) => (r.sessions || []).map((s) => ({
+  const region = String(req.query.region || '').trim().toLowerCase();
+  const sessions = assignments.listAll().filter((r) => !region || String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase() === region).flatMap((r) => (r.sessions || []).map((s) => ({
     ...s,
     requestId: r.id,
     category: r.category,
@@ -2362,7 +2925,8 @@ app.get('/api/admin/activity', requireAdminApi, (req, res) => {
 // A live feed of every chat message platform-wide, newest first - part of
 // "admin can see all activities."
 app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
-  const allRecords = assignments.listAll();
+  const region = String(req.query.region || '').trim().toLowerCase();
+  const allRecords = assignments.listAll().filter((r) => !region || String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase() === region);
   const messages = allRecords.flatMap((r) => chat.listForAssignment(r.id).map((m) => ({
     ...m, category: r.category, tutorName: r.tutorName, studentName: r.studentName,
   })));
@@ -2374,7 +2938,13 @@ app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
 // elsewhere (the payments ledger, tutor/assignment records), never a
 // placeholder or estimate.
 app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
-  const allPayments = payments.listAll();
+  const region = String(req.query.region || '').trim().toLowerCase();
+  const assignmentInRegion = (assignmentId) => {
+    if (!region) return true;
+    const record = assignments.findById(assignmentId);
+    return String(record && (record.studentCountry || (store.findById(record.studentId)?.country)) || '').toLowerCase() === region;
+  };
+  const allPayments = payments.listAll().filter((payment) => assignmentInRegion(payment.assignmentId));
   const totalRevenueUsd = allPayments.reduce((sum, p) => sum + p.priceUsd, 0);
   const platformRevenueUsd = allPayments.reduce((sum, p) => sum + (p.platformFeeUsd || 0), 0);
 
@@ -2399,14 +2969,15 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
   });
   const topSubjects = Object.values(subjectCounts).sort((a, b) => b.revenueUsd - a.revenueUsd).slice(0, 5);
 
-  const tutorLeaderboard = tutors.listAll()
+  const tutorLeaderboard = tutors.listAll().filter((t) => !region || String(t.locality && t.locality.country || '').toLowerCase() === region)
     .filter((t) => t.ratingCount > 0)
     .map((t) => ({ id: t.id, name: t.name, avgRating: tutors.avgRating(t), ratingCount: t.ratingCount, lessonsCompletedCount: t.lessonsCompletedCount || 0, totalEarnedUsd: t.totalEarnedUsd || 0 }))
     .sort((a, b) => b.avgRating - a.avgRating || b.ratingCount - a.ratingCount)
     .slice(0, 5);
 
-  const lessonsLogged = assignments.listAll().reduce((sum, r) => sum + (r.sessions || []).length, 0);
-  const pendingEscrowUsd = assignments.listAll()
+  const regionalAssignments = assignments.listAll().filter((r) => assignmentInRegion(r.id));
+  const lessonsLogged = regionalAssignments.reduce((sum, r) => sum + (r.sessions || []).length, 0);
+  const pendingEscrowUsd = regionalAssignments
     .flatMap((r) => r.sessions || [])
     .filter((s) => s.paymentStatus === 'held')
     .reduce((sum, s) => sum + s.totalUsd, 0);
@@ -2418,8 +2989,8 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
       platformRevenueUsd: Math.round(platformRevenueUsd * 100) / 100,
       revenue30dUsd,
       pendingEscrowUsd: Math.round(pendingEscrowUsd * 100) / 100,
-      totalUsers: store.listUsers().length,
-      activeTutors: tutors.listApproved().length,
+      totalUsers: store.listUsers().filter((user) => !region || String(user.country || '').toLowerCase() === region).length,
+      activeTutors: tutors.listApproved().filter((tutor) => !region || String(tutor.locality && tutor.locality.country || '').toLowerCase() === region).length,
       lessonsLogged,
     },
     revenueByDay,
@@ -2439,7 +3010,9 @@ app.get('/api/admin/flagged', requireAdminApi, (req, res) => {
 });
 
 app.get('/api/admin/tutor-requests', requireAdminApi, (req, res) => {
-  res.json({ success: true, requests: assignments.listAll() });
+  const admin = currentUser(req);
+  const requests = assignments.listAll().filter((record) => canManageUser(admin, store.findById(record.studentId)));
+  res.json({ success: true, requests });
 });
 
 app.post('/api/admin/tutor-requests/:id/assign', requireAdminApi, async (req, res) => {
@@ -2450,6 +3023,14 @@ app.post('/api/admin/tutor-requests/:id/assign', requireAdminApi, async (req, re
   }
   const record = assignments.findById(req.params.id);
   if (!record) return res.status(404).json({ success: false, error: 'Request not found.' });
+  if (!canManageUser(currentUser(req), store.findById(record.studentId)) || !canManageUser(currentUser(req), store.findById(tutor.userId))) {
+    return res.status(403).json({ success: false, error: 'You can only match tutors and students from your country.' });
+  }
+  const studentCountry = record.studentCountry || (store.findById(record.studentId)?.studentProfile?.country) || null;
+  const tutorCountry = tutor.locality && tutor.locality.country;
+  if (studentCountry && !sameCountry(tutorCountry, studentCountry)) {
+    return res.status(400).json({ success: false, error: 'Tutor and student must be in the same country.' });
+  }
 
   let distKm = null;
   if (record.lessonType !== 'online' && record.city && tutor.lat != null && tutor.lng != null) {
@@ -2489,18 +3070,29 @@ app.post('/api/admin/assessments/:kind/:category', requireAdminApi, (req, res) =
 });
 
 app.get('/api/admin/orientation', requireAdminApi, (req, res) => {
+  const audience = ['tutor', 'student', 'admin', 'sponsor', 'organization', 'support_agent'].includes(req.query.audience) ? req.query.audience : 'tutor';
+  const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
   res.json({
     success: true,
-    content: curriculum.getForCategory(curriculum.ORIENTATION_KEY),
-    questions: assessments.getQuestionsForAdmin('orientation', null),
+    content: curriculum.getForCategory(key), audience,
+    questions: audience === 'tutor' ? assessments.getQuestionsForAdmin('orientation', null) : [],
   });
 });
 
 app.post('/api/admin/orientation', requireAdminApi, (req, res) => {
-  const { title, notes, videoUrl, rewardType, questions } = req.body || {};
-  const content = curriculum.setForCategory(curriculum.ORIENTATION_KEY, { title, notes, videoUrl, rewardType });
-  const saved = Array.isArray(questions) ? assessments.setQuestions('orientation', null, questions) : assessments.getQuestionsForAdmin('orientation', null);
+  const { title, notes, videoUrl, rewardType, questions, audience = 'tutor' } = req.body || {};
+  if (!['tutor', 'student', 'admin', 'sponsor', 'organization', 'support_agent'].includes(audience)) return res.status(400).json({ success: false, error: 'Invalid orientation audience.' });
+  const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
+  const content = curriculum.setForCategory(key, { title, notes, videoUrl, rewardType });
+  const saved = audience === 'tutor' && Array.isArray(questions) ? assessments.setQuestions('orientation', null, questions) : [];
   res.json({ success: true, content, questions: saved });
+});
+
+app.get('/api/orientation', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const audience = user.role === 'admin' ? 'admin' : user.role === 'support_agent' ? 'support_agent' : organizations.findByUserId(user.id) ? 'organization' : user.sponsor ? 'sponsor' : tutors.findByUserId(user.id) ? 'tutor' : 'student';
+  const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
+  res.json({ success: true, audience, content: curriculum.getForCategory(key) });
 });
 
 app.get('/api/admin/curriculum/:category', requireAdminApi, (req, res) => {
@@ -2559,7 +3151,9 @@ function adminUserView(user) {
     name: user.name,
     email: user.email,
     role: user.role || 'user',
+    supportAgent: Boolean(user.supportAgent || user.role === 'support_agent'),
     countryCode: user.countryCode || null,
+    adminCountryCode: user.adminCountryCode || null,
     studentProfile: user.studentProfile || null,
     createdAt: user.createdAt,
     authMethod: user.googleId ? 'google' : 'password',
@@ -2569,6 +3163,8 @@ function adminUserView(user) {
 app.get('/api/admin/users', requireAdminApi, (req, res) => {
   const search = (req.query.search || '').toLowerCase().trim();
   let users = store.listUsers();
+  const admin = currentUser(req);
+  users = users.filter((user) => canManageUser(admin, user));
   if (search) {
     users = users.filter((u) => u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search));
   }
@@ -2576,16 +3172,41 @@ app.get('/api/admin/users', requireAdminApi, (req, res) => {
     .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .map(adminUserView);
-  res.json({ success: true, users });
+  res.json({ success: true, users, isPrimaryAdmin: isPrimaryAdmin(admin) });
 });
 
 app.post('/api/admin/users/:id/role', requireAdminApi, (req, res) => {
+  const admin = currentUser(req);
   const { role } = req.body || {};
-  if (!['user', 'demo', 'admin'].includes(role)) {
+  if (!['user', 'demo', 'admin', 'support_agent', 'country_admin'].includes(role)) {
     return res.status(400).json({ success: false, error: 'Invalid role.' });
   }
-  const updated = store.setRole(Number(req.params.id), role);
+  const target = store.findById(Number(req.params.id));
+  if (!target) return res.status(404).json({ success: false, error: 'User not found.' });
+  if (!canManageUser(admin, target)) return res.status(403).json({ success: false, error: 'You can only manage users in your country.' });
+  if (['admin', 'demo', 'country_admin'].includes(role) && !isPrimaryAdmin(admin)) {
+    return res.status(403).json({ success: false, error: 'Only the main administrator can grant Admin or Demo access.' });
+  }
+  let updated;
+  if (role === 'country_admin') {
+    const countryCode = countryForUser(target);
+    if (!countryCode) return res.status(400).json({ success: false, error: 'This user needs a verified country first.' });
+    updated = store.setCountryAdmin(target.id, countryCode);
+  } else {
+    updated = store.setRole(target.id, role);
+  }
   if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
+  if (role === 'support_agent') store.addNotification(updated.id, { type: 'support_agent', message: 'You now have access to the Mozart Techniques Support Agent inbox.' });
+  res.json({ success: true, user: adminUserView(updated) });
+});
+
+app.post('/api/admin/users/:id/country-admin', requirePrimaryAdminApi, (req, res) => {
+  const target = store.findById(Number(req.params.id));
+  if (!target) return res.status(404).json({ success: false, error: 'User not found.' });
+  const countryCode = countryForUser(target);
+  if (!countryCode) return res.status(400).json({ success: false, error: 'This user needs a verified country on their profile first.' });
+  const updated = store.setCountryAdmin(target.id, countryCode);
+  store.addNotification(updated.id, { type: 'admin', message: `You are now the Mozart Techniques country administrator for ${countryCode}. You can review people from your country.` });
   res.json({ success: true, user: adminUserView(updated) });
 });
 
@@ -2615,6 +3236,13 @@ async function seedSpecialAccounts() {
 // fails clearly once the retries are exhausted.
 const PORT_RETRY_ATTEMPTS = 10;
 const PORT_RETRY_DELAY_MS = 400;
+
+// Keep unknown URLs inside Mozart Techniques. This comes after every valid
+// route above, so it only handles paths that truly do not exist.
+app.use((req, res) => {
+  if (req.method !== 'GET') return res.status(404).json({ success: false, error: 'Route not available.' });
+  res.status(404).sendFile(path.join(PUBLIC_DIR, 'not-found.html'));
+});
 
 function startServer(attempt = 1) {
   const httpServer = app.listen(PORT, () => {
@@ -2653,7 +3281,27 @@ function startServer(attempt = 1) {
   });
 }
 
-mongoPersistence.initialize().then((result) => {
+async function initializePersistence() {
+  // Use Atlas whenever a connection string is configured. Local development
+  // without Mongo stays file-backed, while a temporary Atlas outage still
+  // falls back safely outside production.
+  if (process.env.NODE_ENV !== 'production' && process.env.MONGO_PERSISTENCE !== 'true' && !process.env.MONGODB_URI) {
+    return { connected: false, mode: 'local-development' };
+  }
+  try {
+    return await mongoPersistence.initialize();
+  } catch (err) {
+    // Development must remain usable when an Atlas IP allow-list or network
+    // outage blocks MongoDB. JSON snapshots are the local fallback. In
+    // production Mongo remains mandatory so a deployment never silently
+    // falls back to a single machine's disk.
+    if (process.env.NODE_ENV === 'production') throw err;
+    console.warn(`MongoDB unavailable; using local JSON snapshots: ${err.message}`);
+    return { connected: false, mode: 'local-fallback' };
+  }
+}
+
+initializePersistence().then((result) => {
   if (result.connected) {
     mongoPersistence.installWriteThroughHook();
     console.log('MongoDB persistence enabled for JSON snapshots.');

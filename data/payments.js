@@ -21,7 +21,7 @@ function persist(db) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
-function record({ studentId, studentName, tutorId, tutorName, category, lessonType, priceUsd, platformFeeUsd, tutorPayoutUsd, assignmentId, sessionId }) {
+function record({ studentId, studentName, tutorId, tutorName, category, lessonType, priceUsd, platformFeeUsd, tutorPayoutUsd, assignmentId, sessionId, payerType = 'student', organizationId = null, payoutMethod = 'manual_wallet', stripeTransferId = null }) {
   const db = load();
   const payment = {
     id: db.nextId++,
@@ -36,6 +36,10 @@ function record({ studentId, studentName, tutorId, tutorName, category, lessonTy
     tutorPayoutUsd: tutorPayoutUsd != null ? tutorPayoutUsd : priceUsd, // what actually lands in the tutor's balance
     assignmentId,
     sessionId,
+    payerType,
+    organizationId,
+    payoutMethod,
+    stripeTransferId,
     createdAt: new Date().toISOString(),
   };
   db.payments.push(payment);

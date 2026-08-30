@@ -10,7 +10,13 @@ const { google } = require('googleapis');
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 
 function redirectUri() {
-  return process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'http://localhost:3000/api/calendar/callback';
+  // A localhost callback works only while developing.  Deployed tutors must
+  // return to the live app, otherwise Google completes consent in a browser
+  // that has no access to the production session or scheduler.
+  const appUrl = process.env.APP_URL || (process.env.NODE_ENV === 'production'
+    ? 'https://mozarttechniques.com'
+    : 'http://localhost:3000');
+  return process.env.GOOGLE_CALENDAR_REDIRECT_URI || `${appUrl.replace(/\/$/, '')}/api/calendar/callback`;
 }
 
 // Calendar access can run on its own OAuth client, separate from the one
@@ -120,10 +126,32 @@ async function createLessonEvent({
     },
   });
 
-  const meetLink = res.data.hangoutLink
-    || (res.data.conferenceData && res.data.conferenceData.entryPoints
-      && (res.data.conferenceData.entryPoints.find((e) => e.entryPointType === 'video') || {}).uri)
-    || null;
+  // Google creates conference data asynchronously.  Usually it is included
+  // in the insert response, but occasionally the event first comes back in
+  // a "pending" state.  Confirm the link before reporting the lesson as
+  // scheduled so neither tutor nor student receives a dead booking.
+  const getMeetLink = (event) => event && (event.hangoutLink
+    || (event.conferenceData && event.conferenceData.entryPoints
+      && (event.conferenceData.entryPoints.find((e) => e.entryPointType === 'video') || {}).uri)
+    || null);
+  let meetLink = getMeetLink(res.data);
+  for (let attempt = 0; !meetLink && attempt < 5; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const event = await calendar.events.get({
+      calendarId: 'primary', eventId: res.data.id, conferenceDataVersion: 1,
+    });
+    meetLink = getMeetLink(event.data);
+  }
+  if (!meetLink) {
+    // Do not leave an apparently valid, but unusable, event on the tutor's
+    // calendar when Meet provisioning did not complete.
+    try {
+      await calendar.events.delete({ calendarId: 'primary', eventId: res.data.id, sendUpdates: 'all' });
+    } catch {
+      // The original provisioning error is the useful error to surface.
+    }
+    throw new Error('Google Calendar created the event but did not finish generating its Meet link. Please try scheduling again.');
+  }
 
   return { eventId: res.data.id, meetLink, htmlLink: res.data.htmlLink };
 }

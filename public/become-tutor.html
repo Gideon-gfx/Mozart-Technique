@@ -183,7 +183,7 @@
                     <i class="fa-solid fa-user text-2xl"></i>
                 </div>
                 <div class="flex-1">
-                    <input type="file" id="photo-file" accept="image/*" class="text-sm">
+                    <input type="file" id="photo-file" accept="image/*" required class="text-sm">
                     <p class="text-xs text-gray-400 mt-1">Shown on your public profile and tutor cards - helps students recognize you.</p>
                     <span id="photo-status" class="text-xs text-gray-400"></span>
                 </div>
@@ -219,18 +219,18 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">City (shown to students)</label>
-                    <input id="city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <input id="city" type="text" placeholder="e.g. Lagos, Nigeria" required class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
             </div>
 
             <div class="grid sm:grid-cols-2 gap-4 mb-2">
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">Commute radius (km)</label>
-                    <input id="commute-radius" type="number" min="1" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <input id="commute-radius" type="number" min="1" value="10" required class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Phone (optional)</label>
-                    <input id="phone" type="text" placeholder="Shown only to matched students" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Phone</label>
+                    <input id="phone" type="text" placeholder="Shown only to matched students" required class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
             </div>
 
@@ -249,7 +249,7 @@
             <div class="grid sm:grid-cols-2 gap-4 mb-5">
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">Years of experience</label>
-                    <input id="experience" type="number" min="0" placeholder="e.g. 5" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
+                    <input id="experience" type="number" min="0" placeholder="e.g. 5" required class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-600 mb-1">Your hourly rate (USD)</label>
@@ -259,19 +259,29 @@
 
             <label class="block text-sm font-semibold text-gray-600 mb-1">Qualifications(Cover Letter)</label>
             <textarea id="qualifications" rows="3" placeholder="Degrees, certifications, notable performances or students taught..."
-                      class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
+                      required class="w-full px-4 py-3 mb-5 border border-gray-300 rounded-lg"></textarea>
 
-            <label class="block text-sm font-semibold text-gray-600 mb-1">Certificate (image or PDF, optional)</label>
+            <label class="block text-sm font-semibold text-gray-600 mb-1">CV / certificate (image or PDF)</label>
             <div class="flex items-center gap-3 mb-1">
-                <input type="file" id="certificate-file" accept="image/*,application/pdf" class="text-sm flex-1">
+                <input type="file" id="certificate-file" accept="image/*,application/pdf" required class="text-sm flex-1">
                 <span id="certificate-status" class="text-xs text-gray-400 shrink-0"></span>
             </div>
             <input type="hidden" id="certificate-url" value="">
-            <p class="text-xs text-gray-400 mb-5">Upload a degree, certification, or other proof of qualification for admin review.</p>
+            <p class="text-xs text-gray-400 mb-5">Required: upload your CV, degree, certification, or other proof for review.</p>
 
             <label class="block text-sm font-semibold text-gray-600 mb-1">Short bio (shown to students)</label>
             <textarea id="bio" rows="3" placeholder="Tell prospective students about your teaching style..."
-                      class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
+                      required class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
+
+            <section class="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <h2 class="font-bold text-gray-800">Tutor agreement</h2>
+                <p class="text-xs text-gray-500 mt-1">Read to the end to unlock confirmation.</p>
+                <div id="tutor-agreement-text" class="mt-3 h-44 overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 text-sm leading-relaxed text-gray-700">
+                    <p class="font-semibold">Mozart Techniques Tutor Agreement</p><p class="mt-3">You agree to provide professional, safe and respectful lessons; keep student information private; arrive or join on time; and only start the lesson clock after the class has begun.</p><p class="mt-3">Students confirm each completed class before the payment is released. The first completed class between you and each new student is free. From the second class onward, Mozart Techniques deducts a 10% platform service fee from the lesson earnings. This same 10% rate applies to all tutors and to all country administrators who also teach.</p><p class="mt-3">Your payout balance reflects confirmed lessons after the 10% fee. Withdrawal requests are reviewed and paid to the bank details you provide. You may not move communication or payment off-platform for matched students.</p><p class="mt-3">By submitting, you confirm that your application, CV and qualifications are accurate and that you will follow the platform’s policies.</p><p class="mt-3 font-semibold">End of agreement.</p>
+                </div>
+                <label class="mt-3 flex items-start gap-2 text-sm text-gray-700"><input id="agreement-accepted" type="checkbox" disabled required class="mt-1 h-4 w-4"><span>I have read and accept the Tutor Agreement, including the 10% platform fee.</span></label>
+                <a href="/downloads/mozart-tutor-agreement.pdf" download class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary-red hover:underline"><i class="fa-solid fa-download"></i> Download the Mozart Tutor Agreement (PDF)</a>
+            </section>
 
             <button type="submit" id="tutor-submit-btn" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
                 Submit Application
@@ -426,6 +436,11 @@
             const levels = Array.from(document.querySelectorAll('#level-chips input:checked')).map((el) => el.value);
             const submitBtn = document.getElementById('tutor-submit-btn');
 
+            if (!categories.length || !genres.length || !ageGroups.length || !levels.length || !document.getElementById('certificate-url').value || !document.getElementById('photo-url').value || !document.getElementById('agreement-accepted').checked) {
+                showAlert('Complete every section and wait for both your photo and CV/certificate to finish uploading.', 'error');
+                return;
+            }
+
             // Disable button immediately to show processing state
             submitBtn.disabled = true;
             submitBtn.textContent = 'Processing...';
@@ -447,6 +462,7 @@
                         qualifications: document.getElementById('qualifications').value.trim(),
                         certificateUrl: document.getElementById('certificate-url').value,
                         photoUrl: document.getElementById('photo-url').value,
+                        agreementAccepted: document.getElementById('agreement-accepted').checked,
                         bio: document.getElementById('bio').value.trim(),
                     }),
                 });
@@ -464,6 +480,14 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit Application';
                 showAlert('Network error: ' + err.message, 'error');
+            }
+        });
+
+        document.getElementById('tutor-agreement-text').addEventListener('scroll', (event) => {
+            const box = event.currentTarget;
+            if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) {
+                const checkbox = document.getElementById('agreement-accepted');
+                checkbox.disabled = false;
             }
         });
 

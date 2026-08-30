@@ -43,19 +43,19 @@
         <div id="already-done" class="hidden bg-white rounded-2xl shadow-lg p-8 text-center">
             <i class="fa-solid fa-trophy text-primary-red text-4xl mb-4"></i>
             <h1 class="text-2xl font-bold text-gray-800 mb-2">Orientation Complete</h1>
-            <p id="reward-text" class="text-gray-500"></p>
+            <p class="text-gray-500">You have completed the orientation materials.</p>
         </div>
 
         <div id="orientation-body" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
             <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor Orientation</h1>
-            <p class="text-gray-500 mb-6">Watch the technique-teaching primer below, then answer a few quick questions. Pass and you'll earn a one-time welcome reward.</p>
+            <p class="text-gray-500 mb-6">Read or watch the teaching guidance below. These materials are here to help you prepare for teaching on Mozart Techniques.</p>
 
             <div id="video-section" class="mb-4"></div>
             <h2 id="content-title" class="font-bold text-gray-800 mb-2"></h2>
             <p id="content-notes" class="text-gray-600 mb-6 whitespace-pre-wrap"></p>
 
             <div id="quiz-editor" class="space-y-4 mb-4"></div>
-            <p id="no-quiz" class="hidden text-gray-400 text-sm mb-4">No quiz has been set up yet - check back soon.</p>
+            <p id="no-quiz" class="hidden text-gray-400 text-sm mb-4">No additional questions have been published yet.</p>
             <button id="submit-btn" class="px-6 py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150">
                 Submit
             </button>
@@ -75,8 +75,6 @@
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
 
-        const rewardLabels = { bonus_student: "a bonus-matched student, prioritized on your next match", monetary: 'a one-time monetary bonus - an admin will follow up with you' };
-
         let questions = [];
 
         async function load() {
@@ -85,9 +83,6 @@
             if (!data.success) { showAlert(data.error || 'Could not load orientation.', 'error'); return; }
 
             if (data.completed) {
-                document.getElementById('reward-text').textContent = data.reward
-                    ? `You received ${rewardLabels[data.reward] || data.reward}.`
-                    : "You've already completed orientation.";
                 document.getElementById('already-done').classList.remove('hidden');
                 return;
             }
@@ -138,7 +133,6 @@
             if (data.passed) {
                 showAlert('Orientation complete!', 'success');
                 document.getElementById('orientation-body').classList.add('hidden');
-                document.getElementById('reward-text').textContent = `You received ${rewardLabels[data.reward] || data.reward}.`;
                 document.getElementById('already-done').classList.remove('hidden');
             } else {
                 showAlert(`Score: ${Math.round(data.score * 100)}%. Review the material and try again.`, 'error');

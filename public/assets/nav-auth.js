@@ -3,6 +3,13 @@
 // Self-contained so it works on pages regardless of which CSS framework
 // they load.
 (function () {
+  if (!/^\/(?:messages\/)?chat(?:\/|$)/.test(location.pathname) && !document.getElementById('mozart-ai-loader')) {
+    const css = document.createElement('link');
+    css.id = 'mozart-ai-loader'; css.rel = 'stylesheet'; css.href = '/assets/mozart-ai.css?v=20260830b';
+    document.head.appendChild(css);
+    const script = document.createElement('script'); script.src = '/assets/mozart-ai.js?v=20260830a'; script.defer = true;
+    document.head.appendChild(script);
+  }
   const STYLE_ID = 'mt-auth-style';
 
   function injectStyle() {
@@ -110,6 +117,7 @@
         <div class="mt-auth-menu" data-mt-menu>
           <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
+          <a href="/orientation"><i class="fa-solid fa-compass"></i> Orientation</a>
           <a href="/messages" target="_blank" rel="noopener" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
           ${sponsorLink}

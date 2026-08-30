@@ -618,6 +618,7 @@
         let currentUser = null;
         let allTutorsById = {};
         let myAssignedTutorIds = new Set();
+        let myRequestedTutorIds = new Set();
 
         async function loadCategories() {
             const res = await fetch('/api/categories');
@@ -658,6 +659,7 @@
             allTutorsById[t.id] = t;
             const rating = t.avgRating != null ? `<span class="text-xs text-amber-700 font-semibold"><i class="fa-solid fa-star"></i> ${t.avgRating.toFixed(1)}</span>` : '<span class="text-xs text-[#9C9384]">Not yet rated</span>';
             const isAssigned = myAssignedTutorIds.has(t.id);
+            const isRequested = myRequestedTutorIds.has(t.id);
             const continueLabel = `Continue with ${escapeHtml((t.name||'').split(' ')[0] || t.name)}`;
             return `
                 <div class="tutor-row" style="animation-delay:${((i || 0) % 9) * 0.06}s">
@@ -676,7 +678,7 @@
                         <p class="text-sm text-[#5B5449] mt-2 max-w-2xl">${t.bio ? escapeHtml(t.bio) : `${t.experienceYears || 0} years experience`}</p>
                         <div class="flex gap-2 mt-4">
                             <a href="/tutors/${t.id}" class="row-btn-outline">View Profile</a>
-                            ${isAssigned ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${t.id}">${continueLabel}</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${t.id}">Request</button>`}
+                            ${isAssigned ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${t.id}">${continueLabel}</button>` : isRequested ? `<button class="row-btn-outline" disabled>Requested — awaiting tutor</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${t.id}">Request</button>`}
                         </div>
                     </div>
                 </div>
@@ -697,13 +699,15 @@
             const data = await res.json();
             // refresh student's active assignments so buttons can reflect assigned tutors
             myAssignedTutorIds = new Set();
+            myRequestedTutorIds = new Set();
             if (currentUser) {
                 try {
                     const ares = await fetch('/api/my-assignments');
                     const adata = await ares.json();
                     if (adata && adata.asStudent) {
                         adata.asStudent.forEach((r) => {
-                            if (r.tutorId && r.status && r.status !== 'ended') myAssignedTutorIds.add(Number(r.tutorId));
+                            if (r.tutorId && r.status === 'active') myAssignedTutorIds.add(Number(r.tutorId));
+                            if (r.status === 'pending') (r.preferredTutorIds || []).forEach((id) => myRequestedTutorIds.add(Number(id)));
                         });
                     }
                 } catch (e) { /* ignore */ }
@@ -799,8 +803,10 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showAlert('Request sent! An admin will confirm the match soon.', 'success');
+                    myRequestedTutorIds.add(tutor.id);
+                    showAlert('Requested. Your tutor will review and accept your request; we will notify you when your dashboard is ready.', 'success');
                     closeModal();
+                    loadTutors();
                 } else {
                     showAlert(data.error || 'Could not send request.', 'error');
                 }

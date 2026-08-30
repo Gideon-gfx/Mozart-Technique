@@ -14,6 +14,7 @@ const IN_PERSON_RADIUS_KM = 10;
 // the real business rates differ.
 const TRAVEL_FEE_USD = 15; // flat per-lesson transportation fee (physical only), paid by the student on top of the lesson price
 const PLATFORM_COMMISSION_RATE = 0.10; // Mozart Techniques' cut of the tutor's lesson price (not the travel fee)
+const COUNTRY_ADMIN_TUTOR_COMMISSION_RATE = 0.02; // paid from the platform's 10%, never added to the tutor's fee
 
 const LESSON_TYPES = ['online', 'physical', 'studio'];
 
@@ -138,7 +139,7 @@ function generateCandidates({ category, genre, ageGroup, level, studentCoords, s
 
 function createRequest({
   studentId, studentName, studentEmail, category, genre, ageGroup, desiredLevel,
-  city, lessonType, phone, notes, preferredTutorIds, candidateIds, intakeResponses,
+  city, lessonType, phone, notes, preferredTutorIds, candidateIds, intakeResponses, studentCountry,
 }) {
   const db = load();
   const record = {
@@ -151,6 +152,7 @@ function createRequest({
     ageGroup: ageGroup || null,
     desiredLevel: desiredLevel || null,
     city: city || null,
+    studentCountry: studentCountry || null,
     lessonType: LESSON_TYPES.includes(lessonType) ? lessonType : 'online',
     phone: phone || null,
     notes: notes || '',
@@ -165,6 +167,8 @@ function createRequest({
     meetingLink: null,
     scheduledAt: null,
     calendarEventId: null,
+    lessonStartedAt: null,
+    lessonStartedBy: null,
     status: 'pending', // pending -> active -> ended
     sessions: [],
     createdAt: new Date().toISOString(),
@@ -247,6 +251,19 @@ function endAssignment(requestId) {
   return record;
 }
 
+function setTutorAcknowledgements(requestId, tutorId, acknowledgements) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId)) return null;
+  record.tutorAcknowledgements = {
+    reviewedStudent: Boolean(acknowledgements.reviewedStudent),
+    followGuidelines: Boolean(acknowledgements.followGuidelines),
+    updatedAt: new Date().toISOString(),
+  };
+  persist(db);
+  return record;
+}
+
 // Logs one completed lesson: duration (for time-based pricing), the fixed
 // curated opening segment the tutor used, their own notes, a recording
 // (post-recorded online classes, or a physical/studio lesson recording),
@@ -263,7 +280,7 @@ function endAssignment(requestId) {
 // Mozart Techniques' 10% commission comes out of the tutor's lesson price
 // only, never the travel fee, so tutorPayoutUsd = totalUsd - platformFeeUsd.
 function addSession(requestId, {
-  curriculumTitle, teacherNotes, assignmentText, reels, recordingUrl, durationMinutes, hourlyRateUsd,
+  curriculumTitle, teacherNotes, assignmentText, reels, recordingUrl, durationMinutes, hourlyRateUsd, isFreeTrial = false,
 }) {
   const db = load();
   const record = db.records.find((r) => r.id === Number(requestId));
@@ -271,10 +288,11 @@ function addSession(requestId, {
   if (!record.sessions) record.sessions = [];
 
   const minutes = Math.max(0, Number(durationMinutes) || 0);
-  const priceUsd = Math.round((Number(hourlyRateUsd) || 0) * (minutes / 60) * 100) / 100;
-  const travelFeeUsd = record.lessonType === 'physical' ? TRAVEL_FEE_USD : 0;
+  const priceUsd = isFreeTrial ? 0 : Math.round((Number(hourlyRateUsd) || 0) * (minutes / 60) * 100) / 100;
+  const travelFeeUsd = isFreeTrial ? 0 : (record.lessonType === 'physical' ? TRAVEL_FEE_USD : 0);
   const totalUsd = Math.round((priceUsd + travelFeeUsd) * 100) / 100;
   const platformFeeUsd = Math.round(priceUsd * PLATFORM_COMMISSION_RATE * 100) / 100;
+  const countryAdminCommissionUsd = Math.round(priceUsd * COUNTRY_ADMIN_TUTOR_COMMISSION_RATE * 100) / 100;
   const tutorPayoutUsd = Math.round((totalUsd - platformFeeUsd) * 100) / 100;
 
   const session = {
@@ -289,10 +307,15 @@ function addSession(requestId, {
     travelFeeUsd,
     totalUsd,
     platformFeeUsd,
+    countryAdminCommissionUsd,
     tutorPayoutUsd,
-    paymentStatus: 'held', // held -> released
+    isFreeTrial: Boolean(isFreeTrial),
+    paymentStatus: isFreeTrial ? 'free' : 'held', // free | held -> released
     paymentIntentId: null, // set once a real Stripe hold is authorized - null means simulated/no card on file
     paymentError: null,
+    stripeTransferId: null,
+    stripeTransferStatus: null, // automatic | manual_available | pending_setup | failed
+    stripeTransferError: null,
     studentConfirmedAt: null,
     releasedAt: null,
     loggedAt: new Date().toISOString(),
@@ -302,6 +325,35 @@ function addSession(requestId, {
   record.sessions.push(session);
   persist(db);
   return session;
+}
+
+// Starts the billable lesson clock. The timer lives with the assignment so
+// opening the Meet in another tab or refreshing the dashboard cannot lose it.
+function startLesson(requestId, tutorId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId) || record.status !== 'active') return null;
+  if (!record.lessonStartedAt) {
+    record.lessonStartedAt = new Date().toISOString();
+    record.lessonStartedBy = Number(tutorId);
+    persist(db);
+  }
+  return record;
+}
+
+// Returns the elapsed, billable time and clears the active timer. A minimum
+// minute avoids a zero-value bill when a tutor starts then immediately ends a
+// test lesson.
+function consumeLessonTimer(requestId, tutorId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId) || !record.lessonStartedAt) return null;
+  const startedAt = record.lessonStartedAt;
+  const durationMinutes = Math.max(1, Math.ceil((Date.now() - new Date(startedAt).getTime()) / 60000));
+  record.lessonStartedAt = null;
+  record.lessonStartedBy = null;
+  persist(db);
+  return { record, startedAt, durationMinutes };
 }
 
 function setIntakeResponses(requestId, responses) {
@@ -323,6 +375,22 @@ function setSessionPaymentIntent(requestId, sessionId, paymentIntentId, paymentE
   if (!session) return null;
   session.paymentIntentId = paymentIntentId || null;
   session.paymentError = paymentError || null;
+  persist(db);
+  return session;
+}
+
+// Records the outcome of sending a released lesson payment to the tutor's
+// Stripe Connect account.  This makes the operation visible and, together
+// with Stripe's idempotency key, prevents an accidental double transfer.
+function setSessionStripeTransfer(requestId, sessionId, { transferId = null, status = null, error = null } = {}) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record) return null;
+  const session = (record.sessions || []).find((s) => s.id === Number(sessionId));
+  if (!session) return null;
+  if (transferId) session.stripeTransferId = transferId;
+  session.stripeTransferStatus = status;
+  session.stripeTransferError = error || null;
   persist(db);
   return session;
 }
@@ -359,7 +427,7 @@ function rateSession(requestId, sessionId, role, { score, professionalism, comme
 
 module.exports = {
   listAll, listForStudent, listForTutor, findById, createRequest, assignTutor, endAssignment,
-  generateCandidates, addSession, confirmSession, setSessionPaymentIntent, rateSession, setMeetingLink, scheduleSession, addRecording, listReviewsForTutor,
+  generateCandidates, addSession, startLesson, consumeLessonTimer, confirmSession, setSessionPaymentIntent, setSessionStripeTransfer, rateSession, setMeetingLink, scheduleSession, addRecording, listReviewsForTutor, setTutorAcknowledgements,
   setIntakeResponses,
-  LEVEL_ORDER, LESSON_TYPES, TRAVEL_FEE_USD, PLATFORM_COMMISSION_RATE,
+  LEVEL_ORDER, LESSON_TYPES, TRAVEL_FEE_USD, PLATFORM_COMMISSION_RATE, COUNTRY_ADMIN_TUTOR_COMMISSION_RATE,
 };

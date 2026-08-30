@@ -112,19 +112,29 @@
         }
 
         function clipCardHtml(item) {
-            const preview = item.isFile
-                ? `<video src="${escapeHtml(item.url)}" class="w-full h-40 object-cover bg-black" controls></video>`
-                : `<a href="${escapeHtml(item.url)}" target="_blank" class="flex items-center justify-center h-40 bg-gray-900 text-white"><i class="fa-solid fa-play-circle text-4xl"></i></a>`;
+            const preview = videoPlayerHtml(item);
             return `
                 <div class="clip-card">
                     ${preview}
                     <div class="p-4">
                         <h3 class="font-bold text-gray-800 mb-1">${escapeHtml(item.title)}</h3>
                         <p class="text-xs text-primary-red font-semibold uppercase">${item.category ? escapeHtml(item.category) : 'Any subject'}${item.genre ? ' &middot; ' + escapeHtml(item.genre) : ''}</p>
-                        ${!item.isFile ? `<a href="${escapeHtml(item.url)}" target="_blank" class="text-xs text-gray-500 hover:text-primary-red hover:underline mt-2 inline-block">Open original post</a>` : ''}
+                        ${item.description ? `<p class="text-sm text-gray-600 mt-2">${escapeHtml(item.description)}</p>` : ''}
                     </div>
                 </div>
             `;
+        }
+
+        function videoPlayerHtml(item) {
+            const url = String(item.url || '');
+            if (item.isFile || /\.(mp4|webm|ogg)(?:[?#]|$)/i.test(url)) {
+                return `<video src="${escapeHtml(url)}" class="w-full h-40 object-cover bg-black" controls preload="metadata"></video>`;
+            }
+            const youtube = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/i);
+            const playerUrl = youtube
+                ? `https://www.youtube-nocookie.com/embed/${youtube[1]}`
+                : url;
+            return `<iframe src="${escapeHtml(playerUrl)}" title="${escapeHtml(item.title)}" class="w-full h-40 bg-black" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
         }
 
         async function loadClips() {

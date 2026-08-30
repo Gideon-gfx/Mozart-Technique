@@ -1,7 +1,7 @@
-// Thin wrapper around the Stripe SDK - Mozart Techniques' own Stripe
-// account collects every payment directly (no per-tutor Stripe Connect
-// accounts); tutor payouts stay an internal ledger balance an admin settles
-// separately, same as before Stripe was wired in.
+// Thin wrapper around the Stripe SDK. Mozart Techniques collects lesson
+// payments on the platform account, then sends eligible tutor shares to
+// their saved Stripe Connect Express account. Tutors without a completed
+// Connect setup retain a manual-wallet fallback.
 let stripe = null;
 let warnedMissingKey = false;
 

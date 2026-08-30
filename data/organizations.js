@@ -114,7 +114,7 @@ function setStatus(id, status) {
 // Admin confirms the (simulated) annual subscription payment - no live
 // payment processor is wired up, same as the rest of this app's payment
 // flows, but the subscription window is tracked for real.
-function activateSubscription(id) {
+function activateSubscription(id, months = 12) {
   const db = load();
   const org = db.organizations.find((o) => o.id === Number(id));
   if (!org) return null;
@@ -122,7 +122,9 @@ function activateSubscription(id) {
   const startsFrom = isSubscriptionActive(org) ? new Date(org.subscriptionEndAt) : now;
   org.subscriptionStatus = 'active';
   org.subscriptionStartAt = org.subscriptionStartAt || now.toISOString();
-  org.subscriptionEndAt = new Date(startsFrom.getTime() + SUBSCRIPTION_YEARS_MS).toISOString();
+  const endsAt = new Date(startsFrom);
+  endsAt.setMonth(endsAt.getMonth() + Number(months || 12));
+  org.subscriptionEndAt = endsAt.toISOString();
   persist(db);
   return org;
 }
@@ -198,7 +200,13 @@ function redeemCode(code, studentUserId, studentName) {
     // For organizational codes (NGO): allow multiple students to use the same code
     if (entry.isOrganizationalCode) {
       // Just return the org - the student will be linked to this org
-      // Don't mark it as redeemed since multiple students need to use it
+      // Don't mark it as redeemed since multiple students need to use it.
+      // Keep membership separately so the organization can see shared-code users.
+      if (!org.members) org.members = [];
+      if (!org.members.some((member) => member.studentId === studentUserId)) {
+        org.members.push({ studentId: studentUserId, studentName, redeemedAt: new Date().toISOString() });
+        persist(db);
+      }
       return { org, entry };
     }
     
@@ -233,13 +241,14 @@ function findOrgForStudent(studentUserId) {
 function getStudentsForOrganization(orgId) {
   const org = findById(orgId);
   if (!org) return [];
-  return org.studentCodes
+  const individualStudents = org.studentCodes
     .filter((c) => c.studentId && c.redeemedAt)
     .map((c) => ({
       studentId: c.studentId,
       studentName: c.studentName,
       redeemedAt: c.redeemedAt,
     }));
+  return [...individualStudents, ...(org.members || [])];
 }
 
 module.exports = {

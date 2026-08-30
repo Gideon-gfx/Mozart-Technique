@@ -31,14 +31,14 @@
 </head>
 <body>
 
-    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+    <div id="alert-box" class="fixed top-5 right-5 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222; z-index:200;">
         <span id="alert-message"></span>
     </div>
 
     <!-- Same modal shell the student dashboard uses, so scheduling and
          posting a recording are real forms rather than browser prompts. -->
     <div id="action-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-        <div id="action-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto"></div>
+        <div id="action-modal-body" class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-5 sm:p-6 max-h-[calc(100vh-2rem)] overflow-y-auto"></div>
     </div>
 
     <header class="sticky top-0 z-50 bg-white shadow-sm">
@@ -78,7 +78,7 @@
         </div>
     </header>
 
-    <div class="page-layout max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+    <div class="page-layout max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
         <main class="space-y-6">
             <section id="public-profile-section" class="hidden bg-white rounded-3xl shadow-lg p-4 sm:p-6">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between public-profile-head">
@@ -122,43 +122,15 @@
                 </div>
             </section>
 
-        <section id="student-info-section" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8 hidden">
-            <h2 class="text-xl font-bold text-gray-900">Matched student information</h2>
-            <div class="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
-                <div class="rounded-3xl border border-gray-200 bg-gray-50 p-4">
-                    <img id="student-info-photo" src="/mozartLogo.jpg" alt="Student photo" class="w-full h-56 object-cover rounded-3xl">
-                </div>
-                <div class="space-y-4">
-                    <div>
-                        <p class="text-sm text-gray-500">Full name</p>
-                        <p id="student-info-name" class="text-lg font-semibold text-gray-900">Student Name</p>
-                    </div>
-                    <div class="grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-sm text-gray-500">Age</p>
-                            <p id="student-info-age" class="text-gray-800">Not provided</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">Sex</p>
-                            <p id="student-info-sex" class="text-gray-800">Not provided</p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Location</p>
-                        <p id="student-info-location" class="text-gray-800">Not provided</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Contact</p>
-                        <p id="student-info-contact" class="text-gray-800">Not provided</p>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-6 grid gap-3 sm:grid-cols-2">
-                <label class="flex items-center gap-3 rounded-2xl border border-gray-200 p-4 bg-gray-50">
+        <section id="student-info-section" class="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 hidden">
+            <div class="flex items-center gap-3"><img id="student-info-photo" src="/mozartLogo.jpg" alt="Student photo" class="w-12 h-12 object-cover rounded-2xl"><div><p class="text-xs uppercase tracking-wide text-gray-400">Current student</p><h2 id="student-info-name" class="text-lg font-bold text-gray-900">Student Name</h2></div></div>
+            <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm"><div><p class="text-xs text-gray-500">Age</p><p id="student-info-age" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Sex</p><p id="student-info-sex" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Location</p><p id="student-info-location" class="font-medium text-gray-800 truncate">Not provided</p></div><div><p class="text-xs text-gray-500">Contact</p><p id="student-info-contact" class="font-medium text-gray-800 truncate">Not provided</p></div></div>
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 bg-gray-50">
                     <input type="checkbox" id="student-agreement-1" class="h-4 w-4 text-primary-red border-gray-300 rounded" />
                     <span class="text-sm text-gray-700">I have reviewed the student's details and confirm they are ready to start classes.</span>
                 </label>
-                <label class="flex items-center gap-3 rounded-2xl border border-gray-200 p-4 bg-gray-50">
+                <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 bg-gray-50">
                     <input type="checkbox" id="student-agreement-2" class="h-4 w-4 text-primary-red border-gray-300 rounded" />
                     <span class="text-sm text-gray-700">I agree to follow Mozart Techniques teaching guidelines and respect the student.</span>
                 </label>
@@ -178,10 +150,12 @@
                     <div class="rounded-2xl border border-gray-200 p-5">
                         <p class="text-sm text-gray-500">Available balance</p>
                         <p id="wallet-balance" class="text-2xl font-bold text-primary-red mt-2">$0.00</p>
-                        <div class="mt-4">
-                            <button id="request-payout-btn" class="row-btn-primary w-full">Request Payout</button>
+                        <div class="mt-4 grid grid-cols-2 gap-2">
+                            <button id="payout-details-btn" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Bank details</button>
+                            <button id="request-payout-btn" class="row-btn-primary">Request Payout</button>
                         </div>
                     </div>
+                    <div id="stripe-connect-card" class="mt-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"></div>
                     <!-- Sponsor Code Redemption Section -->
                     <h3 class="font-semibold text-gray-700 mt-6 mb-3">Organization Access Code</h3>
                     <div id="sponsor-code-section" class="rounded-2xl border border-gray-200 p-5">
@@ -207,12 +181,13 @@
                             <select id="video-category-select" aria-label="Select subject" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
                             <select id="video-genre-select" aria-label="Select genre" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
                             <input id="video-title-input" type="text" placeholder="Video title" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <textarea id="video-description-input" rows="2" placeholder="Short description, e.g. How to position your hands on the piano" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
                             <input id="video-link-input" type="url" placeholder="Video link (mp4, YouTube, etc.)" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                             <div class="flex gap-2 items-center">
                                 <input id="video-file-input" type="file" accept="video/*" aria-label="Upload a video file" class="min-w-0 flex-1 text-xs text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700">
-                                <button id="video-upload-btn" class="shrink-0 px-3 py-1.5 text-xs font-semibold border border-gray-300 text-gray-700 rounded-md hover:border-primary-red hover:text-primary-red transition">Upload</button>
+                            <button id="video-upload-btn" type="button" class="shrink-0 px-3 py-1.5 text-xs font-semibold border border-gray-300 text-gray-700 rounded-md hover:border-primary-red hover:text-primary-red transition">Upload</button>
                             </div>
-                            <button id="video-submit-btn" class="w-full px-3 py-2 text-sm font-semibold bg-primary-red text-white rounded-lg hover:bg-red-700 transition">Add to library</button>
+                            <button id="video-submit-btn" type="button" class="w-full px-3 py-2 text-sm font-semibold bg-primary-red text-white rounded-lg hover:bg-red-700 transition">Add to library</button>
                             <p id="video-upload-status" class="text-xs text-gray-500"></p>
                         </div>
                     </div>
@@ -362,6 +337,7 @@
                 return;
             }
             section.classList.remove('hidden');
+            document.getElementById('tutor-dashboard-sections').insertAdjacentElement('afterend', section);
             document.getElementById('student-info-photo').src = assignment.studentPhotoUrl || 'mozartLogo.jpg';
             document.getElementById('student-info-name').textContent = assignment.studentName || `Student #${assignment.studentId}`;
             document.getElementById('student-info-age').textContent = assignment.studentAgeGroup || 'Not provided';
@@ -373,6 +349,18 @@
                     : (assignment.studentProfile?.city || 'Online'));
             document.getElementById('student-info-location').textContent = locationText;
             document.getElementById('student-info-contact').textContent = assignment.studentEmail || 'Not provided';
+            const saved = assignment.tutorAcknowledgements || {};
+            const reviewed = document.getElementById('student-agreement-1');
+            const guidelines = document.getElementById('student-agreement-2');
+            reviewed.checked = Boolean(saved.reviewedStudent);
+            guidelines.checked = Boolean(saved.followGuidelines);
+            [reviewed, guidelines].forEach((box) => {
+                box.onchange = async () => {
+                    const response = await fetch(`/api/assignments/${assignment.id}/tutor-acknowledgements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewedStudent: reviewed.checked, followGuidelines: guidelines.checked }) });
+                    const result = await response.json();
+                    if (!result.success) showAlert(result.error || 'Could not save acknowledgement.', 'error');
+                };
+            });
         }
 
         // --- Google Meet / Calendar -------------------------------------
@@ -411,6 +399,9 @@
                     : '<span class="text-xs text-gray-400">Not scheduled yet</span>';
                 const recs = (r.recordings || []).map((v) => `
                     <li class="text-xs text-gray-600 truncate"><a href="${escapeHtml(v.url)}" target="_blank" rel="noopener" class="hover:underline">${escapeHtml(v.title)}</a></li>`).join('');
+                const billingControl = r.lessonStartedAt
+                    ? `<button type="button" class="row-btn-primary text-xs end-lesson-btn" data-request-id="${r.id}"><i class="fa-solid fa-stopwatch mr-1"></i>End lesson & send bill</button><p class="w-full text-xs text-emerald-700">Lesson clock started ${new Date(r.lessonStartedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>`
+                    : `<button type="button" class="row-btn-outline text-xs start-lesson-btn" data-request-id="${r.id}"><i class="fa-solid fa-play mr-1"></i>Lesson started</button>`;
                 return `
                     <div class="rounded-2xl border border-gray-200 p-4 space-y-2">
                         <p class="font-semibold text-gray-800">${escapeHtml(r.studentName || '')}</p>
@@ -419,6 +410,7 @@
                         ${recs ? `<ul class="mt-2 space-y-1 border-t border-gray-100 pt-2">${recs}</ul>` : ''}
                         <div class="flex flex-wrap gap-2 pt-1">
                             <button type="button" class="row-btn-outline text-xs schedule-meet-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Schedule lesson</button>
+                            ${billingControl}
                             <button type="button" class="row-btn-outline text-xs post-recording-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Post recording</button>
                         </div>
                     </div>`;
@@ -463,6 +455,28 @@
 
             host.querySelectorAll('.post-recording-btn').forEach((btn) => {
                 btn.addEventListener('click', () => openRecordingModal(btn.dataset.requestId, btn.dataset.studentName));
+            });
+            host.querySelectorAll('.start-lesson-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    const res = await fetch(`/api/assignments/${btn.dataset.requestId}/lesson-start`, { method: 'POST' });
+                    const data = await res.json();
+                    showAlert(data.success ? 'Lesson clock started. End it when the tutorial finishes to send the bill.' : (data.error || 'Could not start lesson.'), data.success ? 'success' : 'error');
+                    loadTutorDashboardData();
+                });
+            });
+            host.querySelectorAll('.end-lesson-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.textContent = 'Preparing bill…';
+                    const res = await fetch(`/api/assignments/${btn.dataset.requestId}/sessions`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                    });
+                    const data = await res.json();
+                    showAlert(data.success ? `Bill sent: ${data.session.durationMinutes} minutes — $${data.session.totalUsd}.` : (data.error || 'Could not send bill.'), data.success ? 'success' : 'error');
+                    loadTutorDashboardData();
+                });
             });
         }
 
@@ -742,10 +756,11 @@
 
         async function loadTutorDashboardData() {
             try {
-                const res = await fetch('/api/my-assignments');
-                const data = await res.json();
+                const [res, pendingRes] = await Promise.all([fetch('/api/my-assignments'), fetch('/api/tutors/me/pending-requests')]);
+                const [data, pendingData] = await Promise.all([res.json(), pendingRes.json()]);
                 if (!data.success) return;
                 const asTutor = data.asTutor || [];
+                const pendingRequests = pendingData.success ? pendingData.requests || [] : [];
                 const tutorProfile = data.tutorProfile || userProfile || {};
                 
                 // Get session data to check sponsor status
@@ -757,10 +772,15 @@
                 renderMeetClasses(asTutor);
                 // Students & Requests
                 const list = document.getElementById('students-requests-list');
-                if (!asTutor.length) {
+                if (!asTutor.length && !pendingRequests.length) {
                     list.innerHTML = '<p class="text-gray-500">No active requests or students yet.</p>';
                 } else {
-                    list.innerHTML = asTutor.map((r) => `
+                    const pendingRows = pendingRequests.map((r) => `
+                        <div class="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start justify-between gap-3">
+                            <div><p class="font-semibold text-gray-800">${escapeHtml(r.studentName || 'Student')}</p><p class="text-sm text-gray-600 mt-1">Requested ${escapeHtml(r.category || '')} · ${escapeHtml(r.lessonType || 'online')}</p><p class="text-xs text-gray-500 mt-2">${escapeHtml(r.notes || 'No note included.')}</p></div>
+                            <div class="flex flex-col gap-2 shrink-0"><button type="button" class="view-student-request-btn px-3 py-1.5 border border-amber-300 rounded-md text-sm text-amber-900" data-id="${r.id}">View request</button><button type="button" class="accept-student-request-btn px-3 py-1.5 bg-primary-red text-white rounded-md text-sm" data-id="${r.id}">Accept</button></div>
+                        </div>`).join('');
+                    list.innerHTML = pendingRows + asTutor.map((r) => `
                         <div class="rounded-2xl bg-white shadow-sm p-4 border border-gray-100 flex items-start justify-between">
                             <div class="flex items-start gap-4">
                                 <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-lg text-gray-500">${(r.studentName||'').split(' ').map(n=>n[0]||'').slice(0,2).join('')}</div>
@@ -776,47 +796,88 @@
                             </div>
                         </div>
                     `).join('');
+                    list.querySelectorAll('.view-student-request-btn').forEach((btn) => btn.addEventListener('click', () => {
+                        const request = pendingRequests.find((item) => item.id === Number(btn.dataset.id));
+                        if (!request) return;
+                        const photo = request.studentPhotoUrl ? `<img src="${escapeHtml(request.studentPhotoUrl)}" alt="" class="w-14 h-14 rounded-full object-cover">` : `<div class="w-14 h-14 rounded-full bg-red-50 text-primary-red flex items-center justify-center font-bold">${escapeHtml((request.studentName || '?').slice(0, 1))}</div>`;
+                        openModal(`<div class="flex items-center gap-3"><div>${photo}</div><div><h3 class="text-lg font-bold">${escapeHtml(request.studentName || 'Student')}</h3><p class="text-sm text-gray-500">${escapeHtml(request.studentAgeGroup || 'Age group not provided')} · ${escapeHtml(request.studentCity || 'Location not provided')}</p></div></div><div class="mt-5 space-y-3 text-sm"><p><strong>Requested course:</strong> ${escapeHtml(request.category)} (${escapeHtml(request.lessonType)})</p><p><strong>Student note:</strong><br>${escapeHtml(request.notes || 'No note included.')}</p>${request.studentBio ? `<p><strong>About the student:</strong><br>${escapeHtml(request.studentBio)}</p>` : ''}</div><button type="button" id="request-view-close" class="mt-5 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Close</button>`);
+                        document.getElementById('request-view-close').addEventListener('click', closeModal);
+                    }));
+                    list.querySelectorAll('.accept-student-request-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                        btn.disabled = true; btn.textContent = 'Accepting…';
+                        const response = await fetch(`/api/tutors/me/pending-requests/${btn.dataset.id}/accept`, { method: 'POST' });
+                        const result = await response.json();
+                        showAlert(result.success ? 'Student request accepted. You can now schedule the lesson.' : (result.error || 'Could not accept request.'), result.success ? 'success' : 'error');
+                        loadTutorDashboardData();
+                    }));
                 }
 
-                // Sessions
+                // Schedule & sessions: show the same assignment-level schedule
+                // used by /schedule, rather than only lessons already logged.
                 const sessionsEl = document.getElementById('sessions-list');
-                const sessions = asTutor.flatMap((r) => (r.sessions || []).map((s) => ({ request: r, session: s })));
-                if (!sessions.length) {
-                    sessionsEl.innerHTML = '<p class="text-gray-500">No upcoming sessions.</p>';
+                const scheduled = asTutor.filter((r) => r.status === 'active').sort((a, b) => new Date(a.scheduledAt || 8640000000000000) - new Date(b.scheduledAt || 8640000000000000));
+                if (!scheduled.length) {
+                    sessionsEl.innerHTML = '<p class="text-gray-500">No active students to schedule yet.</p>';
                 } else {
-                    sessionsEl.innerHTML = sessions.map(({ request, session }) => `
+                    sessionsEl.innerHTML = scheduled.map((request) => {
+                        const when = request.scheduledAt ? new Date(request.scheduledAt).toLocaleString() : 'Not scheduled yet';
+                        const meet = request.meetingLink ? `<a href="${escapeHtml(request.meetingLink)}" target="_blank" rel="noopener" class="text-primary-red font-semibold text-xs">Open meeting</a>` : '';
+                        return `
                             <div class="rounded-2xl border border-gray-200 p-4">
                                 <p class="font-semibold">${escapeHtml(request.studentName || '')}</p>
-                                <p class="text-sm text-gray-500">${session.scheduledAt ? new Date(session.scheduledAt).toLocaleString() : 'Unscheduled'} • ${escapeHtml(request.category || '')}</p>
+                                <p class="text-sm text-gray-500 mt-1">${escapeHtml(request.category || '')} · ${when}</p>
+                                ${meet ? `<p class="mt-2">${meet}</p>` : ''}
                                 <div class="mt-3 flex gap-2">
-                                    <button class="row-btn-outline log-session-btn" data-request-id="${request.id}" data-session-id="${session.id}">Log Session</button>
-                                    <button class="row-btn-outline set-meeting-btn" data-request-id="${request.id}">Set Meet Link</button>
+                                    <button type="button" class="row-btn-primary schedule-session-btn" data-request-id="${request.id}" data-student-name="${escapeHtml(request.studentName || '')}">${request.meetingLink ? 'Reschedule meeting' : 'Schedule a meeting'}</button>
+                                    <a class="row-btn-outline" href="/messages/chat/${request.id}" target="_blank" rel="noopener">Open chat</a>
                                 </div>
                             </div>
-                        `).join('');
-                    // wire session buttons
-                    sessionsEl.querySelectorAll('.log-session-btn').forEach((btn) => {
-                        btn.addEventListener('click', () => openLogSessionModal(btn.dataset.requestId));
-                    });
-                    sessionsEl.querySelectorAll('.set-meeting-btn').forEach((btn) => {
-                        btn.addEventListener('click', () => openMeetingLinkModal(btn.dataset.requestId));
-                    });
+                        `;
+                    }).join('');
+                    sessionsEl.querySelectorAll('.schedule-session-btn').forEach((btn) => btn.addEventListener('click', () => openScheduleModal(btn.dataset.requestId, btn.dataset.studentName)));
                 }
 
                 // Wallet
                 document.getElementById('wallet-balance').textContent = `$${(tutorProfile.balanceUsd || 0).toFixed(2)}`;
                 document.getElementById('request-payout-btn').addEventListener('click', async () => {
-                    const amount = tutorProfile.balanceUsd || 0;
-                    if (!amount) return showAlert('No available balance to withdraw.', 'error');
-                    const ok = confirm(`Request payout of $${amount.toFixed(2)}?`);
-                    if (!ok) return;
-                    const res2 = await fetch('/api/tutors/me/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) });
-                    const data2 = await res2.json();
-                    if (data2.success) {
-                        showAlert('Payout requested. Admin will process it soon.', 'success');
-                    } else {
-                        showAlert(data2.error || 'Could not request payout.', 'error');
-                    }
+                    const payoutState = await fetch('/api/tutors/me/payouts').then((response) => response.json());
+                    if (!payoutState.success || !payoutState.availableBalanceUsd) return showAlert('No available balance to withdraw.', 'error');
+                    const details = payoutState.payoutDetails || {};
+                    const available = Math.max(0, Number(payoutState.availableBalanceUsd) - Number(payoutState.pendingAmountUsd || 0));
+                    openModal(`<h3 class="text-lg font-bold text-gray-900">Withdraw earnings</h3><p class="text-sm text-gray-500 mt-1 mb-5">Available to request: <strong>$${available.toFixed(2)}</strong>. Requests are reviewed and sent manually by an administrator.</p><form id="payout-form" class="space-y-3"><input id="payout-account-name" required value="${escapeHtml(details.accountName || '')}" placeholder="Account holder name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><input id="payout-bank-name" required value="${escapeHtml(details.bankName || '')}" placeholder="Bank name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><input id="payout-account-number" required value="${escapeHtml(details.accountNumber || '')}" placeholder="Account number" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><input id="payout-amount" required type="number" min="0.01" max="${available}" step="0.01" value="${available}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><p id="payout-error" class="hidden text-xs text-red-600"></p><div class="flex gap-2 pt-2"><button type="button" id="payout-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Cancel</button><button type="submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold">Request payout</button></div></form>`);
+                    document.getElementById('payout-cancel').addEventListener('click', closeModal);
+                    document.getElementById('payout-form').addEventListener('submit', async (event) => {
+                        event.preventDefault();
+                        const detailsBody = { accountName: document.getElementById('payout-account-name').value.trim(), bankName: document.getElementById('payout-bank-name').value.trim(), accountNumber: document.getElementById('payout-account-number').value.trim() };
+                        const save = await fetch('/api/tutors/me/payout-details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(detailsBody) });
+                        const saved = await save.json();
+                        const request = saved.success && await fetch('/api/tutors/me/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Number(document.getElementById('payout-amount').value) }) });
+                        const result = request ? await request.json() : saved;
+                        if (!result.success) { const err = document.getElementById('payout-error'); err.textContent = result.error || 'Could not request payout.'; err.classList.remove('hidden'); return; }
+                        closeModal(); showAlert('Withdrawal request submitted. An administrator will process your bank payout.', 'success'); loadTutorDashboardData();
+                    });
+                });
+                const connectCard = document.getElementById('stripe-connect-card');
+                try {
+                    const connect = await fetch('/api/tutors/me/stripe-connect').then((response) => response.json());
+                    if (!connect.configured) connectCard.innerHTML = '<p class="font-semibold">Automatic payouts</p><p class="mt-1 text-xs">Stripe payout setup will appear here when the platform Stripe account is configured.</p>';
+                    else if (connect.payoutsEnabled) connectCard.innerHTML = `<p class="font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>Automatic Stripe payouts ready</p><p class="mt-1 text-xs">After a student confirms a paid class, Mozart sends your share to your Stripe payout balance automatically. Any class that cannot be sent automatically remains available in your manual wallet.</p><p class="mt-2 text-[11px] text-sky-700">Connect ID: ${escapeHtml(connect.accountId || '')}</p>`;
+                    else connectCard.innerHTML = `<p class="font-semibold">Set up automatic withdrawals</p><p class="mt-1 text-xs">Securely add and verify your bank details with Stripe. Mozart does not store your bank information.</p><button id="stripe-connect-start" class="mt-3 rounded-lg bg-primary-red px-3 py-2 text-xs font-semibold text-white">Set up with Stripe</button>`;
+                    const startConnect = document.getElementById('stripe-connect-start');
+                    if (startConnect) startConnect.addEventListener('click', async () => { startConnect.disabled = true; startConnect.textContent = 'Opening Stripe…'; const result = await fetch('/api/tutors/me/stripe-connect/onboard', { method: 'POST' }).then((response) => response.json()); if (result.success) window.location.href = result.url; else { startConnect.disabled = false; startConnect.textContent = 'Set up with Stripe'; showAlert(result.error || 'Could not start Stripe setup.', 'error'); } });
+                } catch (error) { connectCard.innerHTML = '<p class="font-semibold">Automatic payouts</p><p class="mt-1 text-xs">Could not load payout setup status.</p>'; }
+                document.getElementById('payout-details-btn').addEventListener('click', async () => {
+                    const payoutState = await fetch('/api/tutors/me/payouts').then((response) => response.json());
+                    const details = payoutState.payoutDetails || {};
+                    openModal(`<h3 class="text-lg font-bold text-gray-900">Bank payout details</h3><p class="text-sm text-gray-500 mt-1 mb-5">These details are used only when an approved withdrawal is paid manually.</p><form id="payout-details-form" class="space-y-3"><input id="bank-account-name" required value="${escapeHtml(details.accountName || '')}" placeholder="Account holder name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><input id="bank-bank-name" required value="${escapeHtml(details.bankName || '')}" placeholder="Bank name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><input id="bank-account-number" required value="${escapeHtml(details.accountNumber || '')}" placeholder="Account number" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><p id="bank-details-error" class="hidden text-xs text-red-600"></p><div class="flex gap-2 pt-2"><button type="button" id="bank-details-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Cancel</button><button type="submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold">Save details</button></div></form>`);
+                    document.getElementById('bank-details-cancel').addEventListener('click', closeModal);
+                    document.getElementById('payout-details-form').addEventListener('submit', async (event) => {
+                        event.preventDefault();
+                        const response = await fetch('/api/tutors/me/payout-details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountName: document.getElementById('bank-account-name').value.trim(), bankName: document.getElementById('bank-bank-name').value.trim(), accountNumber: document.getElementById('bank-account-number').value.trim() }) });
+                        const result = await response.json();
+                        if (!result.success) { const error = document.getElementById('bank-details-error'); error.textContent = result.error || 'Could not save bank details.'; error.classList.remove('hidden'); return; }
+                        closeModal(); showAlert('Bank payout details saved.', 'success');
+                    });
                 });
 
                 // Sponsor Code Redemption
@@ -866,14 +927,6 @@
                     });
                 }
 
-                // Meet classes
-                const meetEl = document.getElementById('meet-classes');
-                const meetings = asTutor.flatMap((r) => (r.meetingLink ? [{ request: r, link: r.meetingLink }] : []));
-                if (!meetings.length) meetEl.innerHTML = '<p class="text-gray-500">No scheduled Google Meet links yet.</p>';
-                else meetEl.innerHTML = meetings.map((m) => `
-                    <div class="rounded-2xl border border-gray-200 p-3"><a class="text-primary-red font-semibold" href="${escapeHtml(m.link)}" target="_blank">Join meeting</a><p class="text-sm text-gray-500">for ${escapeHtml(m.request.studentName || '')}</p></div>
-                `).join('');
-
                 await loadTutorLibraryOptions();
                 await loadTutorLibraryList();
             } catch (err) {
@@ -882,80 +935,171 @@
         }
 
         async function loadTutorLibraryOptions() {
+            const profileRes = await fetch('/api/tutors/me');
+            const profileData = await profileRes.json();
             const taxRes = await fetch('/api/taxonomy');
             const tax = await taxRes.json();
             const categorySelect = document.getElementById('video-category-select');
             const genreSelect = document.getElementById('video-genre-select');
-            categorySelect.innerHTML = '<option value="">Select subject</option>' + tax.subjects.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            const tutorSubjects = profileData.profile ? (profileData.profile.categories || []) : [];
+            categorySelect.innerHTML = '<option value="">Select subject</option>' + tutorSubjects.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
             genreSelect.innerHTML = '<option value="">Select genre</option>' + tax.genres.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
             document.getElementById('video-upload-btn').addEventListener('click', async () => {
                 const fileInput = document.getElementById('video-file-input');
                 if (!fileInput.files.length) return showAlert('Choose a video file first.', 'error');
                 const status = document.getElementById('video-upload-status');
+                const uploadButton = document.getElementById('video-upload-btn');
                 status.textContent = 'Uploading video...';
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Uploading…';
                 const formData = new FormData();
                 formData.append('video', fileInput.files[0]);
-                const res = await fetch('/api/library/upload', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (!data.success) {
-                    status.textContent = 'Upload failed.';
-                    return showAlert(data.error || 'Could not upload video.', 'error');
+                try {
+                    const res = await fetch('/api/library/upload', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (!data.success) {
+                        status.textContent = data.error || 'Upload failed.';
+                        return showAlert(data.error || 'Could not upload video.', 'error');
+                    }
+                    document.getElementById('video-link-input').value = data.url;
+                    status.textContent = 'Video uploaded. Add a title and description, then click Add to library.';
+                } catch (error) {
+                    status.textContent = 'Upload failed. Please try again.';
+                    showAlert('Could not upload the local video file.', 'error');
+                } finally {
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Upload';
                 }
-                document.getElementById('video-link-input').value = data.url;
-                status.textContent = 'Video uploaded. Ready to add to library.';
             });
             document.getElementById('video-submit-btn').addEventListener('click', async () => {
                 const title = document.getElementById('video-title-input').value.trim();
-                const url = document.getElementById('video-link-input').value.trim();
+                const description = document.getElementById('video-description-input').value.trim();
+                const linkInput = document.getElementById('video-link-input');
+                const fileInput = document.getElementById('video-file-input');
+                let url = linkInput.value.trim();
                 const category = document.getElementById('video-category-select').value || null;
                 const genre = document.getElementById('video-genre-select').value || null;
                 const status = document.getElementById('video-upload-status');
-                if (!title || !url) return showAlert('Provide a title and a link or uploaded video.', 'error');
-                const res = await fetch('/api/library', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, url, category, genre, isFile: url.startsWith('/uploads/videos/') }),
-                });
-                const data = await res.json();
-                if (!data.success) {
-                    return showAlert(data.error || 'Could not add to library.', 'error');
+                if (!title || !category) return showAlert('Choose one of your teaching subjects and provide a video title.', 'error');
+                const submit = document.getElementById('video-submit-btn');
+                submit.disabled = true;
+                submit.textContent = 'Adding…';
+                try {
+                    // A local file can be added in one action; a separate Upload click is optional.
+                    if (!url && fileInput.files.length) {
+                        status.textContent = 'Uploading selected video…';
+                        const formData = new FormData();
+                        formData.append('video', fileInput.files[0]);
+                        const uploadRes = await fetch('/api/library/upload', { method: 'POST', body: formData });
+                        const uploadData = await uploadRes.json();
+                        if (!uploadData.success) return showAlert(uploadData.error || 'Could not upload the local video file.', 'error');
+                        url = uploadData.url;
+                        linkInput.value = url;
+                    }
+                    if (!url) return showAlert('Paste a video link or choose a local video file.', 'error');
+                    status.textContent = 'Adding video to your library…';
+                    const res = await fetch('/api/library', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, description, url, category, genre, isFile: url.startsWith('/uploads/videos/') }),
+                    });
+                    const data = await res.json();
+                    if (!data.success) return showAlert(data.error || 'Could not add to library.', 'error');
+                    showAlert(`Added to ${category} library.`, 'success');
+                    document.getElementById('video-title-input').value = '';
+                    document.getElementById('video-description-input').value = '';
+                    linkInput.value = '';
+                    fileInput.value = '';
+                    status.textContent = `Added to ${category}. Ready to upload another video.`;
+                    await loadTutorLibraryList();
+                } catch (error) {
+                    status.textContent = 'Could not add this video. Please try again.';
+                    showAlert('Could not add this video. Please try again.', 'error');
+                } finally {
+                    submit.disabled = false;
+                    submit.textContent = 'Add to library';
                 }
-                showAlert('Added to tutor library.', 'success');
-                document.getElementById('video-title-input').value = '';
-                document.getElementById('video-link-input').value = '';
-                document.getElementById('video-file-input').value = '';
-                status.textContent = '';
-                await loadTutorLibraryList();
             });
         }
 
         async function loadTutorLibraryList() {
-            const category = document.getElementById('video-category-select').value;
-            const genre = document.getElementById('video-genre-select').value;
-            const query = new URLSearchParams();
-            if (category) query.set('category', category);
-            if (genre) query.set('genre', genre);
-            const res = await fetch(`/api/library?${query.toString()}`);
+            const res = await fetch('/api/library/mine');
             const data = await res.json();
             const list = document.getElementById('tutor-library-list');
             if (!data.success || !data.items.length) {
-                list.innerHTML = '<p class="text-gray-500">No uploaded videos found for your subjects yet.</p>';
+                list.innerHTML = '<p class="text-gray-500">Your uploaded technique videos will appear here, grouped by subject.</p>';
                 return;
             }
-            list.innerHTML = data.items.map((item) => `
+            const grouped = data.items.reduce((groups, item) => {
+                const key = item.category || 'Other';
+                (groups[key] ||= []).push(item);
+                return groups;
+            }, {});
+            list.innerHTML = Object.entries(grouped).map(([category, items]) => `
+                <section class="space-y-3">
+                    <h4 class="font-semibold text-gray-700">${escapeHtml(category)}</h4>
+                    ${items.map((item) => `
                 <div class="rounded-2xl border border-gray-200 p-4 bg-white">
                     <div class="flex items-center justify-between gap-3">
                         <div>
                             <p class="font-semibold text-gray-800">${escapeHtml(item.title)}</p>
                             <p class="text-xs text-gray-500 mt-1">${item.category ? escapeHtml(item.category) + ' • ' : ''}${item.genre ? escapeHtml(item.genre) : 'Any subject'}</p>
+                            ${item.description ? `<p class="text-sm text-gray-600 mt-2">${escapeHtml(item.description)}</p>` : ''}
                         </div>
                         ${item.isFile ? `<span class="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">Uploaded file</span>` : `<span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Link</span>`}
                     </div>
                     <div class="mt-3">
-                        ${item.isFile ? `<video src="${escapeHtml(item.url)}" class="w-full rounded-xl" controls></video>` : `<a href="${escapeHtml(item.url)}" target="_blank" class="text-primary-red hover:underline text-sm">Open video</a>`}
+                        ${libraryPlayerHtml(item)}
+                    </div>
+                    <div class="mt-3 flex gap-2">
+                        <button type="button" class="edit-library-video-btn row-btn-outline text-xs" data-id="${item.id}"><i class="fa-solid fa-pen"></i> Edit</button>
+                        <button type="button" class="delete-library-video-btn row-btn-outline text-xs text-red-600" data-id="${item.id}"><i class="fa-solid fa-trash"></i> Delete</button>
                     </div>
                 </div>
+                    `).join('')}
+                </section>
             `).join('');
+            list.querySelectorAll('.edit-library-video-btn').forEach((button) => {
+                button.addEventListener('click', () => editLibraryVideo(data.items.find((item) => item.id === Number(button.dataset.id))));
+            });
+            list.querySelectorAll('.delete-library-video-btn').forEach((button) => {
+                button.addEventListener('click', () => deleteLibraryVideo(Number(button.dataset.id)));
+            });
+        }
+
+        async function editLibraryVideo(item) {
+            if (!item) return;
+            const subjects = (userProfile?.categories || []).map((subject) => `<option value="${escapeHtml(subject)}" ${subject === item.category ? 'selected' : ''}>${escapeHtml(subject)}</option>`).join('');
+            openModal(`<h3 class="text-lg font-bold text-gray-900 mb-1">Edit library video</h3><p class="text-sm text-gray-500 mb-5">Update how this video appears to students.</p><form id="edit-library-form" class="space-y-4"><input id="edit-video-title" required value="${escapeHtml(item.title)}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><textarea id="edit-video-description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">${escapeHtml(item.description || '')}</textarea><select id="edit-video-category" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">${subjects}</select><input id="edit-video-genre" value="${escapeHtml(item.genre || '')}" placeholder="Genre (optional)" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><p id="edit-video-error" class="hidden text-xs text-red-600"></p><div class="flex gap-2"><button type="button" id="edit-video-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Cancel</button><button type="submit" class="flex-1 px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold">Save changes</button></div></form>`);
+            document.getElementById('edit-video-cancel').addEventListener('click', closeModal);
+            document.getElementById('edit-library-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const response = await fetch(`/api/library/${item.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('edit-video-title').value.trim(), description: document.getElementById('edit-video-description').value.trim(), category: document.getElementById('edit-video-category').value, genre: document.getElementById('edit-video-genre').value.trim() || null }) });
+                const data = await response.json();
+                if (!data.success) { const error = document.getElementById('edit-video-error'); error.textContent = data.error || 'Could not update video.'; error.classList.remove('hidden'); return; }
+                closeModal(); showAlert('Video details updated.', 'success'); loadTutorLibraryList();
+            });
+        }
+
+        async function deleteLibraryVideo(id) {
+            openModal(`<h3 class="text-lg font-bold text-gray-900">Delete this video?</h3><p class="text-sm text-gray-500 mt-2 mb-5">This removes it from the library for students. This action cannot be undone.</p><div class="flex gap-2"><button type="button" id="delete-video-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Keep video</button><button type="button" id="delete-video-confirm" class="flex-1 px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-semibold">Delete video</button></div>`);
+            document.getElementById('delete-video-cancel').addEventListener('click', closeModal);
+            document.getElementById('delete-video-confirm').addEventListener('click', async () => {
+                const response = await fetch(`/api/library/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (!data.success) return showAlert(data.error || 'Could not delete video.', 'error');
+                closeModal(); showAlert('Video deleted.', 'success'); loadTutorLibraryList();
+            });
+        }
+
+        function libraryPlayerHtml(item) {
+            const url = String(item.url || '');
+            if (item.isFile || /\.(mp4|webm|ogg)(?:[?#]|$)/i.test(url)) {
+                return `<video src="${escapeHtml(url)}" class="w-full rounded-xl" controls preload="metadata"></video>`;
+            }
+            const youtube = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/i);
+            const playerUrl = youtube ? `https://www.youtube-nocookie.com/embed/${youtube[1]}` : url;
+            return `<iframe src="${escapeHtml(playerUrl)}" title="${escapeHtml(item.title)}" class="w-full aspect-video rounded-xl bg-black" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
         }
 
         // load page; only load dashboard data when viewing own tutor dashboard
