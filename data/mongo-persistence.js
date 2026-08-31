@@ -51,8 +51,7 @@ function writeLocal(fileName, data) {
 async function initialize() {
   if (!hasMongoConfig()) {
     if (process.env.NODE_ENV === 'production') {
-      console.warn('MONGODB_URI is missing in production; continuing with local JSON persistence fallback.');
-      return { connected: false, mode: 'local-fallback' };
+      throw new Error('MONGODB_URI is required in production. Refusing to start with local-only persistence.');
     }
     return { connected: false, mode: 'local' };
   }
@@ -80,7 +79,11 @@ async function initialize() {
 
     return { connected: true, mode: 'mongodb', files: SNAPSHOT_FILES.length };
   } catch (error) {
-    console.warn(`MongoDB unavailable; continuing in local JSON persistence mode: ${error.message}`);
+    const message = `MongoDB unavailable: ${error.message}`;
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(message);
+    }
+    console.warn(`${message} Falling back to local JSON persistence for development.`);
     return { connected: false, mode: 'local-fallback', error: error.message };
   }
 }

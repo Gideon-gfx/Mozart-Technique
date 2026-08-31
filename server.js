@@ -3282,16 +3282,16 @@ function startServer(attempt = 1) {
 }
 
 async function initializePersistence() {
-  // Use Atlas whenever a connection string is configured. If MongoDB is
-  // unreachable or the Atlas network is blocked, the app should keep serving
-  // from the local JSON snapshot files instead of crashing the whole process.
+  // Production must use MongoDB as the source of truth. Allowing a silent
+  // local JSON fallback here is what causes users to appear as "create
+  // account" after a fresh deploy. In dev we can still stay local-only.
   if (process.env.NODE_ENV !== 'production' && process.env.MONGO_PERSISTENCE !== 'true' && !process.env.MONGODB_URI) {
     return { connected: false, mode: 'local-development' };
   }
 
   const result = await mongoPersistence.initialize();
-  if (!result.connected && process.env.NODE_ENV === 'production') {
-    console.warn('Production MongoDB connection failed; continuing with local JSON persistence for this instance.');
+  if (process.env.NODE_ENV === 'production' && !result.connected) {
+    throw new Error('Production app requires MongoDB connectivity. Startup aborted to prevent silent user data loss.');
   }
   return result;
 }
