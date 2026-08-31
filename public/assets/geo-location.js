@@ -41,6 +41,16 @@
         letter-spacing: 0;
         text-transform: none;
         flex-shrink: 0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .mt-country-flag:hover {
+        background: rgba(0,0,0,.08);
+        border-color: rgba(0,0,0,.15);
+      }
+      .mt-country-flag.mt-geo-loading {
+        opacity: 0.6;
+        pointer-events: none;
       }
       /* A real flag image, not a flag emoji - Windows renders regional
          indicator pairs as bare letters ("NG"), so emoji flags are not an
@@ -92,8 +102,30 @@
     const code = geo.countryCode.toLowerCase();
     const badge = document.createElement('span');
     badge.className = 'mt-country-flag';
-    badge.title = `Showing tutors in ${geo.name}`;
+    badge.title = `Showing tutors in ${geo.name} — Click to refresh location`;
     badge.innerHTML = `<img src="https://flagcdn.com/w40/${code}.png" alt="${geo.name} flag" width="20" height="14" loading="lazy"><span class="mt-flag-code">${geo.countryCode}</span>`;
+
+    // Add click handler to reload geolocation
+    badge.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      badge.classList.add('mt-geo-loading');
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            sendCoords(pos.coords.latitude, pos.coords.longitude)
+              .catch(() => {
+                badge.classList.remove('mt-geo-loading');
+              })
+              .then(() => badge.classList.remove('mt-geo-loading'));
+          },
+          () => {
+            badge.classList.remove('mt-geo-loading');
+          },
+          { timeout: 10000, maximumAge: 0 } // maximumAge: 0 forces fresh location
+        );
+      }
+    });
 
     anchor.parentElement.classList.add('mt-flag-host');
     anchor.parentElement.insertBefore(badge, anchor.nextSibling);

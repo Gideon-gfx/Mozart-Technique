@@ -24,6 +24,7 @@ const chat = require('./data/chat');
 const supportChat = require('./data/support-chat');
 const orientation = require('./data/orientation');
 const orgChat = require('./data/org-chat');
+const orgContent = require('./data/org-content');
 const allowedLocations = require('./data/allowed-locations');
 const organizations = require('./data/organizations');
 const mailer = require('./data/mailer');
@@ -1792,6 +1793,114 @@ app.post('/api/organizations/conversations/:id/mark-read', requireAuthApi, (req,
   orgChat.markRead(Number(req.params.id), 'org');
   res.json({ success: true });
 });
+
+// --- ORGANIZATION PRIVATE CONTENT (videos, photos, info, games) ---
+
+// Get private content for an organization (visible only to students and tutors linked to that org)
+app.get('/api/organizations/:orgId/private-content', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const orgId = Number(req.params.orgId);
+  const org = organizations.findById(orgId);
+  
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'Organization not found.' });
+  }
+  
+  // Only members (students who redeemed code) and the org admin can view
+  const isOrgAdmin = org.userId === user.id;
+  const students = organizations.getStudentsForOrganization(orgId);
+  const isMember = students.some((s) => s.studentId === user.id);
+  
+  if (!isOrgAdmin && !isMember) {
+    return res.status(403).json({ success: false, error: 'You do not have access to this content.' });
+  }
+  
+  const content = orgContent.listForOrg(orgId);
+  res.json({ success: true, content, isOrgAdmin });
+});
+
+// Upload media file for organization content
+app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') {
+    return res.status(403).json({ success: false, error: 'You must have an approved organization to upload.' });
+  }
+
+  // Handle both photo and video uploads
+  const mediaType = req.query.type || 'photo'; // 'photo' or 'video'
+  const uploader = mediaType === 'video' ? videoUpload : photoUpload;
+  
+  uploader.single('media')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' 
+        ? `File is too large (max ${mediaType === 'video' ? '500MB' : '8MB'}).`
+        : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to upload.' });
+    
+    const url = mediaType === 'video' 
+      ? `/uploads/videos/${req.file.filename}`
+      : `/uploads/photos/${req.file.filename}`;
+    
+    res.json({ success: true, url, mediaType });
+  });
+});
+
+// Create organization content item (info, game link, photo, video)
+app.post('/api/organizations/private-content', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') {
+    return res.status(403).json({ success: false, error: 'You must have an approved organization.' });
+  }
+
+  const { type, title, text, url, fileUrl } = req.body || {};
+  if (!type || !['info', 'video', 'photo', 'game'].includes(type)) {
+    return res.status(400).json({ success: false, error: 'Invalid content type.' });
+  }
+  if (!title || !title.trim()) {
+    return res.status(400).json({ success: false, error: 'Title is required.' });
+  }
+
+  const item = orgContent.create({
+    orgId: org.id,
+    type,
+    title: title.trim(),
+    text: text ? text.trim() : '',
+    url: url && type === 'game' ? url.trim() : null,
+    fileUrl: fileUrl && ['photo', 'video'].includes(type) ? fileUrl : null,
+    createdByUserId: user.id,
+    createdByName: org.name || org.contactName,
+  });
+
+  res.json({ success: true, item });
+});
+
+// Delete organization content (org admin only)
+app.delete('/api/organizations/private-content/:contentId', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') {
+    return res.status(403).json({ success: false, error: 'You must have an approved organization.' });
+  }
+
+  const contentId = Number(req.params.contentId);
+  const content = orgContent.listForOrg(org.id).find((c) => c.id === contentId);
+  if (!content) {
+    return res.status(404).json({ success: false, error: 'Content not found.' });
+  }
+
+  const deleted = orgContent.removeById(contentId);
+  if (!deleted) {
+    return res.status(404).json({ success: false, error: 'Failed to delete content.' });
+  }
+
+  res.json({ success: true, message: 'Content deleted.' });
+});
+
 
 // --- TUTOR QUALIFICATION EVALUATION: assigns which levels a tutor may
 // teach per subject. First evaluation is always allowed; re-evaluating to

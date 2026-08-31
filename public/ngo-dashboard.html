@@ -46,10 +46,15 @@
 
     <header class="header">
         <div class="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
-            <a href="/home" class="flex items-center gap-3 hover:opacity-80 transition">
-                <img src="/mozartLogo.jpg" alt="Mozart" style="height: 40px; width: 40px; border-radius: 8px;">
-                <div><p class="text-xs text-primary-red font-bold uppercase tracking-wider">Mozart Techniques</p><h1 class="text-xl font-bold">Organization Dashboard</h1></div>
-            </a>
+            <div class="flex items-center gap-2">
+                <button id="back-btn" class="w-10 h-10 flex items-center justify-center rounded-lg text-primary-red hover:bg-red-50 transition" aria-label="Go back" title="Go back to previous page">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <a href="/home" class="flex items-center gap-3 hover:opacity-80 transition">
+                    <img src="/mozartLogo.jpg" alt="Mozart" style="height: 40px; width: 40px; border-radius: 8px;">
+                    <div><p class="text-xs text-primary-red font-bold uppercase tracking-wider">Mozart Techniques</p><h1 class="text-xl font-bold">Organization Dashboard</h1></div>
+                </a>
+            </div>
             <div class="flex items-center gap-2"><button id="mobile-menu-btn" class="w-10 h-10 items-center justify-center rounded-lg text-primary-red hover:bg-red-50" aria-label="Toggle dashboard menu"><i class="fa-solid fa-bars"></i></button><button id="logout-btn" class="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition">
                 Log Out
             </button></div>
@@ -72,6 +77,9 @@
                 </div>
                 <div class="sidebar-item" data-tab="tutors">
                     <i class="fa-solid fa-chalkboard-user mr-2"></i> Tutors
+                </div>
+                <div class="sidebar-item" data-tab="content">
+                    <i class="fa-solid fa-photo-film mr-2"></i> Content
                 </div>
                 <div class="sidebar-item" data-tab="codes">
                     <i class="fa-solid fa-key mr-2"></i> Access Codes
@@ -220,7 +228,84 @@
                     </div>
                 </div>
 
-                <!-- Access Codes Tab -->
+                <!-- Content Tab (Private Organization Media) -->
+                <div id="tab-content" class="hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Content Library</h2>
+                        <p class="text-gray-600 mb-6">Upload videos, photos, information, and games that only your students and tutors can see. Use this private space to share curriculum materials and resources.</p>
+                        
+                        <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
+                            <div>
+                                <h3 class="font-bold text-gray-800 mb-4">Add New Content</h3>
+                                
+                                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Content Type</label>
+                                        <select id="content-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                            <option value="info">Information/Update</option>
+                                            <option value="photo">Photo Gallery</option>
+                                            <option value="video">Video Tutorial</option>
+                                            <option value="game">Game/Activity Link</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Title</label>
+                                        <input type="text" id="content-title" placeholder="e.g., Weekly Update, Music Theory Lesson" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    </div>
+                                </div>
+
+                                <div id="content-form-info" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description or Content</label>
+                                        <textarea id="content-text" rows="3" placeholder="Write your message or description here..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-photo" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Photo</label>
+                                        <input type="file" id="content-photo-file" accept="image/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        <p id="photo-status" class="text-xs text-gray-500 mt-1"></p>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-video" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Video</label>
+                                        <input type="file" id="content-video-file" accept="video/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        <p id="video-status" class="text-xs text-gray-500 mt-1"></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                        <textarea id="content-video-description" rows="2" placeholder="Describe this video..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-game" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Game/Activity URL</label>
+                                        <input type="url" id="content-game-url" placeholder="https://example.com/game" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Instructions</label>
+                                        <textarea id="content-game-instructions" rows="2" placeholder="How to play or access this game..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <button id="add-content-btn" class="mt-4 px-6 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                                    <i class="fa-solid fa-plus mr-2"></i> Add Content
+                                </button>
+                            </div>
+
+                            <div class="border-t border-gray-200 pt-6">
+                                <h3 class="font-bold text-gray-800 mb-4">Your Content</h3>
+                                <div id="content-list" class="space-y-3">
+                                    <p class="text-gray-400 text-center py-8">No content uploaded yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="tab-codes" class="hidden">
                     <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Access Code</h2>
                     <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
@@ -295,6 +380,11 @@
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
 
+        // Back button navigation
+        document.getElementById('back-btn').addEventListener('click', () => {
+            window.history.back();
+        });
+
         // Tab navigation
         document.querySelectorAll('.sidebar-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -304,6 +394,11 @@
                 item.classList.add('active');
                 const tabName = item.dataset.tab;
                 document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+                
+                // Load content when switching to content tab
+                if (tabName === 'content') {
+                    loadOrgContent();
+                }
             });
         });
 
@@ -617,6 +712,189 @@
             host.innerHTML = data.bills.map((bill) => `<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-3"><div><strong>${escapeHtml(bill.category)}</strong> with ${escapeHtml(bill.tutorName)} for ${escapeHtml(bill.studentName)}<br><span class="text-xs">${bill.durationMinutes} minutes · $${Number(bill.totalUsd).toFixed(2)}</span></div><button type="button" class="pay-lesson-bill px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold" data-assignment="${bill.assignmentId}" data-session="${bill.sessionId}">Pay bill</button></div>`).join('');
             host.querySelectorAll('.pay-lesson-bill').forEach((button) => button.addEventListener('click', async () => { button.disabled = true; const response = await fetch(`/api/organizations/lesson-bills/${button.dataset.assignment}/${button.dataset.session}/checkout`, { method: 'POST' }); const result = await response.json(); if (result.success && result.url) window.location.href = result.url; else { button.disabled = false; showAlert(result.error || 'Could not start payment.', 'error'); } }));
         }
+
+        // --- ORGANIZATION PRIVATE CONTENT MANAGEMENT ---
+        
+        // Handle content type selection and show/hide relevant form fields
+        document.getElementById('content-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            document.getElementById('content-form-info').classList.add('hidden');
+            document.getElementById('content-form-photo').classList.add('hidden');
+            document.getElementById('content-form-video').classList.add('hidden');
+            document.getElementById('content-form-game').classList.add('hidden');
+            
+            if (type === 'photo') {
+                document.getElementById('content-form-photo').classList.remove('hidden');
+            } else if (type === 'video') {
+                document.getElementById('content-form-video').classList.remove('hidden');
+            } else if (type === 'game') {
+                document.getElementById('content-form-game').classList.remove('hidden');
+            } else {
+                document.getElementById('content-form-info').classList.remove('hidden');
+            }
+        });
+
+        // Load organization content
+        async function loadOrgContent() {
+            try {
+                const res = await fetch('/api/organizations/me');
+                if (!res.ok) return;
+                
+                const data = await res.json();
+                if (!data.success || !data.organization) return;
+                
+                const orgId = data.organization.id;
+                const contentRes = await fetch(`/api/organizations/${orgId}/private-content`);
+                const contentData = await contentRes.json();
+                
+                if (!contentData.success) return;
+                
+                const content = contentData.content || [];
+                const isOrgAdmin = contentData.isOrgAdmin;
+                const container = document.getElementById('content-list');
+                
+                if (content.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400 text-center py-8">No content uploaded yet</p>';
+                    return;
+                }
+                
+                container.innerHTML = content.map((item) => `
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <p class="font-semibold text-gray-800">${escapeHtml(item.title)}</p>
+                                <p class="text-xs text-gray-500">
+                                    <span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        ${item.type === 'info' ? '📝 Info' : item.type === 'photo' ? '📷 Photo' : item.type === 'video' ? '🎥 Video' : '🎮 Game'}
+                                    </span>
+                                    <span class="ml-2">${new Date(item.createdAt).toLocaleDateString()}</span>
+                                </p>
+                            </div>
+                            ${isOrgAdmin ? `<button class="delete-content px-2 py-1 text-red-600 hover:bg-red-50 rounded text-sm" data-id="${item.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                        ${item.text ? `<p class="text-gray-700 text-sm mb-2">${escapeHtml(item.text).replace(/\n/g, '<br>')}</p>` : ''}
+                        ${item.fileUrl ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-sm">View ${item.type === 'photo' ? 'Photo' : 'Video'}</a>` : ''}
+                        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="text-blue-600 hover:underline text-sm">Open Game/Activity</a>` : ''}
+                    </div>
+                `).join('');
+                
+                // Add delete listeners
+                document.querySelectorAll('.delete-content').forEach((btn) => {
+                    btn.addEventListener('click', () => deleteContent(btn.dataset.id));
+                });
+            } catch (err) {
+                console.error('Error loading org content:', err);
+            }
+        }
+
+        // Delete content item
+        async function deleteContent(contentId) {
+            if (!confirm('Delete this content?')) return;
+            
+            try {
+                const res = await fetch(`/api/organizations/private-content/${contentId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('Content deleted', 'success');
+                    loadOrgContent();
+                } else {
+                    showAlert(data.error || 'Failed to delete', 'error');
+                }
+            } catch (err) {
+                showAlert('Error deleting content', 'error');
+            }
+        }
+
+        // Add new content
+        document.getElementById('add-content-btn').addEventListener('click', async () => {
+            const type = document.getElementById('content-type').value;
+            const title = document.getElementById('content-title').value.trim();
+            
+            if (!title) {
+                showAlert('Please enter a title', 'error');
+                return;
+            }
+            
+            let fileUrl = null;
+            let text = '';
+            let url = null;
+            
+            try {
+                if (type === 'photo') {
+                    const file = document.getElementById('content-photo-file').files[0];
+                    if (!file) {
+                        showAlert('Please select a photo', 'error');
+                        return;
+                    }
+                    document.getElementById('photo-status').textContent = 'Uploading...';
+                    const formData = new FormData();
+                    formData.append('media', file);
+                    const uploadRes = await fetch('/api/organizations/upload-media?type=photo', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadData.success) {
+                        showAlert(uploadData.error || 'Upload failed', 'error');
+                        document.getElementById('photo-status').textContent = '';
+                        return;
+                    }
+                    fileUrl = uploadData.url;
+                    text = document.getElementById('content-text').value.trim();
+                    document.getElementById('photo-status').textContent = '';
+                } else if (type === 'video') {
+                    const file = document.getElementById('content-video-file').files[0];
+                    if (!file) {
+                        showAlert('Please select a video', 'error');
+                        return;
+                    }
+                    document.getElementById('video-status').textContent = 'Uploading...';
+                    const formData = new FormData();
+                    formData.append('media', file);
+                    const uploadRes = await fetch('/api/organizations/upload-media?type=video', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadData.success) {
+                        showAlert(uploadData.error || 'Upload failed', 'error');
+                        document.getElementById('video-status').textContent = '';
+                        return;
+                    }
+                    fileUrl = uploadData.url;
+                    text = document.getElementById('content-video-description').value.trim();
+                    document.getElementById('video-status').textContent = '';
+                } else if (type === 'game') {
+                    url = document.getElementById('content-game-url').value.trim();
+                    if (!url) {
+                        showAlert('Please enter a game URL', 'error');
+                        return;
+                    }
+                    text = document.getElementById('content-game-instructions').value.trim();
+                } else {
+                    text = document.getElementById('content-text').value.trim();
+                }
+                
+                const res = await fetch('/api/organizations/private-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, title, text, url, fileUrl }),
+                });
+                
+                const result = await res.json();
+                if (!result.success) {
+                    showAlert(result.error || 'Failed to add content', 'error');
+                    return;
+                }
+                
+                showAlert('Content added successfully!', 'success');
+                document.getElementById('content-title').value = '';
+                document.getElementById('content-text').value = '';
+                document.getElementById('content-photo-file').value = '';
+                document.getElementById('content-video-file').value = '';
+                document.getElementById('content-video-description').value = '';
+                document.getElementById('content-game-url').value = '';
+                document.getElementById('content-game-instructions').value = '';
+                loadOrgContent();
+            } catch (err) {
+                showAlert('Error: ' + err.message, 'error');
+            }
+        });
+        
         loadDashboard().then(loadLessonBills).catch(() => showAlert('Could not load dashboard.', 'error'));
     </script>
 
