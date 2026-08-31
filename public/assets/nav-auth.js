@@ -3,6 +3,11 @@
 // Self-contained so it works on pages regardless of which CSS framework
 // they load.
 (function () {
+  if (!document.getElementById('mt-cookie-consent-loader')) {
+    const cookieScript = document.createElement('script');
+    cookieScript.id = 'mt-cookie-consent-loader'; cookieScript.src = '/assets/cookie-consent.js?v=1'; cookieScript.defer = true;
+    document.head.appendChild(cookieScript);
+  }
   if (!/^\/(?:messages\/)?chat(?:\/|$)/.test(location.pathname) && !document.getElementById('mozart-ai-loader')) {
     const css = document.createElement('link');
     css.id = 'mozart-ai-loader'; css.rel = 'stylesheet'; css.href = '/assets/mozart-ai.css?v=20260830b';
