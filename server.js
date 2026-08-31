@@ -334,8 +334,25 @@ async function getGeoInfo(req) {
 function sameCountry(a, b) {
   return Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 }
+
+function tutorCountryName(tutor) {
+  if (tutor && tutor.locality && tutor.locality.country) {
+    return String(tutor.locality.country).trim();
+  }
+  const text = tutor && (tutor.address || tutor.city || '');
+  if (!text) return null;
+  const value = String(text).trim();
+  if (!value) return null;
+  if (/nigeria/i.test(value)) return 'Nigeria';
+  if (/ghana/i.test(value)) return 'Ghana';
+  if (/canada/i.test(value)) return 'Canada';
+  if (/united kingdom|uk|england|scotland|wales|northern ireland/i.test(value)) return 'United Kingdom';
+  if (/united states|usa|america/i.test(value)) return 'United States';
+  return null;
+}
+
 function inViewerCountry(tutor, viewerCountryName) {
-  const tutorCountry = tutor.locality && tutor.locality.country;
+  const tutorCountry = tutorCountryName(tutor);
   return sameCountry(tutorCountry, viewerCountryName);
 }
 
@@ -3214,7 +3231,6 @@ app.post('/api/admin/users/:id/country-admin', requirePrimaryAdminApi, (req, res
 // to explore the platform.
 async function seedSpecialAccounts() {
   const seeds = [
-    { name: 'Demo Student', email: 'demo@mozarttechnique.com', password: 'DemoPass123', role: 'demo' },
     { name: 'Admin', email: 'mozarttechniques@gmail.com', password: '@Mozarttechniques2026$', role: 'admin' },
   ];
 

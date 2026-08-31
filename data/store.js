@@ -6,6 +6,11 @@ const { geocodeAddress } = require('./geocode');
 const DATA_FILE = path.join(__dirname, 'users.json');
 const MIN_RATINGS_BEFORE_FLAG = 3;
 const FLAG_THRESHOLD = 2.5; // out of 5
+const LIVE_ACCOUNT_EMAILS = new Set([
+  'mozarttechniques@gmail.com',
+  'emmanuelsolomontenore@gmail.com',
+  'gabrielsolomon781@gmail.com',
+]);
 
 function load() {
   if (!fs.existsSync(DATA_FILE)) return { users: [], nextId: 1 };
@@ -381,7 +386,10 @@ function setCountryAdmin(userId, countryCode) {
 
 function listUsers() {
   const db = load();
-  return db.users;
+  return db.users.filter((user) => {
+    const email = String(user.email || '').trim().toLowerCase();
+    return LIVE_ACCOUNT_EMAILS.has(email);
+  });
 }
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
