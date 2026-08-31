@@ -3282,23 +3282,18 @@ function startServer(attempt = 1) {
 }
 
 async function initializePersistence() {
-  // Use Atlas whenever a connection string is configured. Local development
-  // without Mongo stays file-backed, while a temporary Atlas outage still
-  // falls back safely outside production.
+  // Use Atlas whenever a connection string is configured. If MongoDB is
+  // unreachable or the Atlas network is blocked, the app should keep serving
+  // from the local JSON snapshot files instead of crashing the whole process.
   if (process.env.NODE_ENV !== 'production' && process.env.MONGO_PERSISTENCE !== 'true' && !process.env.MONGODB_URI) {
     return { connected: false, mode: 'local-development' };
   }
-  try {
-    return await mongoPersistence.initialize();
-  } catch (err) {
-    // Development must remain usable when an Atlas IP allow-list or network
-    // outage blocks MongoDB. JSON snapshots are the local fallback. In
-    // production Mongo remains mandatory so a deployment never silently
-    // falls back to a single machine's disk.
-    if (process.env.NODE_ENV === 'production') throw err;
-    console.warn(`MongoDB unavailable; using local JSON snapshots: ${err.message}`);
-    return { connected: false, mode: 'local-fallback' };
+
+  const result = await mongoPersistence.initialize();
+  if (!result.connected && process.env.NODE_ENV === 'production') {
+    console.warn('Production MongoDB connection failed; continuing with local JSON persistence for this instance.');
   }
+  return result;
 }
 
 initializePersistence().then((result) => {

@@ -51,32 +51,38 @@ function writeLocal(fileName, data) {
 async function initialize() {
   if (!hasMongoConfig()) {
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('MONGODB_URI is required in production. Refusing to start with local-only persistence.');
+      console.warn('MONGODB_URI is missing in production; continuing with local JSON persistence fallback.');
+      return { connected: false, mode: 'local-fallback' };
     }
     return { connected: false, mode: 'local' };
   }
 
-  await mongoose.connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 10000,
-    maxPoolSize: 10,
-  });
-  connected = true;
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+    });
+    connected = true;
 
-  for (const fileName of SNAPSHOT_FILES) {
-    const localData = parseLocal(fileName);
-    const remote = await Snapshot.findById(fileName).lean();
-    if (remote && remote.data) {
-      writeLocal(fileName, remote.data);
-    } else if (localData !== null) {
-      await Snapshot.updateOne(
-        { _id: fileName },
-        { $set: { data: localData, updatedAt: new Date() } },
-        { upsert: true },
-      );
+    for (const fileName of SNAPSHOT_FILES) {
+      const localData = parseLocal(fileName);
+      const remote = await Snapshot.findById(fileName).lean();
+      if (remote && remote.data) {
+        writeLocal(fileName, remote.data);
+      } else if (localData !== null) {
+        await Snapshot.updateOne(
+          { _id: fileName },
+          { $set: { data: localData, updatedAt: new Date() } },
+          { upsert: true },
+        );
+      }
     }
-  }
 
-  return { connected: true, mode: 'mongodb', files: SNAPSHOT_FILES.length };
+    return { connected: true, mode: 'mongodb', files: SNAPSHOT_FILES.length };
+  } catch (error) {
+    console.warn(`MongoDB unavailable; continuing in local JSON persistence mode: ${error.message}`);
+    return { connected: false, mode: 'local-fallback', error: error.message };
+  }
 }
 
 function installWriteThroughHook() {
