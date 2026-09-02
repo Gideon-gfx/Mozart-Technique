@@ -57,6 +57,7 @@
                     <a href="/home">Home</a>
                     <a href="/find-tutor">Find a Tutor</a>
                     <a href="/library">Library</a>
+                    <a id="organization-workspace-link" href="/tutor-dashboard.html" class="hidden">Organization</a>
                     <a href="/become-tutor">Become a Tutor</a>
                     <a href="/become-sponsor">Sponsor</a>
                     <a href="/contact">Contact</a>
@@ -157,8 +158,19 @@
                     </div>
                     <div id="stripe-connect-card" class="mt-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"></div>
                     <!-- Sponsor Code Redemption Section -->
-                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Organization Access Code</h3>
+                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Organization Access</h3>
                     <div id="sponsor-code-section" class="rounded-2xl border border-gray-200 p-5">
+                        <div id="org-redeemed" class="hidden space-y-3 mb-4">
+                            <div class="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                                <i class="fa-solid fa-check-circle text-emerald-600 text-xl"></i>
+                                <div>
+                                    <p class="text-xs uppercase tracking-wide text-emerald-600 font-bold">Code Redeemed</p>
+                                    <p id="org-name-display" class="text-lg font-bold text-emerald-900">Organization Name</p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 px-3">You can now teach students from this organization. Visit the orientation to learn about their teaching standards.</p>
+                            <a href="/orientation" class="inline-block w-full text-center px-3 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition text-sm">Go to Orientation</a>
+                        </div>
                         <p id="sponsor-status-text" class="text-sm text-gray-600 mb-4">If an organization gave you an access code, enter it here to join their tutoring network.</p>
                         <div id="sponsor-code-form" class="space-y-3">
                             <div class="flex gap-2">
@@ -174,7 +186,7 @@
                     </div>
                     <h3 class="font-semibold text-gray-700 mt-6 mb-3">Google Meet classes</h3>
                     <div id="meet-classes" class="space-y-3"></div>
-                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Technique video uploads</h3>
+                    <h3 id="library" class="font-semibold text-gray-700 mt-6 mb-3">Technique video uploads</h3>
                     <div id="video-upload-card" class="rounded-2xl border border-gray-200 p-5 bg-gray-50 space-y-4">
                         <p class="text-sm text-gray-500">Upload a short technique clip or paste a link for a course you teach.</p>
                         <div class="grid gap-3">
@@ -226,6 +238,7 @@
         }
 
         let userProfile = null;
+        let userSponsorship = null;
 
         let pageMode = 'unknown'; // 'self' | 'public' | 'unknown'
         let publicViewType = null; // 'slug' | 'id'
@@ -250,7 +263,10 @@
                         return;
                     }
                     userProfile = profileData.profile || null;
+                    userSponsorship = sessionData.user.sponsor || null;
+                    if (userSponsorship) document.getElementById('organization-workspace-link')?.classList.remove('hidden');
                     renderProfileSummary();
+                    renderSponsorshipStatus();
                     const sidebarName = document.getElementById('sidebar-tutor-name');
                     if (sidebarName) sidebarName.textContent = userProfile?.name || 'Tutor';
                 } else {
@@ -300,6 +316,17 @@
         function renderProfileSummary() {
             document.getElementById('profile-categories').innerHTML = (userProfile?.categories || []).map((cat) => `<span class="chip bg-red-50 text-primary-red">${escapeHtml(cat)}</span>`).join('');
             document.getElementById('profile-rate').textContent = userProfile ? `$${userProfile.hourlyRateUsd}/hr` : 'Not set';
+        }
+
+        function renderSponsorshipStatus() {
+            const redeemSection = document.getElementById('sponsor-code-section');
+            if (!redeemSection) return;
+            if (userSponsorship && userSponsorship.orgName) {
+                document.getElementById('org-redeemed').classList.remove('hidden');
+                document.getElementById('org-name-display').textContent = userSponsorship.orgName;
+                document.getElementById('sponsor-code-form').classList.add('hidden');
+                document.getElementById('sponsor-status-text').classList.add('hidden');
+            }
         }
 
         function renderPublicProfile() {
@@ -718,7 +745,7 @@
                 const body = new FormData();
                 body.append('video', file);
                 try {
-                    const res = await fetch('/api/library/upload', { method: 'POST', body });
+                    const res = await fetch('/api/tutor-library/upload', { method: 'POST', body });
                     const data = await res.json();
                     if (!data.success) return setStatus(data.error || 'Upload failed.', 'error');
                     document.getElementById('rec-url').value = data.url;
@@ -881,20 +908,10 @@
                 });
 
                 // Sponsor Code Redemption
-                const sponsorStatusText = document.getElementById('sponsor-status-text');
-                const sponsorCodeForm = document.getElementById('sponsor-code-form');
                 const redeemCodeBtn = document.getElementById('redeem-code-btn');
-                const sponsorCodeInput = document.getElementById('sponsor-code-input');
-                
-                // Check if already has a sponsor
-                if (sessionData.user && sessionData.user.sponsor) {
-                    sponsorStatusText.innerHTML = `
-                        <span class="font-semibold text-emerald-700">Code Redeemed.</span> You're part of ${escapeHtml(sessionData.user.sponsor.orgName)}'s tutoring network.
-                    `;
-                    sponsorCodeForm.classList.add('hidden');
-                } else {
+                if (redeemCodeBtn) {
                     redeemCodeBtn.addEventListener('click', async () => {
-                        const code = sponsorCodeInput.value.trim().toUpperCase();
+                        const code = document.getElementById('sponsor-code-input').value.trim().toUpperCase();
                         if (!code) return showAlert('Enter a code.', 'error');
                         redeemCodeBtn.disabled = true;
                         redeemCodeBtn.textContent = 'Redeeming…';
@@ -911,10 +928,8 @@
                                 redeemCodeBtn.textContent = 'Redeem';
                                 return;
                             }
-                            sponsorStatusText.innerHTML = `
-                                <span class="font-semibold text-emerald-700">Code Redeemed.</span> You're now part of ${escapeHtml(data.orgName)}'s tutoring network.
-                            `;
-                            sponsorCodeForm.classList.add('hidden');
+                            userSponsorship = { orgId: data.orgId, orgName: data.orgName };
+                            renderSponsorshipStatus();
                             showAlert('Successfully joined the organization!', 'success');
                         } catch (err) {
                             showAlert('Could not redeem code.', 'error');
@@ -922,8 +937,11 @@
                             redeemCodeBtn.textContent = 'Redeem';
                         }
                     });
+                }
+                const sponsorCodeInput = document.getElementById('sponsor-code-input');
+                if (sponsorCodeInput) {
                     sponsorCodeInput.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') redeemCodeBtn.click();
+                        if (e.key === 'Enter' && redeemCodeBtn) redeemCodeBtn.click();
                     });
                 }
 
@@ -955,7 +973,7 @@
                 const formData = new FormData();
                 formData.append('video', fileInput.files[0]);
                 try {
-                    const res = await fetch('/api/library/upload', { method: 'POST', body: formData });
+                    const res = await fetch('/api/tutor-library/upload', { method: 'POST', body: formData });
                     const data = await res.json();
                     if (!data.success) {
                         status.textContent = data.error || 'Upload failed.';
@@ -990,7 +1008,7 @@
                         status.textContent = 'Uploading selected video…';
                         const formData = new FormData();
                         formData.append('video', fileInput.files[0]);
-                        const uploadRes = await fetch('/api/library/upload', { method: 'POST', body: formData });
+                        const uploadRes = await fetch('/api/tutor-library/upload', { method: 'POST', body: formData });
                         const uploadData = await uploadRes.json();
                         if (!uploadData.success) return showAlert(uploadData.error || 'Could not upload the local video file.', 'error');
                         url = uploadData.url;
@@ -998,7 +1016,7 @@
                     }
                     if (!url) return showAlert('Paste a video link or choose a local video file.', 'error');
                     status.textContent = 'Adding video to your library…';
-                    const res = await fetch('/api/library', {
+                    const res = await fetch('/api/tutor-library', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ title, description, url, category, genre, isFile: url.startsWith('/uploads/videos/') }),
@@ -1023,7 +1041,7 @@
         }
 
         async function loadTutorLibraryList() {
-            const res = await fetch('/api/library/mine');
+            const res = await fetch('/api/tutor-library/mine');
             const data = await res.json();
             const list = document.getElementById('tutor-library-list');
             if (!data.success || !data.items.length) {
@@ -1074,7 +1092,7 @@
             document.getElementById('edit-video-cancel').addEventListener('click', closeModal);
             document.getElementById('edit-library-form').addEventListener('submit', async (event) => {
                 event.preventDefault();
-                const response = await fetch(`/api/library/${item.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('edit-video-title').value.trim(), description: document.getElementById('edit-video-description').value.trim(), category: document.getElementById('edit-video-category').value, genre: document.getElementById('edit-video-genre').value.trim() || null }) });
+                const response = await fetch(`/api/tutor-library/${item.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('edit-video-title').value.trim(), description: document.getElementById('edit-video-description').value.trim(), category: document.getElementById('edit-video-category').value }) });
                 const data = await response.json();
                 if (!data.success) { const error = document.getElementById('edit-video-error'); error.textContent = data.error || 'Could not update video.'; error.classList.remove('hidden'); return; }
                 closeModal(); showAlert('Video details updated.', 'success'); loadTutorLibraryList();
@@ -1085,7 +1103,7 @@
             openModal(`<h3 class="text-lg font-bold text-gray-900">Delete this video?</h3><p class="text-sm text-gray-500 mt-2 mb-5">This removes it from the library for students. This action cannot be undone.</p><div class="flex gap-2"><button type="button" id="delete-video-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Keep video</button><button type="button" id="delete-video-confirm" class="flex-1 px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-semibold">Delete video</button></div>`);
             document.getElementById('delete-video-cancel').addEventListener('click', closeModal);
             document.getElementById('delete-video-confirm').addEventListener('click', async () => {
-                const response = await fetch(`/api/library/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/tutor-library/${id}`, { method: 'DELETE' });
                 const data = await response.json();
                 if (!data.success) return showAlert(data.error || 'Could not delete video.', 'error');
                 closeModal(); showAlert('Video deleted.', 'success'); loadTutorLibraryList();
@@ -1125,6 +1143,5 @@
     </script>
     <script src="/assets/nav-auth.js"></script>
     <script src="/assets/mobile-nav.js"></script>
-    <script src="/assets/footer.js"></script>
 </body>
 </html>

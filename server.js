@@ -180,7 +180,7 @@ const photoUpload = multer({
 // spells the lowercase form.
 const GATED_HTML_FILES = [
   '/dashboard.html', '/admin.html', '/become-tutor.html', '/become-sponsor.html',
-  '/orientation.html', '/tutor-evaluation.html',
+  '/orientation.html', '/tutor-evaluation.html', '/notifications.html',
   '/chat.html', '/library.html', '/messages.html',
 ];
 app.use((req, res, next) => {
@@ -354,7 +354,9 @@ function tutorCountryName(tutor) {
 
 function inViewerCountry(tutor, viewerCountryName) {
   const tutorCountry = tutorCountryName(tutor);
-  return sameCountry(tutorCountry, viewerCountryName);
+  // Missing legacy location data should not hide an otherwise approved tutor.
+  // Once both countries are known, keep the country boundary enforced.
+  return !tutorCountry || !viewerCountryName || sameCountry(tutorCountry, viewerCountryName);
 }
 
 function notifySupportAgents({ message, subject, excludeUserId, href = '/support-agent' }) {
@@ -379,7 +381,11 @@ function requireSupportAgentApi(req, res, next) {
 }
 
 function isPrimaryAdmin(user) {
-  return Boolean(user && user.role === 'admin' && !user.adminCountryCode);
+  // The platform owner must keep access to every account even after a country
+  // is selected on their profile.  Country administrators stay limited to
+  // their own country.
+  const ownerEmail = String(process.env.PRIMARY_ADMIN_EMAIL || 'mozarttechniques@gmail.com').trim().toLowerCase();
+  return Boolean(user && user.role === 'admin' && (!user.adminCountryCode || String(user.email || '').trim().toLowerCase() === ownerEmail));
 }
 
 function countryForUser(user) {
@@ -443,6 +449,13 @@ app.get('/dashboard', requireAuthPage, (req, res) => {
     }
   }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
+});
+
+app.get('/notifications', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'notifications.html'));
+});
+app.get('/notifications.html', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'notifications.html'));
 });
 
 app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
@@ -572,6 +585,9 @@ app.get('/support-agent', requireAuthPage, requireSupportAgentPage, (req, res) =
 });
 
 app.get('/library', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
+});
+app.get('/library/:id', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
 });
 app.get('/schedule', requireAuthPage, (req, res) => {
@@ -1047,10 +1063,16 @@ app.post('/api/notifications/read-all', requireAuthApi, (req, res) => {
   res.json({ success: true, notifications: updated.notifications || [] });
 });
 
+app.post('/api/notifications/:id/read', requireAuthApi, (req, res) => {
+  const updated = store.markNotificationRead(currentUser(req).id, req.params.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Notification not found.' });
+  res.json({ success: true });
+});
+
 // Site-wide search across approved tutors - public, no login required.
 app.get('/api/search', async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
-  if (!q) return res.json({ success: true, tutors: [] });
+  if (!q) return res.json({ success: true, tutors: [], videos: [] });
 
   const geoInfo = await getGeoInfo(req);
   const matchedTutors = tutors.listApproved().filter((t) => inViewerCountry(t, geoInfo.name) && (
@@ -1067,20 +1089,53 @@ app.get('/api/search', async (req, res) => {
     currency: geoInfo.currency, symbol: geoInfo.symbol, avgRating: tutors.avgRating(t),
   })));
 
-  res.json({ success: true, tutors: tutorResults });
+  const libraryUrlMatch = q.match(/[?&]item=([^&]+)/i);
+  const librarySearchTerm = libraryUrlMatch ? decodeURIComponent(libraryUrlMatch[1]).toLowerCase() : q;
+  const matchedVideos = reels.listActive()
+    .filter((item) => {
+      const ownerAllowed = (item.ownerScope || 'mozart') === 'mozart' || item.ownerScope === 'tutor';
+      if (!ownerAllowed) return false;
+      const searchText = [item.title, item.description, item.category, item.genre, librarySlug(item.title), item.url].filter(Boolean).join(' ').toLowerCase();
+      return searchText.includes(q) || searchText.includes(librarySearchTerm);
+    })
+    .slice(0, 12)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description || '',
+      category: item.category,
+      genre: item.genre,
+      url: item.url,
+      isFile: Boolean(item.isFile),
+      ownerScope: item.ownerScope || 'mozart',
+      ownerName: item.ownerScope === 'tutor' ? (tutors.findByUserId(item.addedBy)?.name || 'Tutor') : 'Mozart Techniques',
+    }));
+
+  res.json({ success: true, tutors: tutorResults, videos: matchedVideos });
 });
 
 // --- TUTORS: applications, browsing, and matching ---
 // A tutor's approval status lives on the tutor profile, not the user's
 // role, since the same account can be both a student and a tutor.
 app.get('/api/categories', (req, res) => {
-  res.json({ success: true, categories: taxonomy.SUBJECTS });
+  res.json({ success: true, categories: taxonomy.loadSubjects() });
+});
+
+app.post('/api/admin/categories', requireAdminApi, (req, res) => {
+  const name = String(req.body && (req.body.name || req.body.subject) || '').trim();
+  if (!name) return res.status(400).json({ success: false, error: 'Subject name is required.' });
+  if (name.length > 80) return res.status(400).json({ success: false, error: 'Subject name is too long.' });
+  const subjects = taxonomy.loadSubjects();
+  if (subjects.some((subject) => subject.toLowerCase() === name.toLowerCase())) {
+    return res.status(409).json({ success: false, error: 'That subject already exists.' });
+  }
+  res.json({ success: true, categories: taxonomy.addSubject(name) });
 });
 
 app.get('/api/taxonomy', (req, res) => {
   res.json({
     success: true,
-    subjects: taxonomy.SUBJECTS,
+    subjects: taxonomy.loadSubjects(),
     genres: taxonomy.GENRES,
     ageGroups: taxonomy.AGE_GROUPS,
     levels: taxonomy.LEVELS,
@@ -1415,6 +1470,41 @@ app.post('/api/tutors/me/withdraw', requireTutorProfileApi, (req, res) => {
   res.json({ success: true, payout });
 });
 
+// Tutor group chats: tutors can create group chats for their course students
+app.get('/api/tutors/me/group-chats', requireApprovedTutorApi, (req, res) => {
+  const profile = req.tutorProfile;
+  const chats = orgChat.listForTutor(profile.id).filter((c) => c.type === 'tutor-group').map((c) => ({
+    id: c.id,
+    name: c.title,
+    course: c.course,
+    studentCount: (c.participants || []).filter(p => p.type === 'student').length,
+    createdAt: c.createdAt
+  }));
+  res.json({ success: true, chats });
+});
+
+app.post('/api/tutors/me/group-chats', requireApprovedTutorApi, (req, res) => {
+  const profile = req.tutorProfile;
+  const { course, groupName, studentIds } = req.body || {};
+  if (!course) return res.status(400).json({ success: false, error: 'Choose a course.' });
+  if (!Array.isArray(studentIds) || !studentIds.length) return res.status(400).json({ success: false, error: 'At least one student is required.' });
+  const validStudents = studentIds.filter(id => assignments.listAll().some(a => a.tutorId === profile.id && a.studentId === id && a.category === course));
+  if (!validStudents.length) return res.status(400).json({ success: false, error: 'Those students are not registered for this course.' });
+  const conversation = orgChat.getOrCreateTutorGroupConversation(profile.id, { course, groupName, studentIds: validStudents });
+  res.json({ success: true, conversation });
+});
+
+app.post('/api/tutors/me/group-chats/:id/messages', requireApprovedTutorApi, (req, res) => {
+  const profile = req.tutorProfile;
+  const conversationId = Number(req.params.id);
+  const conversation = orgChat.listForTutor(profile.id).find(c => c.id === conversationId && c.type === 'tutor-group');
+  if (!conversation) return res.status(404).json({ success: false, error: 'Group chat not found.' });
+  const { text } = req.body || {};
+  if (!text) return res.status(400).json({ success: false, error: 'Message required.' });
+  const message = orgChat.sendMessage(conversation.id, { senderId: profile.userId, senderType: 'tutor', senderName: profile.name, text });
+  res.json({ success: true, message });
+});
+
 app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
   const region = String(req.query.region || '').trim().toLowerCase();
   const list = payouts.listAll().filter((item) => {
@@ -1453,7 +1543,7 @@ app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certific
   if (existing && existing.status === 'rejected') {
     organizations.removeByUserId(user.id);
   }
-  const { name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType } = req.body || {};
+  const { name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, numStudents, numTutors } = req.body || {};
   if (!contactName || !contactName.trim()) return res.status(400).json({ success: false, error: 'A contact person is required.' });
   if (!email || !email.trim() || !email.includes('@')) return res.status(400).json({ success: false, error: 'A valid email is required.' });
   
@@ -1492,6 +1582,8 @@ app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certific
     sponsorType: type,
     organizationType: organizationType || 'ngo',
     certificateUrl,
+    numStudents: type === 'ngo' ? parseInt(numStudents) || 0 : null,
+    numTutors: type === 'ngo' ? parseInt(numTutors) || 0 : null,
   });
 
   const displayName = type === 'ngo' ? org.name : `${org.contactName} (Individual Sponsor)`;
@@ -1518,17 +1610,55 @@ app.post('/api/organizations/me/generate-code', requireAuthApi, (req, res) => {
   if (!organizations.isSubscriptionActive(org)) {
     return res.status(403).json({ success: false, error: 'Your subscription is not active yet - an admin needs to confirm payment first.' });
   }
-  const entry = organizations.generateStudentCode(org.id);
+  const entry = organizations.generateOrganizationCode(org.id, req.body && req.body.role, { name: req.body && req.body.name, email: req.body && req.body.email });
   res.json({ success: true, entry });
+});
+
+app.get('/api/organizations/me/codes', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  res.json({ success: true, ...organizations.listCodes(org.id) });
+});
+
+app.post('/api/organizations/me/profile', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const updated = organizations.updateProfile(org.id, req.body || {});
+  res.json({ success: true, organization: updated });
+});
+
+app.post('/api/organizations/me/logo', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  photoUpload.single('photo')(req, res, (error) => {
+    if (error) return res.status(400).json({ success: false, error: error.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose an image to upload.' });
+    res.json({ success: true, organization: organizations.updateProfile(org.id, { logoUrl: `/uploads/photos/${req.file.filename}` }) });
+  });
+});
+
+app.post('/api/organizations/me/invite', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  const email = String(req.body && req.body.email || '').trim().toLowerCase();
+  const role = req.body && req.body.role === 'tutor' ? 'tutor' : 'student';
+  if (!org || org.status !== 'approved' || !organizations.isSubscriptionActive(org)) return res.status(403).json({ success: false, error: 'An active organization subscription is required.' });
+  if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, error: 'Enter a valid Gmail address.' });
+  const entry = organizations.generateOrganizationCode(org.id, role);
+  organizations.markCodeInvited(org.id, entry.code, email);
+  const redeemLink = `${publicAppUrl(req)}/dashboard?redeem=${encodeURIComponent(entry.code)}`;
+  res.json({ success: true, code: entry.code, redeemLink, organizationName: org.name });
 });
 
 app.post('/api/redeem-code', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const { code } = req.body || {};
   if (!code || !code.trim()) return res.status(400).json({ success: false, error: 'Enter a code.' });
-  const result = organizations.redeemCode(code, user.id, user.name);
+  const expectedRole = user.role === 'tutor' ? 'tutor' : user.role === 'student' ? 'student' : null;
+  const result = organizations.redeemCode(code, user.id, user.name, expectedRole);
   if (result.error === 'not-found') return res.status(404).json({ success: false, error: 'That code was not recognized.' });
   if (result.error === 'already-redeemed') return res.status(409).json({ success: false, error: 'That code has already been used.' });
+  if (result.error === 'wrong-role') return res.status(403).json({ success: false, error: 'This code is for a different organization role.' });
   store.setSponsor(user.id, { orgId: result.org.id, orgName: result.org.name });
   res.json({ success: true, orgName: result.org.name });
 });
@@ -1560,7 +1690,7 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
 
   try {
     const isMonthly = billingPeriod === 'monthly';
-    const amount = isMonthly ? org.monthlyAmount * 100 : org.monthlyAmount * 12 * 100; // Convert to cents
+    const amount = isMonthly ? Number(org.monthlyAmount) * 100 : Number(org.monthlyAmount) * 12 * 0.99 * 100; // Yearly plan is 1% below twelve monthly payments.
     const description = isMonthly 
       ? `Monthly subscription for ${org.name}`
       : `Yearly subscription for ${org.name}`;
@@ -1705,7 +1835,49 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
   res.json({ success: true, tutors: Array.from(orgTutors.values()) });
 });
 
-// Get conversations for organization
+// Organization classroom directory: real students linked by access code and
+// approved tutors teaching those students.
+app.get('/api/organizations/members', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+
+  const students = organizations.getStudentsForOrganization(org.id).map((member) => {
+    const student = store.findById(member.studentId);
+    return {
+      id: member.studentId,
+      name: member.studentName || (student && student.name) || 'Student',
+      email: student ? student.email : '',
+      role: 'Student',
+      photoUrl: student && student.studentProfile ? student.studentProfile.photoUrl || student.photoUrl || null : null,
+      profile: student ? { ageGroup: student.studentProfile && student.studentProfile.ageGroup, sex: student.studentProfile && student.studentProfile.sex, city: student.city || null } : null,
+    };
+  });
+  const tutorsById = new Map();
+  assignments.listAll().forEach((assignment) => {
+    if (!students.some((student) => student.id === assignment.studentId) || !assignment.tutorId) return;
+    const tutor = tutors.findById(assignment.tutorId);
+    if (tutor && tutor.status === 'approved') tutorsById.set(tutor.id, {
+      id: tutor.id,
+      name: tutor.name,
+      email: tutor.email || '',
+      role: 'Tutor',
+      photoUrl: tutor.photoUrl || null,
+      profile: { categories: tutor.categories || [], bio: tutor.bio || '', city: tutor.city || null, experienceYears: tutor.experienceYears || 0 },
+    });
+  });
+  res.json({ success: true, students, tutors: Array.from(tutorsById.values()) });
+});
+
+app.delete('/api/organizations/members/:studentId', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Organization access required.' });
+  const removed = organizations.removeMember(org.id, req.params.studentId);
+  res.json({ success: removed });
+});
+
+// Get all org conversations
 app.get('/api/organizations/conversations', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
@@ -1713,28 +1885,26 @@ app.get('/api/organizations/conversations', requireAuthApi, (req, res) => {
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const conversations = orgChat.listForOrganization(org.id);
-  const convWithTutors = conversations.map((conv) => {
-    const tutor = tutors.findById(conv.tutorId);
+  const conversations = orgChat.listForOrganization(org.id).map((conv) => {
+    const lastMessage = conv.messages && conv.messages.length ? conv.messages[conv.messages.length - 1] : null;
+    const title = conv.type === 'group' ? conv.title : conv.participants.find((p) => p.type !== 'org')?.name || 'Conversation';
     return {
       id: conv.id,
-      tutorId: conv.tutorId,
-      tutorName: tutor ? tutor.name : 'Unknown Tutor',
-      lastMessage: conv.messages && conv.messages.length > 0 
-        ? conv.messages[conv.messages.length - 1].text 
-        : 'No messages yet',
-      lastMessageAt: conv.messages && conv.messages.length > 0
-        ? conv.messages[conv.messages.length - 1].createdAt
-        : conv.createdAt,
+      type: conv.type || 'direct',
+      title,
+      participants: conv.participants || [],
+      tutorId: conv.tutorId || null,
+      studentId: conv.studentId || null,
+      lastMessage: lastMessage ? lastMessage.text : 'No messages yet',
+      lastMessageAt: lastMessage ? lastMessage.createdAt : conv.createdAt,
       unreadCount: orgChat.getUnreadCount(conv.id, 'org'),
       createdAt: conv.createdAt,
     };
   });
 
-  res.json({ success: true, conversations: convWithTutors });
+  res.json({ success: true, conversations });
 });
 
-// Get messages for a specific conversation
 app.get('/api/organizations/conversations/:id/messages', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
@@ -1742,17 +1912,79 @@ app.get('/api/organizations/conversations/:id/messages', requireAuthApi, (req, r
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const conversationId = req.params.id;
+  const conversationId = Number(req.params.id);
+  const conversation = orgChat.listForOrganization(org.id).find((conv) => conv.id === conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found.' });
+  }
+
   const messages = orgChat.getMessages(conversationId);
-  
-  // Verify user has access to this conversation
-  const conv = messages.length > 0 ? orgChat.getOrCreateConversation(org.id, 0) : null;
-  
-  res.json({ success: true, messages });
+  res.json({ success: true, messages, conversation });
 });
 
-// Send a message from organization to tutor
-app.post('/api/organizations/conversations/:tutorId/message', requireAuthApi, (req, res) => {
+app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  const { text, type, targetType, name } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Message text is required.' });
+  }
+
+  const targetId = Number(req.params.targetId);
+  const resolvedType = targetType || type || 'tutor';
+  const conversation = orgChat.getOrCreateConversation(org.id, {
+    type: resolvedType,
+    tutorId: resolvedType === 'tutor' ? targetId : null,
+    studentId: resolvedType === 'student' ? targetId : null,
+    name,
+    title: name || 'Conversation',
+  });
+
+  const message = orgChat.sendMessage(conversation.id, {
+    senderId: user.id,
+    senderType: 'org',
+    senderName: org.name || org.contactName,
+    text: text.trim(),
+  });
+
+  res.json({ success: true, message, conversation });
+});
+
+app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+
+  const { groupName, members } = req.body || {};
+  if (!groupName || !groupName.trim()) {
+    return res.status(400).json({ success: false, error: 'Group name is required.' });
+  }
+
+  const normalizedMembers = Array.isArray(members) ? members.filter((member) => member && member.id && member.type).map((member) => ({
+    id: Number(member.id),
+    type: member.type,
+    name: member.name || (member.type === 'tutor' ? 'Tutor' : 'Student')
+  })) : [];
+
+  if (!normalizedMembers.length) {
+    return res.status(400).json({ success: false, error: 'Add at least one tutor or student.' });
+  }
+
+  const conversation = orgChat.getOrCreateConversation(org.id, {
+    groupName: groupName.trim(),
+    members: normalizedMembers,
+  });
+
+  res.json({ success: true, conversation });
+});
+
+app.post('/api/organizations/conversations/:id/send', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
   if (!org) {
@@ -1764,22 +1996,20 @@ app.post('/api/organizations/conversations/:tutorId/message', requireAuthApi, (r
     return res.status(400).json({ success: false, error: 'Message text is required.' });
   }
 
-  const tutorId = Number(req.params.tutorId);
-  const tutor = tutors.findById(tutorId);
-  if (!tutor) {
-    return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  const conversationId = Number(req.params.id);
+  const conversation = orgChat.listForOrganization(org.id).find((item) => item.id === conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found.' });
   }
 
-  // Get or create conversation
-  const conv = orgChat.getOrCreateConversation(org.id, tutorId);
-  const message = orgChat.sendMessage(conv.id, {
+  const message = orgChat.sendMessage(conversationId, {
     senderId: user.id,
     senderType: 'org',
     senderName: org.name || org.contactName,
     text: text.trim(),
   });
 
-  res.json({ success: true, message });
+  res.json({ success: true, message, conversation });
 });
 
 // Mark conversation as read for organization
@@ -1806,17 +2036,74 @@ app.get('/api/organizations/:orgId/private-content', requireAuthApi, (req, res) 
     return res.status(404).json({ success: false, error: 'Organization not found.' });
   }
   
-  // Only members (students who redeemed code) and the org admin can view
+  // Students receive general organization content; admins and approved tutors
+  // can also receive items explicitly marked as shared.
   const isOrgAdmin = org.userId === user.id;
   const students = organizations.getStudentsForOrganization(orgId);
   const isMember = students.some((s) => s.studentId === user.id);
+  const tutorProfile = tutors.findByUserId(user.id);
+  const orgStudentIds = new Set(students.map((student) => Number(student.studentId)));
+  const isOrgTutor = Boolean(tutorProfile && tutorProfile.status === 'approved' && assignments.listAll().some((record) => orgStudentIds.has(Number(record.studentId)) && Number(record.tutorId) === Number(tutorProfile.id)));
+  const isApprovedTutor = Boolean(isOrgTutor || (tutorProfile && user.sponsor && Number(user.sponsor.orgId) === orgId));
   
-  if (!isOrgAdmin && !isMember) {
+  if (!isOrgAdmin && !isMember && !isApprovedTutor) {
     return res.status(403).json({ success: false, error: 'You do not have access to this content.' });
   }
   
-  const content = orgContent.listForOrg(orgId);
+  const allowedCategories = new Set();
+  if (isMember) assignments.listForStudent(user.id).forEach((record) => { if (record.category) allowedCategories.add(record.category); });
+  if (tutorProfile) (tutorProfile.categories || []).forEach((category) => allowedCategories.add(category));
+  const content = orgContent.listForOrg(orgId).filter((item) => (
+    isOrgAdmin || isApprovedTutor || (item.visibility !== 'shared' && (!item.category || allowedCategories.has(item.category)))
+  ));
   res.json({ success: true, content, isOrgAdmin });
+});
+
+app.get('/api/organizations/library', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const content = orgContent.listForOrg(org.id).filter((item) => ['photo', 'video', 'document', 'info'].includes(item.type)).map((item) => ({ ...item, source: 'organization' }));
+  const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart').map((item) => ({ ...item, source: 'Mozart Techniques' }));
+  const studentIds = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
+  const tutorUserIds = new Set(assignments.listAll().filter((record) => studentIds.has(Number(record.studentId)) && record.tutorId).map((record) => {
+    const tutor = tutors.findById(record.tutorId);
+    return tutor && tutor.userId;
+  }).filter(Boolean));
+  const tutorItems = reels.listActive().filter((item) => item.ownerScope === 'tutor' && tutorUserIds.has(item.addedBy)).map((item) => ({ ...item, source: 'tutor' }));
+  const organizationItems = content.filter((item) => item.createdByUserId === org.userId);
+  const sharedItems = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
+  const sort = (items) => items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+  res.json({ success: true, folders: org.folders || [], general: sort([...mozartItems, ...content, ...tutorItems]), mine: sort(organizationItems), shared: sort(sharedItems) });
+});
+
+app.post('/api/organizations/library/folders', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const name = String(req.body && req.body.name || '').trim();
+  if (!name) return res.status(400).json({ success: false, error: 'Folder name is required.' });
+  res.json({ success: true, folder: organizations.addFolder(org.id, name) });
+});
+
+app.post('/api/organizations/library', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const { title, category, url, fileUrl, type, visibility, folderId } = req.body || {};
+  if (!String(title || '').trim()) return res.status(400).json({ success: false, error: 'Name is required.' });
+  if (!url && !fileUrl) return res.status(400).json({ success: false, error: 'Add a URL or choose a file.' });
+  const selectedType = ['photo', 'video', 'document', 'info'].includes(type) ? type : 'info';
+  const item = orgContent.create({
+    orgId: org.id,
+    type: selectedType,
+    title: String(title).trim(),
+    category: category ? String(category).trim() : null,
+    url: url ? String(url).trim() : null,
+    fileUrl: fileUrl || null,
+    visibility: visibility === 'shared' ? 'shared' : 'general',
+    folderId: folderId || null,
+    createdByUserId: org.userId,
+    createdByName: org.name || org.contactName,
+  });
+  res.json({ success: true, item });
 });
 
 // Upload media file for organization content
@@ -1828,8 +2115,8 @@ app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
   }
 
   // Handle both photo and video uploads
-  const mediaType = req.query.type || 'photo'; // 'photo' or 'video'
-  const uploader = mediaType === 'video' ? videoUpload : photoUpload;
+  const mediaType = req.query.type || 'photo'; // 'photo', 'video', or 'document'
+  const uploader = mediaType === 'video' ? videoUpload : mediaType === 'document' ? chatUpload : photoUpload;
   
   uploader.single('media')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
@@ -1841,9 +2128,9 @@ app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to upload.' });
     
-    const url = mediaType === 'video' 
+    const url = mediaType === 'video'
       ? `/uploads/videos/${req.file.filename}`
-      : `/uploads/photos/${req.file.filename}`;
+      : mediaType === 'document' ? `/uploads/chat/${req.file.filename}` : `/uploads/photos/${req.file.filename}`;
     
     res.json({ success: true, url, mediaType });
   });
@@ -1857,8 +2144,8 @@ app.post('/api/organizations/private-content', requireAuthApi, (req, res) => {
     return res.status(403).json({ success: false, error: 'You must have an approved organization.' });
   }
 
-  const { type, title, text, url, fileUrl } = req.body || {};
-  if (!type || !['info', 'video', 'photo', 'game'].includes(type)) {
+  const { type, title, text, url, fileUrl, coverUrl, category, visibility } = req.body || {};
+  if (!type || !['info', 'video', 'photo', 'document', 'game', 'feed', 'announcement', 'notification'].includes(type)) {
     return res.status(400).json({ success: false, error: 'Invalid content type.' });
   }
   if (!title || !title.trim()) {
@@ -1871,10 +2158,23 @@ app.post('/api/organizations/private-content', requireAuthApi, (req, res) => {
     title: title.trim(),
     text: text ? text.trim() : '',
     url: url && type === 'game' ? url.trim() : null,
-    fileUrl: fileUrl && ['photo', 'video'].includes(type) ? fileUrl : null,
+    fileUrl: fileUrl && ['photo', 'video', 'document'].includes(type) ? fileUrl : null,
+    coverUrl: coverUrl || null,
+    category: category ? String(category).trim() : null,
+    visibility: ['general', 'shared'].includes(visibility) ? visibility : 'general',
     createdByUserId: user.id,
     createdByName: org.name || org.contactName,
   });
+
+  if (['announcement', 'notification'].includes(type) || visibility === 'general') {
+    const recipients = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
+    assignments.listAll().forEach((record) => {
+      if (!recipients.has(Number(record.studentId)) || !record.tutorId) return;
+      const tutor = tutors.findById(record.tutorId);
+      if (tutor) recipients.add(Number(tutor.userId));
+    });
+    recipients.forEach((userId) => store.addNotification(userId, { type: type === 'announcement' ? 'announcement' : 'organization', message: `${org.name || org.contactName} posted ${type}: ${title.trim()}.`, href: '/ngo-dashboard#classroom' }));
+  }
 
   res.json({ success: true, item });
 });
@@ -1937,13 +2237,17 @@ app.post('/api/tutors/evaluation/:category/submit', requireTutorProfileApi, (req
 // grants a one-time reward (bonus-matched student, or a recorded monetary
 // bonus an admin fulfills manually - this app has no payment processing). ---
 app.get('/api/tutors/orientation', requireTutorProfileApi, (req, res) => {
+  const user = currentUser(req);
   const content = curriculum.getForCategory(curriculum.ORIENTATION_KEY);
+  // Include sponsor/organization context if tutor redeemed a code
+  const sponsor = user.sponsor || null;
   res.json({
     success: true,
     content,
     questions: assessments.getQuestionsForTaker('orientation', null),
     completed: req.tutorProfile.orientationCompleted,
     reward: req.tutorProfile.orientationReward,
+    sponsor,
   });
 });
 
@@ -2164,8 +2468,9 @@ app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
 });
 
 app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
-  const { category, genre, ageGroup, desiredLevel, city, lessonType, phone, notes, preferredTutorIds } = req.body || {};
-  if (!category) return res.status(400).json({ success: false, error: 'Choose a subject.' });
+  const { category, categories, genre, ageGroup, desiredLevel, city, lessonType, phone, notes, preferredTutorIds } = req.body || {};
+  const requestedCategories = [...new Set((Array.isArray(categories) ? categories : [category]).map((item) => String(item || '').trim()).filter(Boolean))];
+  if (!requestedCategories.length) return res.status(400).json({ success: false, error: 'Choose at least one subject.' });
   const type = assignments.LESSON_TYPES.includes(lessonType) ? lessonType : null;
   if (!type) return res.status(400).json({ success: false, error: 'Choose online, physical, or in-studio lessons.' });
   if (type !== 'online' && !city) return res.status(400).json({ success: false, error: 'Provide your city for in-person lessons.' });
@@ -2184,39 +2489,44 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   })) {
     return res.status(403).json({ success: false, error: 'Tutors can only be requested within your country.' });
   }
+  const selectedTutors = requestTutorIds.map((id) => tutors.findById(id)).filter(Boolean);
+  if (selectedTutors.length && requestedCategories.some((selectedCategory) => selectedTutors.some((tutor) => !(tutor.categories || []).includes(selectedCategory)))) {
+    return res.status(400).json({ success: false, error: 'Each selected course must be taught by the chosen tutor.' });
+  }
 
   const studentGeo = city ? await geocodeAddress(city) : null;
-  const candidates = assignments.generateCandidates({
-    category, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
-  }).filter((c) => inViewerCountry(c.tutor, geoInfo.name));
-
-  const request = assignments.createRequest({
-    studentId: user.id, studentName: user.name, studentEmail: user.email,
-    category, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
-    preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
-    intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [], studentCountry: geoInfo.name,
+  const requests = requestedCategories.map((selectedCategory) => {
+    const candidates = assignments.generateCandidates({
+      category: selectedCategory, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
+    }).filter((c) => inViewerCountry(c.tutor, geoInfo.name));
+    return assignments.createRequest({
+      studentId: user.id, studentName: user.name, studentEmail: user.email,
+      category: selectedCategory, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
+      preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
+      intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [], studentCountry: geoInfo.name,
+    });
   });
 
   notifyAdmins({
     type: 'tutor-request',
-    subject: `New tutor request - ${category}`,
-    message: `New tutor request from ${user.name} for ${category} - match them in the admin panel.`,
+    subject: `New tutor request - ${requestedCategories.join(', ')}`,
+    message: `New tutor request from ${user.name} for ${requestedCategories.join(', ')} - match them in the admin panel.`,
     excludeUserId: user.id,
   });
 
   requestTutorIds.forEach((id) => {
     const preferredTutor = tutors.findById(id);
     if (preferredTutor && preferredTutor.status === 'approved') {
-      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${category}. Open your Tutor Profile to review and accept the request.` });
+      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}. Open your Tutor Profile to review and accept the requests.` });
     }
   });
 
   store.addNotification(user.id, {
     type: 'tutor-request',
-    message: `Your request for ${category} has been sent to your chosen tutor. You will be notified when they accept.`,
+    message: `Your requests for ${requestedCategories.join(', ')} have been sent to your chosen tutor. You will be notified when they accept.`,
   });
 
-  res.json({ success: true, request });
+  res.json({ success: true, request: requests[0], requests });
 });
 
 app.post('/api/admin/payout-requests/:id/process', requireAdminApi, (req, res) => {
@@ -2325,12 +2635,38 @@ function enrolledCategoriesForUser(user) {
 
 app.get('/api/library', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const { category, genre } = req.query;
-  let items = reels.listActive({ category: category || null, genre: genre || null });
-  if (user.role !== 'admin') {
+  const { category, genre, q } = req.query;
+  const requestedItem = String(req.query.item || '').trim().toLowerCase();
+  if (requestedItem) {
+    const item = reels.listActive().find((entry) => librarySlug(entry.title) === requestedItem || String(entry.title || '').trim().toLowerCase() === requestedItem);
+    if (!item) return res.status(404).json({ success: false, error: 'Library item not found.' });
+    const organizationUser = Boolean(user.sponsor || organizations.findByUserId(user.id));
+    if (user.role !== 'admin' && !organizationUser && item.category && !enrolledCategoriesForUser(user).has(item.category)) {
+      return res.status(403).json({ success: false, error: 'You do not have access to this library item.' });
+    }
+    return res.json({ success: true, item, items: [item] });
+  }
+  const searchTerm = String(q || '').trim().toLowerCase();
+  let items = reels.listActive({ category: category || null, genre: genre || null }).filter((item) => (item.ownerScope || 'mozart') === 'mozart');
+  const organizationUser = Boolean(user.sponsor || organizations.findByUserId(user.id));
+  if (user.role !== 'admin' && !organizationUser) {
     const allowed = enrolledCategoriesForUser(user);
     items = items.filter((item) => !item.category || allowed.has(item.category));
   }
+  if (searchTerm) {
+    items = items.filter((item) => {
+      const haystack = [item.title, item.description, item.category, item.genre].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(searchTerm);
+    });
+  }
+  items = [...items].sort((a, b) => {
+    const aKey = String(a.title || '').trim();
+    const bKey = String(b.title || '').trim();
+    const aIsAlpha = /^[A-Za-z]/.test(aKey) ? 0 : 1;
+    const bIsAlpha = /^[A-Za-z]/.test(bKey) ? 0 : 1;
+    if (aIsAlpha !== bIsAlpha) return aIsAlpha - bIsAlpha;
+    return aKey.toLowerCase().localeCompare(bKey.toLowerCase());
+  });
   res.json({ success: true, items });
 });
 
@@ -2340,17 +2676,48 @@ app.get('/api/library', requireAuthApi, (req, res) => {
 app.get('/api/library/my-subjects', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   if (user.role === 'admin') return res.json({ success: true, subjects: taxonomy.SUBJECTS, isAdmin: true });
+  if (user.sponsor || organizations.findByUserId(user.id)) return res.json({ success: true, subjects: taxonomy.SUBJECTS, isOrganization: true });
   res.json({ success: true, subjects: Array.from(enrolledCategoriesForUser(user)), isAdmin: false });
 });
 
 // A tutor's upload panel must show only clips they personally added. The
 // public library remains subject-scoped for students and other tutors.
-app.get('/api/library/mine', requireApprovedTutorApi, (req, res) => {
-  const items = reels.listAll().filter((item) => (
-    item.addedBy === currentUser(req).id
-    && item.status === 'active'
-  ));
+app.get('/api/library/mine', requireAuthApi, (req, res) => {
+  const profile = tutors.findByUserId(currentUser(req).id);
+  const items = profile ? reels.listAll().filter((item) => item.ownerScope === 'tutor' && item.addedBy === currentUser(req).id && item.status === 'active') : [];
   res.json({ success: true, items });
+});
+
+app.get('/api/library/shared', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const allowed = enrolledCategoriesForUser(user);
+  const isOrganizationUser = Boolean(user.sponsor || organizations.findByUserId(user.id));
+  const items = reels.listActive().filter((item) => item.ownerScope === 'tutor' && (isOrganizationUser || !item.category || allowed.has(item.category)));
+  res.json({ success: true, items });
+});
+
+function librarySlug(value) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+app.get('/api/library/item/:slug', (req, res) => {
+  const item = reels.listActive().find((entry) => librarySlug(entry.title) === String(req.params.slug || '').toLowerCase());
+  if (!item || (item.ownerScope || 'mozart') !== 'mozart') return res.status(404).json({ success: false, error: 'Library item not found.' });
+  res.json({ success: true, item });
+});
+
+app.get('/api/library/:id', requireAuthApi, (req, res) => {
+  if (!/^\d+$/.test(String(req.params.id))) return res.status(404).json({ success: false, error: 'Library item not found.' });
+  const item = reels.findById(req.params.id);
+  const user = currentUser(req);
+  if (!item || item.status !== 'active' || (item.ownerScope || 'mozart') !== 'mozart') {
+    return res.status(404).json({ success: false, error: 'Library item not found.' });
+  }
+  const organizationUser = Boolean(user.sponsor || organizations.findByUserId(user.id));
+  if (user.role !== 'admin' && !organizationUser && item.category && !enrolledCategoriesForUser(user).has(item.category)) {
+    return res.status(403).json({ success: false, error: 'You do not have access to this library item.' });
+  }
+  res.json({ success: true, item });
 });
 
 app.post('/api/library/upload', requireApprovedTutorApi, (req, res) => {
@@ -2373,8 +2740,66 @@ app.post('/api/library', requireApprovedTutorApi, (req, res) => {
   if (selectedCategory && !tutorCategories.includes(selectedCategory)) {
     return res.status(403).json({ success: false, error: 'You can only add library videos for your approved subjects.' });
   }
-  const item = reels.create({ title, description, url, category: selectedCategory, genre, addedBy: currentUser(req).id, isFile });
+  return res.status(403).json({ success: false, error: 'Tutor uploads are shared only with matched students through chat.' });
+});
+
+app.get('/api/tutor-library/:assignmentId', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  if (req.params.assignmentId === 'mine') {
+    const profile = tutors.findByUserId(user.id);
+    return res.json({ success: true, items: profile ? reels.listAll().filter((item) => item.ownerScope === 'tutor' && item.addedBy === user.id && item.status === 'active') : [] });
+  }
+  const record = assignments.findById(req.params.assignmentId);
+  const role = assignmentParticipantRole(user, record);
+  if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
+  const tutor = tutors.findById(record.tutorId);
+  const tutorItems = tutor ? reels.listActive().filter((item) => item.ownerScope === 'tutor' && item.addedBy === tutor.userId && (!item.category || item.category === record.category)) : [];
+  const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart' && (!item.category || item.category === record.category));
+  const ordered = [...tutorItems, ...mozartItems].sort((a, b) => {
+    const aKey = String(a.title || '').trim();
+    const bKey = String(b.title || '').trim();
+    const aIsAlpha = /^[A-Za-z]/.test(aKey) ? 0 : 1;
+    const bIsAlpha = /^[A-Za-z]/.test(bKey) ? 0 : 1;
+    if (aIsAlpha !== bIsAlpha) return aIsAlpha - bIsAlpha;
+    return aKey.toLowerCase().localeCompare(bKey.toLowerCase());
+  });
+  res.json({ success: true, items: ordered });
+});
+
+app.post('/api/tutor-library', requireApprovedTutorApi, (req, res) => {
+  const { title, description, url, category, isFile } = req.body || {};
+  if (!title || !url) return res.status(400).json({ success: false, error: 'Title and link/file are required.' });
+  if (category && !(req.tutorProfile.categories || []).includes(category)) return res.status(403).json({ success: false, error: 'Choose one of your teaching subjects.' });
+  const item = reels.create({ title, description, url, category: category || null, addedBy: currentUser(req).id, isFile, ownerScope: 'tutor' });
   res.json({ success: true, item });
+});
+
+app.post('/api/tutor-library/upload', requireApprovedTutorApi, (req, res) => {
+  videoUpload.single('video')(req, res, (err) => {
+    if (err instanceof multer.MulterError) return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
+    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+  });
+});
+
+app.get('/api/tutor-library/mine', requireApprovedTutorApi, (req, res) => {
+  res.json({ success: true, items: reels.listAll().filter((item) => item.ownerScope === 'tutor' && item.addedBy === currentUser(req).id && item.status === 'active') });
+});
+
+app.post('/api/tutor-library/:id', requireApprovedTutorApi, (req, res) => {
+  const item = reels.findById(req.params.id);
+  if (!item || item.ownerScope !== 'tutor' || item.addedBy !== currentUser(req).id) return res.status(404).json({ success: false, error: 'Tutor library item not found.' });
+  const { title, description, category } = req.body || {};
+  if (!title || !category || !(req.tutorProfile.categories || []).includes(category)) return res.status(400).json({ success: false, error: 'Use a title and one of your teaching subjects.' });
+  res.json({ success: true, item: reels.update(item.id, { title, description, category }) });
+});
+
+app.delete('/api/tutor-library/:id', requireApprovedTutorApi, (req, res) => {
+  const item = reels.findById(req.params.id);
+  if (!item || item.ownerScope !== 'tutor' || item.addedBy !== currentUser(req).id) return res.status(404).json({ success: false, error: 'Tutor library item not found.' });
+  reels.remove(item.id);
+  res.json({ success: true });
 });
 
 app.post('/api/library/:id', requireApprovedTutorApi, (req, res) => {
@@ -2422,33 +2847,11 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
   tutors.incrementLessonsCompleted(req.tutorProfile.id);
   chat.send(record.id, { senderId: currentUser(req).id, senderRole: 'tutor', text: `🔔 Class ended. You spent ${session.durationMinutes} minute${session.durationMinutes === 1 ? '' : 's'} with ${record.tutorName} today.${isFreeTrial ? ' This first class is free.' : ` Lesson bill: $${session.totalUsd.toFixed(2)}.`}` });
 
-  // Real Stripe hold, only if the student has a card on file - keeps the
-  // simulated (no card) path working exactly as it did before Stripe was
-  // wired in, so existing data/flows don't break.
+  // Student payments must go through an explicit Stripe Checkout and student
+  // confirmation flow. We intentionally do not silently charge a saved card
+  // when a class is logged, because the user must choose to pay from the
+  // checkout page before the lesson is released.
   const student = store.findById(record.studentId);
-  if (!isFreeTrial && student && student.stripeCustomerId && student.stripePaymentMethodId) {
-    const client = stripeClient.getClient();
-    if (client) {
-      try {
-        const intent = await client.paymentIntents.create({
-          amount: Math.round(session.totalUsd * 100),
-          currency: 'usd',
-          customer: student.stripeCustomerId,
-          payment_method: student.stripePaymentMethodId,
-          payment_method_types: ['card'],
-          off_session: true,
-          confirm: true,
-          capture_method: 'manual',
-          description: `Mozart Techniques lesson - ${record.category}`,
-        });
-        assignments.setSessionPaymentIntent(record.id, session.id, intent.id);
-        session.paymentIntentId = intent.id;
-      } catch (err) {
-        assignments.setSessionPaymentIntent(record.id, session.id, null, err.message);
-        session.paymentError = err.message;
-      }
-    }
-  }
 
   const sponsoringOrganization = coveredOrganizationForAssignment(record, student);
   if (!isFreeTrial && sponsoringOrganization) {
@@ -2502,24 +2905,40 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
     return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
   }
 
-  if (pending.paymentIntentId) {
-    const client = stripeClient.getClient();
-    if (client) {
-      try {
-        await client.paymentIntents.capture(pending.paymentIntentId);
-      } catch (err) {
-        return res.status(400).json({ success: false, error: `Payment capture failed: ${err.message}` });
-      }
-    }
-  }
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
 
-  const result = assignments.confirmSession(record.id, req.params.sessionId);
+  // Always send the student to a real Stripe Checkout page for the lesson bill.
+  // We do not permit an automatic capture path here, even when a prior
+  // payment intent exists, because the user must explicitly approve the
+  // checkout before the platform releases funds to the tutor.
+  const checkout = await client.checkout.sessions.create({
+    payment_method_types: ['card'], mode: 'payment',
+    line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
+    customer_email: user.email,
+    success_url: `${publicAppUrl(req)}/api/assignments/${record.id}/sessions/${pending.id}/checkout-success?sessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${publicAppUrl(req)}/chat?assignment=${record.id}`,
+    metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
+  });
+
+  return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
   if (!result) return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
 
   const { session } = result;
   const settlement = await releaseTutorEarnings(record, session, { paymentIntentId: pending.paymentIntentId });
 
   res.json({ success: true, session, automaticTransfer: Boolean(settlement.transfer) });
+});
+
+app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req, res) => {
+  const client = stripeClient.getClient();
+  const session = client && req.query.sessionId ? await client.checkout.sessions.retrieve(req.query.sessionId) : null;
+  const record = assignments.findById(req.params.id);
+  const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId));
+  if (!session || session.payment_status !== 'paid' || !record || !lesson || lesson.paymentStatus !== 'held' || session.metadata.studentId !== String(record.studentId)) return res.redirect(`/chat?assignment=${record ? record.id : ''}&payment=error`);
+  const result = assignments.confirmSession(record.id, lesson.id);
+  if (result) await releaseTutorEarnings(record, result.session, { paymentIntentId: session.payment_intent });
+  res.redirect(`/chat?assignment=${record.id}&payment=${result ? 'success' : 'error'}`);
 });
 
 // Tutor sets/updates their own externally-created meeting link (Google
@@ -2580,7 +2999,9 @@ app.get('/api/calendar/status', requireAuthApi, (req, res) => {
   });
 });
 
-app.get('/api/calendar/connect', requireApprovedTutorApi, (req, res) => {
+app.get('/api/calendar/connect', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  if (!tutors.findByUserId(user.id) && !organizations.findByUserId(user.id)) return res.status(403).json({ success: false, error: 'Tutor or organization access required.' });
   if (!googleCalendar.isConfigured()) {
     return res.status(503).json({ success: false, error: 'Google Calendar is not configured on this server.' });
   }
@@ -2684,6 +3105,83 @@ app.post('/api/assignments/:id/schedule', requireApprovedTutorApi, async (req, r
   } catch (err) {
     console.error('Schedule failed:', err.message);
     res.status(400).json({ success: false, error: `Could not create the calendar event: ${err.message}` });
+  }
+});
+
+app.get('/api/organizations/events', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const events = Array.isArray(org.events) ? [...org.events].sort((a, b) => new Date(a.scheduledAt || 0) - new Date(b.scheduledAt || 0)) : [];
+  res.json({ success: true, events });
+});
+
+app.post('/api/organizations/events/:id/link', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  const meetLink = String(req.body && req.body.meetLink || '').trim();
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  if (meetLink && !/^https?:\/\//i.test(meetLink)) return res.status(400).json({ success: false, error: 'Meeting link must start with http:// or https://.' });
+  const updated = organizations.updateEvent(org.id, req.params.id, meetLink);
+  if (!updated) return res.status(404).json({ success: false, error: 'Meeting not found.' });
+  res.json({ success: true, event: updated });
+});
+
+app.get('/api/organizations/performance', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const studentIds = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
+  const records = assignments.listAll().filter((record) => studentIds.has(Number(record.studentId)));
+  const completedLessons = records.reduce((total, record) => total + (record.sessions || []).filter((session) => session.status === 'completed' || session.paymentStatus === 'released').length, 0);
+  res.json({ success: true, activeLessons: records.filter((record) => record.status === 'active').length, completedLessons, memberCount: studentIds.size });
+});
+
+app.get('/api/organizations/notifications', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const activity = [
+    ...(user.notifications || []).map((item) => ({ message: item.message, createdAt: item.createdAt, type: item.type })),
+    ...orgContent.listForOrg(org.id).map((item) => ({ message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, type: item.type })),
+    ...(org.events || []).map((item) => ({ message: `Event scheduled: ${item.title}`, createdAt: item.createdAt || item.scheduledAt, type: 'event' })),
+    ...(org.members || []).map((item) => ({ message: `${item.studentName || 'A student'} joined the organization`, createdAt: item.redeemedAt, type: 'member' })),
+    ...orgChat.listForOrganization(org.id).map((item) => ({ message: `Conversation updated: ${item.title}`, createdAt: item.createdAt, type: 'message' })),
+  ].filter((item) => item.message).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  res.json({ success: true, notifications: activity });
+});
+
+app.post('/api/organizations/classrooms', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const name = String(req.body && req.body.name || '').trim();
+  if (!name) return res.status(400).json({ success: false, error: 'Classroom name is required.' });
+  const classroom = organizations.addClassroom(org.id, { name });
+  res.json({ success: true, classroom });
+});
+
+app.post('/api/organizations/events', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const { title, startISO, durationMinutes, attendeeEmails, meetLink } = req.body || {};
+  if (!title || !startISO || Number.isNaN(Date.parse(startISO))) return res.status(400).json({ success: false, error: 'Meeting title and valid date/time are required.' });
+  try {
+    const attendees = Array.isArray(attendeeEmails) ? attendeeEmails : [];
+    let calendarDetails = {};
+    if (user.googleCalendar && user.googleCalendar.refreshToken) {
+      const event = await googleCalendar.createLessonEvent({ refreshToken: user.googleCalendar.refreshToken, summary: title.trim(), description: `Mozart Techniques organization meeting for ${org.name}.`, startISO, durationMinutes: Number(durationMinutes) || 60, attendeeEmails: [...new Set([user.email, ...attendees].filter(Boolean))] });
+      calendarDetails = { meetLink: event.meetLink, calendarEventId: event.eventId };
+    }
+    const saved = organizations.addEvent(org.id, { title: title.trim(), scheduledAt: new Date(startISO).toISOString(), durationMinutes: Number(durationMinutes) || 60, attendeeEmails: attendees, meetLink: meetLink && String(meetLink).trim() || null, ...calendarDetails });
+    const recipients = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
+    assignments.listAll().forEach((record) => {
+      if (!recipients.has(Number(record.studentId)) || !record.tutorId) return;
+      const tutor = tutors.findById(record.tutorId);
+      if (tutor) recipients.add(Number(tutor.userId));
+    });
+    recipients.forEach((userId) => store.addNotification(userId, { type: 'event', message: `${org.name || org.contactName} scheduled an event: ${title.trim()}.`, href: '/ngo-dashboard#classroom' }));
+    res.json({ success: true, event: saved });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
@@ -2820,7 +3318,20 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
     return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
   }
 
-  const libraryItem = libraryItemId ? reels.findById(libraryItemId) : null;
+  const candidateLibraryItem = libraryItemId ? reels.findById(libraryItemId) : null;
+  if (candidateLibraryItem && candidateLibraryItem.category && candidateLibraryItem.category !== record.category) {
+    return res.status(403).json({ success: false, error: 'That library clip is not available for this course.' });
+  }
+  if (candidateLibraryItem && candidateLibraryItem.ownerScope === 'tutor' && (role !== 'tutor' || candidateLibraryItem.addedBy !== user.id)) {
+    return res.status(403).json({ success: false, error: 'That tutor library clip is not available for this course.' });
+  }
+  if (candidateLibraryItem && (candidateLibraryItem.ownerScope || 'mozart') === 'mozart' && role !== 'tutor') {
+    return res.status(403).json({ success: false, error: 'Only tutors can share Mozart library clips in this chat.' });
+  }
+  const libraryItem = candidateLibraryItem;
+  if (libraryItem) {
+    libraryItem.href = `/library?item=${encodeURIComponent(String(libraryItem.title || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))}`;
+  }
   const message = chat.send(record.id, {
     senderId: user.id, senderRole: role, text: (text || '').trim(), libraryItem, attachment: safeAttachment,
   });
@@ -2978,11 +3489,12 @@ app.post('/api/admin/organizations/:id/status', requireAdminApi, (req, res) => {
 // Admin confirms the (simulated) annual subscription payment - see
 // data/organizations.js for why this isn't a live payment charge.
 app.post('/api/admin/organizations/:id/activate', requireAdminApi, (req, res) => {
-  const updated = organizations.activateSubscription(req.params.id);
+  const months = Number(req.body && req.body.months) === 1 ? 1 : 12;
+  const updated = organizations.activateSubscription(req.params.id, months);
   if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
   store.addNotification(updated.userId, {
     type: 'organization',
-    message: `Your annual subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes for the students you sponsor.`,
+    message: `Your ${months === 1 ? 'monthly' : 'yearly'} subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes for the students you sponsor.`,
   });
   res.json({ success: true, organization: updated });
 });
@@ -3232,7 +3744,7 @@ app.post('/api/admin/curriculum/:category', requireAdminApi, (req, res) => {
 });
 
 app.get('/api/admin/library', requireAdminApi, (req, res) => {
-  res.json({ success: true, items: reels.listAll() });
+  res.json({ success: true, items: reels.listAll().filter((item) => (item.ownerScope || 'mozart') === 'mozart') });
 });
 
 app.post('/api/admin/library', requireAdminApi, (req, res) => {
@@ -3258,6 +3770,12 @@ app.post('/api/admin/library/upload', requireAdminApi, (req, res) => {
 app.post('/api/admin/library/:id', requireAdminApi, (req, res) => {
   const { title, url, category, genre, isFile } = req.body || {};
   const item = reels.update(req.params.id, { title, url, category, genre, isFile });
+  if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
+  res.json({ success: true, item });
+});
+
+app.delete('/api/admin/library/:id', requireAdminApi, (req, res) => {
+  const item = reels.remove(req.params.id);
   if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
   res.json({ success: true, item });
 });
@@ -3407,15 +3925,20 @@ function startServer(attempt = 1) {
 }
 
 async function initializePersistence() {
-  // Production must use MongoDB as the source of truth. Allowing a silent
-  // local JSON fallback here is what causes users to appear as "create
-  // account" after a fresh deploy. In dev we can still stay local-only.
+  // Local development should continue even when MongoDB is unreachable so the
+  // app still serves its JSON-backed data. Production remains strict unless an
+  // explicit local fallback flag is enabled.
   if (process.env.NODE_ENV !== 'production' && process.env.MONGO_PERSISTENCE !== 'true' && !process.env.MONGODB_URI) {
     return { connected: false, mode: 'local-development' };
   }
 
   const result = await mongoPersistence.initialize();
-  if (process.env.NODE_ENV === 'production' && !result.connected) {
+  const isLocalRuntime =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ALLOW_LOCAL_FALLBACK === 'true' ||
+    /localhost|127\.0\.0\.1/i.test(String(process.env.BASE_URL || ''));
+
+  if (!result.connected && !isLocalRuntime) {
     throw new Error('Production app requires MongoDB connectivity. Startup aborted to prevent silent user data loss.');
   }
   return result;

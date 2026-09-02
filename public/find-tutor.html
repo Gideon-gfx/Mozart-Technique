@@ -774,6 +774,10 @@
                     </div>
                 </div>
                 <form id="quick-request-form">
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Courses with this tutor</label>
+                    <div class="grid gap-2 mb-5">
+                        ${tutor.categories.map((category, index) => `<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" name="categories" value="${escapeHtml(category)}" ${index === 0 ? 'checked' : ''}>${escapeHtml(category)}</label>`).join('')}
+                    </div>
                     <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Lesson type</label>
                     <select name="lessonType" class="w-full field-underline mb-5">
                         ${options.map((lt) => `<option value="${lt}">${lessonTypeLabels[lt]}</option>`).join('')}
@@ -795,6 +799,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         category: tutor.categories[0] || '',
+                        categories: fd.getAll('categories'),
                         lessonType,
                         city: lessonType !== 'online' ? (tutor.fullAddress || tutor.city || '') : '',
                         notes: fd.get('notes').trim(),

@@ -1,5 +1,5 @@
-// Organization-to-tutor messaging system
-// Allows NGO/Institution organizations to message tutors who teach their sponsored students
+// Organization messaging system
+// Supports direct org-to-student/tutor messages and group chats.
 const fs = require('fs');
 const path = require('path');
 
@@ -18,39 +18,136 @@ function persist(db) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
-// Get or create a conversation between org and tutor
-function getOrCreateConversation(orgId, tutorId) {
+function normalizeConversation(conv) {
+  if (!conv) return null;
+  const type = conv.type || (conv.tutorId ? 'direct' : conv.groupName ? 'group' : 'direct');
+  const participantList = Array.isArray(conv.participants) ? conv.participants : [];
+  if (conv.tutorId && !participantList.some((p) => p.type === 'tutor' && String(p.id) === String(conv.tutorId))) {
+    participantList.push({ id: conv.tutorId, type: 'tutor', name: conv.tutorName || 'Tutor' });
+  }
+  if (conv.studentId && !participantList.some((p) => p.type === 'student' && String(p.id) === String(conv.studentId))) {
+    participantList.push({ id: conv.studentId, type: 'student', name: conv.studentName || 'Student' });
+  }
+  return {
+    ...conv,
+    type,
+    participants: participantList,
+    messages: Array.isArray(conv.messages) ? conv.messages : [],
+    title: conv.title || conv.groupName || conv.tutorName || conv.studentName || 'Conversation',
+  };
+}
+
+function findDirectConversation(db, orgId, targetType, targetId) {
+  const target = String(targetId);
+  return db.conversations.find((conv) => {
+    const normalized = normalizeConversation(conv);
+    if (!normalized || normalized.orgId !== orgId || normalized.type !== 'direct') return false;
+    return normalized.participants.some((p) => p.type === targetType && String(p.id) === target);
+  });
+}
+
+function getOrCreateConversation(orgId, options = {}) {
   const db = load();
-  let conv = db.conversations.find((c) => c.orgId === orgId && c.tutorId === tutorId);
+  const targetType = options.type === 'student' ? 'student' : options.type === 'tutor' ? 'tutor' : null;
+
+  if (options.groupName || options.members) {
+    const members = Array.isArray(options.members) ? options.members : [];
+    const title = (options.groupName || 'Group chat').trim() || 'Group chat';
+    let conv = db.conversations.find((candidate) => {
+      const normalized = normalizeConversation(candidate);
+      return normalized && normalized.orgId === orgId && normalized.type === 'group' && normalized.title === title && normalized.participants.length === members.length && normalized.participants.every((participant) => members.some((member) => member.type === participant.type && String(member.id) === String(participant.id)));
+    });
+    if (!conv) {
+      conv = {
+        id: db.nextId++,
+        orgId,
+        type: 'group',
+        title,
+        participants: members.map((member) => ({ id: member.id, type: member.type, name: member.name || member.type })),
+        messages: [],
+        createdAt: new Date().toISOString(),
+      };
+      db.conversations.push(conv);
+      persist(db);
+    }
+    return normalizeConversation(conv);
+  }
+
+  if (targetType && (options.tutorId || options.studentId)) {
+    const targetId = options.tutorId || options.studentId;
+    let conv = findDirectConversation(db, orgId, targetType, targetId);
+    if (!conv) {
+      conv = {
+        id: db.nextId++,
+        orgId,
+        type: 'direct',
+        title: options.title || 'Conversation',
+        tutorId: targetType === 'tutor' ? Number(targetId) : null,
+        studentId: targetType === 'student' ? Number(targetId) : null,
+        participants: [{ id: Number(targetId), type: targetType, name: options.name || (targetType === 'tutor' ? 'Tutor' : 'Student') }],
+        messages: [],
+        createdAt: new Date().toISOString(),
+      };
+      db.conversations.push(conv);
+      persist(db);
+    }
+    return normalizeConversation(conv);
+  }
+
+  if (options.tutorId) {
+    return getOrCreateConversation(orgId, { type: 'tutor', tutorId: options.tutorId, title: options.title, name: options.name });
+  }
+
+  if (options.studentId) {
+    return getOrCreateConversation(orgId, { type: 'student', studentId: options.studentId, title: options.title, name: options.name });
+  }
+
+  return null;
+}
+
+function getOrCreateTutorGroupConversation(tutorId, { course, groupName, studentIds = [] } = {}) {
+  const db = load();
+  const normalizedCourse = String(course || '').trim();
+  const normalizedStudentIds = [...new Set(studentIds.map((id) => String(id)))];
+  const title = String(groupName || `${normalizedCourse} students`).trim() || 'Course group chat';
+  let conv = db.conversations.find((candidate) => {
+    const normalized = normalizeConversation(candidate);
+    return normalized && normalized.type === 'tutor-group' && String(normalized.tutorId) === String(tutorId) && normalized.course === normalizedCourse && normalized.title === title;
+  });
   if (!conv) {
     conv = {
       id: db.nextId++,
-      orgId,
-      tutorId,
+      type: 'tutor-group',
+      tutorId: Number(tutorId),
+      course: normalizedCourse,
+      title,
+      participants: [
+        { id: Number(tutorId), type: 'tutor', name: 'Tutor' },
+        ...normalizedStudentIds.map((id) => ({ id, type: 'student', name: 'Student' })),
+      ],
       messages: [],
       createdAt: new Date().toISOString(),
     };
     db.conversations.push(conv);
     persist(db);
   }
-  return conv;
+  return normalizeConversation(conv);
 }
 
-// List all conversations for an organization
 function listForOrganization(orgId) {
   return load()
     .conversations.filter((c) => c.orgId === orgId)
+    .map((conv) => normalizeConversation(conv))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-// List all conversations for a tutor
 function listForTutor(tutorId) {
   return load()
-    .conversations.filter((c) => c.tutorId === tutorId)
+    .conversations.filter((c) => normalizeConversation(c) && normalizeConversation(c).participants.some((p) => p.type === 'tutor' && String(p.id) === String(tutorId)))
+    .map((conv) => normalizeConversation(conv))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-// Send a message in a conversation
 function sendMessage(conversationId, { senderId, senderType, senderName, text }) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
@@ -59,7 +156,7 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text })
   const message = {
     id: (conv.messages.length || 0) + 1,
     senderId,
-    senderType, // 'org' | 'tutor'
+    senderType,
     senderName,
     text: text || '',
     createdAt: new Date().toISOString(),
@@ -71,14 +168,12 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text })
   return message;
 }
 
-// Get messages for a conversation
 function getMessages(conversationId) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
-  return conv ? conv.messages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : [];
+  return conv ? (conv.messages || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : [];
 }
 
-// Mark messages as read
 function markRead(conversationId, role) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
@@ -88,19 +183,19 @@ function markRead(conversationId, role) {
   persist(db);
 }
 
-// Get unread count for a conversation
 function getUnreadCount(conversationId, role) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return 0;
   const field = role === 'org' ? 'readByOrg' : 'readByTutor';
-  return conv.messages.filter((m) => !m[field]).length;
+  return (conv.messages || []).filter((m) => !m[field]).length;
 }
 
 module.exports = {
   getOrCreateConversation,
   listForOrganization,
   listForTutor,
+  getOrCreateTutorGroupConversation,
   sendMessage,
   getMessages,
   markRead,

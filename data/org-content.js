@@ -23,7 +23,7 @@ function listForOrg(orgId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function create({ orgId, type, title, text, url, fileUrl, createdByUserId, createdByName }) {
+function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, visibility, folderId, createdByUserId, createdByName }) {
   const db = load();
   const item = {
     id: db.nextId++,
@@ -33,6 +33,10 @@ function create({ orgId, type, title, text, url, fileUrl, createdByUserId, creat
     text: String(text || '').trim(),
     url: url || null,
     fileUrl: fileUrl || null,
+    coverUrl: coverUrl || null,
+    category: category || null,
+    visibility: visibility || 'general',
+    folderId: folderId ? Number(folderId) : null,
     createdByUserId: Number(createdByUserId),
     createdByName: String(createdByName || '').trim() || 'Organization',
     createdAt: new Date().toISOString(),

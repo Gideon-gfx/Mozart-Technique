@@ -266,7 +266,14 @@
             <label class="block text-sm font-semibold text-gray-600 mb-1">About your organization</label>
             <textarea id="org-description" rows="3" placeholder="Who you serve and how many students you're looking to sponsor..." class="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg"></textarea>
 
-            <button type="submit" id="sponsor-submit-btn" class="w-full py-3 bg-primary-red text-white font-semibold rounded-lg shadow-md border-2 border-primary-red hover:bg-white hover:text-primary-red transition duration-150">
+            <!-- Number of students and tutors - only for NGO/Institution -->
+            <div id="org-stats-section" class="hidden mb-6">
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Number of Students</label>
+                <input id="org-num-students" type="number" placeholder="e.g. 150" min="0" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+
+                <label class="block text-sm font-semibold text-gray-600 mb-1">Number of Tutors</label>
+                <input id="org-num-tutors" type="number" placeholder="e.g. 25" min="0" class="w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg">
+            </div>
                 Submit Application
             </button>
 
@@ -359,6 +366,8 @@
             formData.append('sponsorType', sponsorType);
             if (sponsorType === 'ngo') {
                 formData.append('organizationType', document.querySelector('input[name="organizationType"]:checked').value);
+                formData.append('numStudents', document.getElementById('org-num-students').value.trim() || '0');
+                formData.append('numTutors', document.getElementById('org-num-tutors').value.trim() || '0');
             }
             if (certificateFile) {
                 formData.append('certificate', certificateFile);
@@ -397,6 +406,7 @@
         const regNumberInput = document.getElementById('org-reg-number');
         const phoneInput = document.getElementById('org-phone');
         const certificateInput = document.getElementById('org-certificate');
+        const orgStatsSection = document.getElementById('org-stats-section');
 
         function updateSponsorTypeStyle() {
             const selected = document.querySelector('input[name="sponsorType"]:checked').value;
@@ -413,6 +423,7 @@
                 orgTypeSection.classList.add('hidden');
                 orgNameSection.classList.add('hidden');
                 regNumberSection.classList.add('hidden');
+                orgStatsSection.classList.add('hidden');
                 orgNameInput.required = false;
                 regNumberInput.required = false;
                 certificateInput.required = false;
@@ -431,6 +442,7 @@
                 orgTypeSection.classList.remove('hidden');
                 orgNameSection.classList.remove('hidden');
                 regNumberSection.classList.remove('hidden');
+                orgStatsSection.classList.remove('hidden');
                 orgNameInput.required = true;
                 regNumberInput.required = true;
                 certificateInput.required = true;

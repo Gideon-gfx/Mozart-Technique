@@ -230,6 +230,8 @@
                             <th>Location</th>
                             <th>Status</th>
                             <th>Subscription</th>
+                            <th>Students</th>
+                            <th>Tutors</th>
                             <th>Sponsored Students</th>
                             <th>Action</th>
                         </tr>
@@ -252,6 +254,13 @@
             <div class="admin-card p-6 sm:p-8">
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">Subject Curriculum &amp; Evaluations</h1>
                 <p class="text-gray-500 mb-4">Pick a subject to edit its curated opening segment and tutor qualification evaluation.</p>
+                <div class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex-1 min-w-[220px]">
+                        <label for="new-subject-name" class="block text-sm font-semibold text-gray-600 mb-1">Create new subject</label>
+                        <input id="new-subject-name" type="text" placeholder="e.g. Music Technology" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <button id="create-subject-btn" type="button" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Add Subject</button>
+                </div>
                 <label class="block text-sm font-semibold text-gray-600 mb-1">Subject</label>
                 <select id="edu-category-select" class="w-full sm:w-80 px-4 py-3 mb-6 border border-gray-300 rounded-lg"></select>
 
@@ -744,10 +753,12 @@
             const subCell = org.subscriptionStatus === 'active'
                 ? `<span class="text-green-600 text-xs font-semibold">Active thru ${new Date(org.subscriptionEndAt).toLocaleDateString()}</span>`
                 : org.status === 'approved'
-                    ? `<button class="activate-sub-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${org.id}">Activate (1yr)</button>`
+                    ? `<div class="flex flex-wrap gap-1"><button class="activate-sub-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${org.id}" data-months="1">Activate Monthly</button><button class="activate-sub-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${org.id}" data-months="12">Activate Yearly</button></div>`
                     : '<span class="text-gray-400 text-xs">-</span>';
             const redeemedCount = (org.studentCodes || []).filter((c) => c.redeemedAt).length;
             const totalCodes = (org.studentCodes || []).length;
+            const numStudentsDisplay = org.numStudents ? `<span class="text-gray-700 font-semibold">${org.numStudents}</span>` : '<span class="text-gray-400">-</span>';
+            const numTutorsDisplay = org.numTutors ? `<span class="text-gray-700 font-semibold">${org.numTutors}</span>` : '<span class="text-gray-400">-</span>';
             const actionCell = org.status === 'pending'
                 ? `<div class="flex gap-1">
                         <button class="org-status-btn px-2 py-1 bg-green-600 text-white rounded text-xs" data-id="${org.id}" data-status="approved">Approve</button>
@@ -761,6 +772,8 @@
                     <td class="text-xs">${escapeHtml(location)}</td>
                     <td>${statusBadge(org.status)}</td>
                     <td>${subCell}</td>
+                    <td class="text-xs text-center">${numStudentsDisplay}</td>
+                    <td class="text-xs text-center">${numTutorsDisplay}</td>
                     <td class="text-xs">${redeemedCount} / ${totalCodes} redeemed</td>
                     <td>${actionCell}</td>
                 </tr>
@@ -775,7 +788,7 @@
             const regionalOrganizations = data.organizations.filter(inSelectedRegion);
             document.getElementById('ngos-tbody').innerHTML = regionalOrganizations.length
                 ? regionalOrganizations.map(orgRowHtml).join('')
-                : '<tr><td colspan="7" class="text-gray-400 text-center py-4">No organization applications yet.</td></tr>';
+                : '<tr><td colspan="9" class="text-gray-400 text-center py-4">No organization applications yet.</td></tr>';
 
             document.querySelectorAll('.org-status-btn').forEach((btn) => {
                 btn.addEventListener('click', async () => {
@@ -791,7 +804,7 @@
             });
             document.querySelectorAll('.activate-sub-btn').forEach((btn) => {
                 btn.addEventListener('click', async () => {
-                    const res2 = await fetch(`/api/admin/organizations/${btn.dataset.id}/activate`, { method: 'POST' });
+                    const res2 = await fetch(`/api/admin/organizations/${btn.dataset.id}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ months: Number(btn.dataset.months) || 12 }) });
                     const data2 = await res2.json();
                     if (data2.success) { showAlert('Subscription activated.', 'success'); loadOrganizations(); }
                     else showAlert(data2.error || 'Failed.', 'error');
@@ -809,10 +822,8 @@
             const container = document.getElementById('ngo-institutions-list');
 
             container.innerHTML = ngoInstitutions.length ? ngoInstitutions.map(org => {
-                const orgCode = (org.studentCodes || []).find((code) => code.isOrganizationalCode);
-                const codeStatusText = orgCode
-                    ? (orgCode.sentToOrganization ? 'Sent to organization' : 'Ready to send after payment')
-                    : 'Awaiting approval';
+                const studentCode = (org.studentCodes || []).find((code) => code.role === 'student' || code.isOrganizationalCode);
+                const tutorCode = (org.tutorCodes || []).find((code) => code.role === 'tutor');
                 const approvalButtons = org.status === 'pending' ? `
                     <div class="flex flex-wrap gap-2 mt-2">
                         <button class="org-status-btn px-3 py-2 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700" data-org-id="${org.id}" data-status="approved">
@@ -826,8 +837,7 @@
                 const codeBox = org.status === 'approved' ? `
                     <div class="rounded-lg border border-dashed border-gray-300 bg-white p-3">
                         <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Organization code</div>
-                        <div class="font-mono text-lg font-bold text-gray-800">${orgCode ? escapeHtml(orgCode.code) : 'Not generated yet'}</div>
-                        <div class="text-xs text-gray-500 mt-1">${codeStatusText}</div>
+                        <div class="grid sm:grid-cols-2 gap-3"><div><div class="text-xs text-gray-500">Student code</div><div class="font-mono font-bold text-gray-800">${studentCode ? escapeHtml(studentCode.code) : 'Not generated'}</div><button class="generate-org-code-btn mt-2 px-2 py-1 bg-primary-red text-white rounded text-xs" data-org-id="${org.id}" data-role="student">Generate student code</button></div><div><div class="text-xs text-gray-500">Tutor code</div><div class="font-mono font-bold text-gray-800">${tutorCode ? escapeHtml(tutorCode.code) : 'Not generated'}</div><button class="generate-org-code-btn mt-2 px-2 py-1 bg-primary-red text-white rounded text-xs" data-org-id="${org.id}" data-role="tutor">Generate tutor code</button></div></div>
                     </div>
                 ` : '';
 
@@ -885,15 +895,14 @@
                             <button class="save-amount-btn px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700" data-org-id="${org.id}">
                                 Save Amount
                             </button>
-                            ${org.status === 'approved' && orgCode && !orgCode.sentToOrganization ? `
+                            ${org.status === 'approved' && studentCode && !studentCode.sentToOrganization ? `
                                 <button class="mark-code-sent-btn px-3 py-2 bg-purple-600 text-white rounded text-xs font-semibold hover:bg-purple-700" data-org-id="${org.id}">
                                     Mark code sent
                                 </button>
                             ` : ''}
                             ${org.status === 'approved' && org.subscriptionStatus !== 'active' ? `
-                                <button class="activate-ngo-sub-btn px-3 py-2 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700" data-org-id="${org.id}">
-                                    Activate Subscription
-                                </button>
+                                <button class="activate-ngo-sub-btn px-3 py-2 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700" data-org-id="${org.id}" data-months="1">Activate Monthly</button>
+                                <button class="activate-ngo-sub-btn px-3 py-2 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700" data-org-id="${org.id}" data-months="12">Activate Yearly</button>
                             ` : ''}
                         </div>
                     </div>
@@ -919,6 +928,11 @@
                     }
                 });
             });
+            document.querySelectorAll('.generate-org-code-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                const response = await fetch(`/api/admin/organizations/${btn.dataset.orgId}/code`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: btn.dataset.role }) });
+                const result = await response.json();
+                if (result.success) { showAlert(`${btn.dataset.role} code generated: ${result.entry.code}`, 'success'); loadNgoInstitutions(); } else showAlert(result.error || 'Could not generate code.', 'error');
+            }));
 
             document.querySelectorAll('.save-amount-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
@@ -954,7 +968,7 @@
             document.querySelectorAll('.activate-ngo-sub-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const orgId = btn.dataset.orgId;
-                    const res2 = await fetch(`/api/admin/organizations/${orgId}/activate`, { method: 'POST' });
+                    const res2 = await fetch(`/api/admin/organizations/${orgId}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ months: Number(btn.dataset.months) || 12 }) });
                     const data2 = await res2.json();
                     if (data2.success) { 
                         showAlert('Subscription activated.', 'success'); 
@@ -966,6 +980,26 @@
 
         // --- Educator tools: curriculum, evaluations, orientation, library ---
         let eduCategories = [];
+
+        document.getElementById('create-subject-btn').addEventListener('click', async () => {
+            const input = document.getElementById('new-subject-name');
+            const name = input.value.trim();
+            if (!name) return showAlert('Enter a subject name.', 'error');
+            const res = await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const data = await res.json();
+            if (!data.success) return showAlert(data.error || 'Could not create subject.', 'error');
+            input.value = '';
+            eduCategories = data.categories;
+            const selected = document.getElementById('edu-category-select');
+            selected.innerHTML = eduCategories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('');
+            document.getElementById('library-category').innerHTML = '<option value="">Any subject</option>' + eduCategories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('');
+            await loadEduCategory(eduCategories[eduCategories.length - 1]);
+            showAlert('Subject created.', 'success');
+        });
 
         function genericQuestionRowHtml(q, qi, namespace) {
             const options = q.options && q.options.length ? q.options : ['', '', '', ''];
@@ -1105,8 +1139,10 @@
                     <td>${item.genre ? escapeHtml(item.genre) : '<span class="text-gray-400">Any</span>'}</td>
                     <td>${item.status === 'active' ? '<span class="text-green-600 text-xs font-semibold">Active</span>' : '<span class="text-red-600 text-xs font-semibold">Broken</span>'}</td>
                     <td>
-                        <div class="flex gap-1">
+                        <div class="flex flex-wrap gap-1">
+                            <button class="library-edit-btn px-2 py-1 border border-gray-300 rounded text-xs" data-id="${item.id}">Edit</button>
                             <button class="library-replace-btn px-2 py-1 border border-gray-300 rounded text-xs" data-id="${item.id}">Replace Link</button>
+                            <button class="library-delete-btn px-2 py-1 bg-red-50 text-red-600 rounded text-xs" data-id="${item.id}">Delete</button>
                             <button class="library-status-btn px-2 py-1 rounded text-xs ${item.status === 'active' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}" data-id="${item.id}" data-status="${item.status === 'active' ? 'broken' : 'active'}">
                                 Mark ${item.status === 'active' ? 'Broken' : 'Active'}
                             </button>
@@ -1134,6 +1170,29 @@
                     if (data2.success) loadLibrary(); else showAlert(data2.error || 'Failed.', 'error');
                 });
             });
+            document.querySelectorAll('.library-edit-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const item = (window.__libraryItems || []).find((entry) => String(entry.id) === String(btn.dataset.id));
+                    if (!item) return;
+                    const newTitle = prompt('Update title:', item.title);
+                    if (newTitle === null) return;
+                    const newUrl = prompt('Update link:', item.url);
+                    if (newUrl === null) return;
+                    const trimmedTitle = newTitle.trim();
+                    const trimmedUrl = newUrl.trim();
+                    if (!trimmedTitle || !trimmedUrl) {
+                        showAlert('Title and link are required.', 'error');
+                        return;
+                    }
+                    const res2 = await fetch(`/api/admin/library/${btn.dataset.id}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: trimmedTitle, url: trimmedUrl, category: item.category, genre: item.genre, isFile: item.isFile }),
+                    });
+                    const data2 = await res2.json();
+                    if (data2.success) { showAlert('Video updated.', 'success'); loadLibrary(); } else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
             document.querySelectorAll('.library-replace-btn').forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const newUrl = prompt('New link for this clip:');
@@ -1141,12 +1200,22 @@
                     const res2 = await fetch(`/api/admin/library/${btn.dataset.id}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: newUrl, isFile: false }),
+                        body: JSON.stringify({ url: newUrl.trim(), isFile: false }),
                     });
                     const data2 = await res2.json();
                     if (data2.success) { showAlert('Link replaced.', 'success'); loadLibrary(); } else showAlert(data2.error || 'Failed.', 'error');
                 });
             });
+            document.querySelectorAll('.library-delete-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const confirmed = confirm('Delete this video library item?');
+                    if (!confirmed) return;
+                    const res2 = await fetch(`/api/admin/library/${btn.dataset.id}`, { method: 'DELETE' });
+                    const data2 = await res2.json();
+                    if (data2.success) { showAlert('Video removed.', 'success'); loadLibrary(); } else showAlert(data2.error || 'Failed.', 'error');
+                });
+            });
+            window.__libraryItems = data.items;
         }
 
         document.getElementById('library-upload').addEventListener('change', async (e) => {

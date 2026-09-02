@@ -20,6 +20,7 @@
         <span class="hidden sm:inline text-xl font-bold text-primary-red">Mozart Techniques</span>
       </a>
       <div class="flex items-center gap-3">
+        <a href="/notifications" id="tutor-notifications-link" class="relative p-2 text-gray-700 hover:text-primary-red" aria-label="Notifications" title="Notifications"><i class="fa-solid fa-bell text-xl"></i><span id="tutor-notification-badge" class="hidden absolute right-0 top-0 rounded-full bg-primary-red px-1 text-[10px] text-white">0</span></a>
         <button id="mobile-nav-toggle" class="sm:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100" aria-label="Toggle navigation"><i class="fa-solid fa-bars text-xl"></i></button>
         <div id="auth-state"></div>
       </div>
@@ -35,7 +36,7 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-    <h1 class="text-2xl font-extrabold text-gray-900 mb-6">Tutor Dashboard</h1>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 class="text-2xl font-extrabold text-gray-900">Tutor Dashboard</h1><button id="create-group-chat-top-btn" class="rounded-lg bg-primary-red px-3 py-2 text-sm font-semibold text-white"><i class="fa-solid fa-user-group mr-2"></i>Create Group Chat</button></div>
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <aside class="lg:col-span-1">
         <div class="sticky top-24 bg-white rounded-xl p-4 shadow">
@@ -61,8 +62,12 @@
         </div>
 
         <div id="section-students" class="hidden bg-white rounded-2xl shadow p-6">
-          <h2 class="text-lg font-bold mb-3">Students & Requests</h2>
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="text-lg font-bold">Students & Requests</h2>
+            <button id="create-group-chat-btn" class="px-3 py-2 bg-primary-red text-white text-sm font-semibold rounded-lg">Create Group Chat</button>
+          </div>
           <div id="tutor-students-list" class="space-y-3"></div>
+          <div id="tutor-group-list" class="mt-6 space-y-3"></div>
         </div>
 
         <div id="section-classes" class="hidden bg-white rounded-2xl shadow p-6">
@@ -93,6 +98,13 @@
         document.getElementById('tutor-active').textContent = (data.tutor && data.tutor.activeStudents) || 0;
         document.getElementById('tutor-open').textContent = (data.tutor && data.tutor.openLessons) || 0;
         document.getElementById('tutor-wallet').textContent = (data.tutor && data.tutor.wallet) || '$0.00';
+        try {
+          const notificationData = await fetch('/api/notifications').then((response) => response.json());
+          const unread = (notificationData.notifications || []).filter((item) => !item.read).length;
+          const badge = document.getElementById('tutor-notification-badge');
+          badge.textContent = unread > 99 ? '99+' : String(unread);
+          badge.classList.toggle('hidden', unread === 0);
+        } catch (error) { console.warn('Could not load notifications', error); }
         const list = document.getElementById('tutor-students-list');
         if (data.tutor && data.tutor.students && data.tutor.students.length) {
           list.innerHTML = data.tutor.students.map(s => `
@@ -104,8 +116,59 @@
         } else {
           list.innerHTML = '<p class="text-sm text-gray-500">No students yet.</p>';
         }
+
+        try {
+          const groupRes = await fetch('/api/tutors/me/group-chats');
+          const groupData = await groupRes.json();
+          const groupList = document.getElementById('tutor-group-list');
+          if (!groupList) return;
+          if (!groupData.success || !groupData.chats || !groupData.chats.length) {
+            groupList.innerHTML = '<p class="text-sm text-gray-500">No course groups created yet.</p>';
+            return;
+          }
+          groupList.innerHTML = groupData.chats.map(chat => `
+            <div class="rounded-lg border border-gray-200 p-3 bg-gray-50">
+              <div class="font-semibold text-gray-900">${escapeHtml(chat.name || chat.course || 'Course group')}</div>
+              <div class="text-xs text-gray-500 mt-1">${escapeHtml(chat.course || 'Mixed students')} • ${chat.studentCount || 0} students</div>
+            </div>
+          `).join('');
+        } catch (error) {
+          console.warn('No tutor group chats yet', error);
+        }
       }catch(err){console.error(err);}
     }
+
+    document.getElementById('create-group-chat-btn')?.addEventListener('click', async () => {
+      try {
+        const data = await fetch('/api/dashboard').then((res) => res.json());
+        const students = Array.isArray(data.tutor && data.tutor.students) ? data.tutor.students : [];
+        if (!students.length) {
+          alert('You need at least one student assigned before creating a group chat.');
+          return;
+        }
+        const course = window.prompt('Course / subject for this group chat', 'Piano');
+        if (!course) return;
+        const groupName = window.prompt('Group chat name', course + ' students');
+        if (!groupName) return;
+        const selectedStudentIds = students.slice(0, 100).map((student) => student.id).filter(Boolean);
+        const res = await fetch('/api/tutors/me/group-chats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupName, course, studentIds: selectedStudentIds })
+        });
+        const result = await res.json();
+        if (!result.success) {
+          alert(result.error || 'Could not create group chat.');
+          return;
+        }
+        alert('Group chat created.');
+        loadTutorDashboard();
+      } catch (error) {
+        console.error(error);
+        alert('Could not create group chat.');
+      }
+    });
+    document.getElementById('create-group-chat-top-btn')?.addEventListener('click', () => document.getElementById('create-group-chat-btn')?.click());
     function escapeHtml(t){return String(t).replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
     document.addEventListener('DOMContentLoaded', loadTutorDashboard);
     // Sidebar nav behavior
@@ -128,6 +191,5 @@
   </script>
   <script src="/assets/mobile-nav.js"></script>
     <script src="/assets/nav-auth.js"></script>
-    <script src="/assets/footer.js"></script>
 </body>
 </html>

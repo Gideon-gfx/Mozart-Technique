@@ -1,903 +1,1724 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGO Dashboard - Mozart Techniques</title>
-    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/assets/site.css">
-    <style>
-        body {
-            font-family: 'Montserrat', sans-serif;
-            color: #333;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
-        }
-        h1, h2, h3, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
-        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .sidebar { width: 250px; border-right: 1px solid #eadedc; background: linear-gradient(180deg,#fff 0%,#fff6f4 100%); }
-        .sidebar-item { padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: all .2s; }
-        .sidebar-item:hover { background: #f0f0f0; }
-        .sidebar-item.active { background: #fff; border-left-color: #cc0000; font-weight: 600; }
-        .stat-card { background: white; border-radius: 18px; padding: 20px; box-shadow: 0 12px 32px rgba(89,28,25,.08); border: 1px solid rgba(204,0,0,.09); }
-        .stat-number { font-size: 28px; font-weight: bold; color: #cc0000; }
-        .table { width: 100%; border-collapse: collapse; }
-        .table th { background: #f9fafb; padding: 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #666; }
-        .table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-        .table tr:hover { background: #f9fafb; }
-        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-        .badge-approved { background: #dcfce7; color: #166534; }
-        .badge-pending { background: #fef3c7; color: #92400e; }
-        .badge-active { background: #dbeafe; color: #1e40af; }
-        #tab-codes { color: #1f2937; }
-        #tab-codes h2, #tab-codes h3, #tab-codes p, #tab-codes strong { color: #1f2937; }
-        .code-display { font-family: 'Courier New', monospace; font-size: 24px; font-weight: bold; letter-spacing: 3px; color: #991b1b; background: #fff; padding: 8px 12px; border-radius: 6px; display: inline-block; }
-        #mobile-menu-btn { display:none; } @media(max-width:768px){ #mobile-menu-btn{display:inline-flex}.sidebar{position:fixed;top:74px;bottom:0;left:0;z-index:50;transform:translateX(-105%);transition:transform .2s}.sidebar.open{transform:translateX(0)}.org-shell{display:block}.org-main{min-height:calc(100vh - 74px)} }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organization Dashboard</title>
+  <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  <style>
+    :root {
+      --mozart-red: #cc0000;
+      --mozart-red-dark: #8f0000;
+      --mozart-ink: #1f2937;
+      --mozart-soft: #f9f1ef;
+      --mozart-panel: #ffffff;
+      --mozart-line: #efe7e5;
+      --mozart-muted: #6b7280;
+      --mozart-shadow: 0 18px 38px rgba(31,41,55,.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Montserrat', sans-serif; color: var(--mozart-ink); background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); }
+    h1, h2, h3, h4, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: .01em; }
+    .header { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); border-bottom: 2px solid var(--mozart-red); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .sidebar { width: 280px; background: linear-gradient(180deg,#fff 0%,#fff8f7 100%); border-right: 1px solid var(--mozart-line); transition: width .2s ease; }
+    .sidebar.collapsed { width: 90px; }
+    .sidebar.collapsed .sidebar-label { display: none; }
+    .sidebar.collapsed .sidebar-brand-details { display: none; }
+    .sidebar.collapsed #sidebarToggle { display: none; }
+    .sidebar.collapsed .sidebar-item { justify-content: center; }
+    .sidebar-item { width: calc(100% - 18px); margin: 6px 9px; padding: 12px 16px; border-radius: 14px; border: 1px solid transparent; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-weight: 700; color: #374151; background: transparent; transition: transform .2s ease, background .2s ease, box-shadow .2s ease; }
+    .sidebar-item.active { background: rgba(204,0,0,.08); border-color: rgba(204,0,0,.14); color: var(--mozart-red-dark); }
+    .sidebar-item:hover { background: rgba(204,0,0,.05); transform: translateX(2px); animation: bounce .45s ease-in-out; }
+    .main-panel { flex: 1; overflow: auto; }
+    .card { background: white; border-radius: 18px; border: 1px solid var(--mozart-line); box-shadow: var(--mozart-shadow); padding: 22px; transition: transform .2s ease, box-shadow .2s ease; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 20px 30px rgba(15,23,42,.08); }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+    .stats-grid .card { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+    .status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .muted { color: var(--mozart-muted); }
+    .overview-payment-trigger { width: 100%; text-align: left; background: transparent; border: none; padding: 0; margin: 0; cursor: pointer; }
+    .overview-payment-trigger:focus { outline: none; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 60; }
+    .modal-backdrop.hidden { display: none; }
+    .modal-panel { width: min(720px, 100%); background: white; border-radius: 22px; border: 1px solid var(--mozart-line); box-shadow: 0 28px 50px rgba(0,0,0,.18); padding: 22px; }
+    .modal-table { width: 100%; border-collapse: collapse; }
+    .modal-table th, .modal-table td { padding: 12px 10px; border-bottom: 1px solid var(--mozart-line); text-align: left; }
+    .modal-table th { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .08em; }
+    .btn-primary, .btn-secondary, .icon-btn, .classroom-menu-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+    .btn-primary { background: linear-gradient(135deg, var(--mozart-red), var(--mozart-red-dark)); color: white; border: none; border-radius: 12px; padding: 12px 18px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 18px rgba(204,0,0,.2); }
+    .btn-primary:hover, .btn-secondary:hover, .icon-btn:hover, .classroom-menu-btn:hover { transform: translateY(-2px) scale(1.01); animation: bounce .45s ease-in-out; }
+    .btn-secondary { background: white; color: var(--mozart-ink); border: 1px solid var(--mozart-line); border-radius: 12px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .money { font-size: 2rem; font-weight: 800; color: var(--mozart-red); }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .badge.active { background: #dbeafe; color: #1e40af; }
+    .badge.pending { background: #fef3c7; color: #92400e; }
+    .badge.approved { background: #dcfce7; color: #166534; }
+    .classroom-shell { margin-top: 18px; display: grid; grid-template-columns: 260px 1fr; gap: 18px; }
+    .classroom-sidebar { background: linear-gradient(180deg,#fff,#fff7f6); border: 1px solid var(--mozart-line); border-radius: 20px; padding: 16px; }
+    .classroom-list { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .classroom-ball { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(204,0,0,.15); background: #fff7f5; color: var(--mozart-red-dark); font-weight: 800; cursor: pointer; transition: all .2s ease; }
+    .classroom-ball.active { background: var(--mozart-red); color: #fff; box-shadow: 0 8px 16px rgba(204,0,0,.18); }
+    .classroom-menu { display: grid; gap: 8px; }
+    .classroom-menu-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: none; border-radius: 10px; background: transparent; text-align: left; font-weight: 600; color: #374151; cursor: pointer; }
+    .classroom-menu-btn i, .sidebar-item i, .btn-primary i, .btn-secondary i { display: inline-block; transition: transform .2s ease; }
+    .classroom-menu-btn.active, .classroom-menu-btn:hover { background: rgba(204,0,0,.06); color: var(--mozart-red-dark); }
+    .classroom-menu-btn:hover i, .sidebar-item:hover i, .btn-primary:hover i, .btn-secondary:hover i { animation: icon-bob .5s ease-in-out; }
+    .classroom-main { background: white; border: 1px solid var(--mozart-line); border-radius: 20px; padding: 20px; }
+    .classroom-page { display: none; }
+    .classroom-page.active { display: block; }
+    .classroom-card { border: 1px solid var(--mozart-line); border-radius: 18px; background: linear-gradient(180deg,#fff,#fff9f8); padding: 18px; }
+    .table-card { overflow: hidden; border: 1px solid var(--mozart-line); border-radius: 18px; background: #fff; }
+    .table-card table { width: 100%; border-collapse: collapse; }
+    .table-card th, .table-card td { padding: 12px 14px; border-bottom: 1px solid var(--mozart-line); text-align: left; }
+    .table-card th { background: #fff7f6; color: #4b5563; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .badge { display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .badge.active { background: #dbeafe; color: #1d4ed8; }
+    .badge.pending { background: #fef3c7; color: #92400e; }
+    .badge.approved { background: #dcfce7; color: #166534; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.01); } }
+    @keyframes icon-bob { 0%, 100% { transform: translateY(0) scale(1); } 25% { transform: translateY(-3px) scale(1.1) rotate(-4deg); } 50% { transform: translateY(-2px) scale(1.12) rotate(4deg); } 75% { transform: translateY(-1px) scale(1.06); } }
+    @media (max-width: 900px) {
+      .stats-grid, .status-grid { grid-template-columns: 1fr 1fr; }
+      .classroom-shell { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      #mobile-menu-btn { display: flex; position: fixed; left: 12px; top: 78px; z-index: 35; background: white; overflow: hidden; }
+      #sidebarToggle { display: none; }
+      .sidebar { position: fixed; left: 0; top: 72px; bottom: 0; transform: translateX(-100%); z-index: 30; }
+      .sidebar.open { transform: translateX(0); }
+      .stats-grid, .status-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
-        <span id="alert-message"></span>
+  <div id="alert-box" class="fixed right-5 top-5 z-50 max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white opacity-0 shadow-2xl transition-opacity duration-500"> <span id="alert-message"> </span> </div>
+
+  <header class="header">
+    <div class="flex items-center justify-between px-6 py-4 max-w-[1600px] mx-auto">
+      <div class="flex items-center gap-3">
+        <button id="back-btn" class="w-10 h-10 rounded-lg hover:bg-red-50 text-red-600" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="flex items-center gap-3">
+          <img src="/mozartLogo.jpg" alt="Mozart" style="width:40px;height:40px;border-radius:8px;" />
+          <div>
+            <div class="text-xs font-bold uppercase tracking-wide text-red-600">Mozart Techniques</div>
+            <h1 class="text-xl font-bold">Organization Dashboard</h1>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="org-notifications-btn" class="relative w-10 h-10 rounded-lg hover:bg-red-50 text-red-600" aria-label="Notifications" title="Notifications"><i class="fa-solid fa-bell"></i><span id="org-notification-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] leading-4">0</span></button>
+        <div class="relative">
+          <button id="org-profile-btn" class="w-10 h-10 rounded-full bg-red-600 text-white font-bold" aria-label="Open profile menu">O</button>
+          <div id="org-profile-menu" class="hidden absolute right-0 top-12 z-40 w-56 rounded-xl border border-red-100 bg-white p-3 shadow-xl">
+            <p id="org-profile-name" class="font-bold text-gray-800 truncate">Organization</p>
+            <p id="org-profile-email" class="text-xs text-gray-500 truncate mb-2"> </p>
+            <button type="button" data-action="open-settings" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-red-50"><i class="fa-solid fa-gear mr-2"></i>Settings</button>
+            <button type="button" id="switch-account-btn" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-red-50"><i class="fa-solid fa-users mr-2"></i>Switch account</button>
+            <button type="button" id="org-signout-btn" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"><i class="fa-solid fa-right-from-bracket mr-2"></i>Sign out</button>
+          </div>
+        </div>
+      </div>
     </div>
+  </header>
 
-    <header class="header">
-        <div class="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
-            <div class="flex items-center gap-2">
-                <button id="back-btn" class="w-10 h-10 flex items-center justify-center rounded-lg text-primary-red hover:bg-red-50 transition" aria-label="Go back" title="Go back to previous page">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <a href="/home" class="flex items-center gap-3 hover:opacity-80 transition">
-                    <img src="/mozartLogo.jpg" alt="Mozart" style="height: 40px; width: 40px; border-radius: 8px;">
-                    <div><p class="text-xs text-primary-red font-bold uppercase tracking-wider">Mozart Techniques</p><h1 class="text-xl font-bold">Organization Dashboard</h1></div>
-                </a>
+  <div class="flex min-h-screen">
+    <button id="mobile-menu-btn" class="hidden w-10 h-10 items-center justify-center rounded-lg border border-red-100 text-red-600 shadow-sm" aria-label="Open sidebar"><img src="/mozartLogo.jpg" alt="Open sidebar" class="h-full w-full rounded-lg object-cover"></button>
+    <aside class="sidebar">
+      <div class="flex items-center gap-3 p-5 border-b border-red-100">
+        <button id="sidebarToggle" title="Collapse sidebar" aria-label="Collapse sidebar" class="w-10 h-10 rounded-lg hover:bg-red-50 text-red-600"><i class="fa-solid fa-bars"></i></button>
+        <img id="org-logo" src="/mozartLogo.jpg" alt="Organization logo" class="w-11 h-11 rounded-2xl object-cover cursor-pointer" title="Open sidebar" />
+        <div class="sidebar-brand-details">
+          <div id="org-name" class="font-bold text-lg">Organization</div>
+          <div id="org-type" class="text-xs text-gray-500">NGO workspace</div>
+        </div>
+      </div>
+      <nav class="py-3">
+        <button class="sidebar-item active" data-tab="overview"><span><i class="fa-solid fa-chart-pie"></i> <span class="sidebar-label">Overview</span></span></button>
+        <button class="sidebar-item" data-tab="classroom"><span><i class="fa-solid fa-chalkboard"></i> <span class="sidebar-label">Classroom</span></span></button>
+        <button class="sidebar-item" data-tab="messages"><span><i class="fa-solid fa-message"></i> <span class="sidebar-label">Message</span></span></button>
+        <button class="sidebar-item" data-href="/library"><span><i class="fa-solid fa-magnifying-glass"></i> <span class="sidebar-label">Search Mozart Techniques</span></span></button>
+        <button class="sidebar-item" data-tab="codes"><span><i class="fa-solid fa-key"></i> <span class="sidebar-label">Access Codes</span></span></button>
+        <button class="sidebar-item" data-tab="library"><span><i class="fa-solid fa-book-open"></i> <span class="sidebar-label">Library</span></span></button>
+        <button class="sidebar-item" data-tab="meeting"><span><i class="fa-solid fa-video"></i> <span class="sidebar-label">Meeting</span></span></button>
+        <button class="sidebar-item" data-tab="settings"><span><i class="fa-solid fa-gear"></i> <span class="sidebar-label">Settings</span></span></button>
+        <button class="sidebar-item" data-tab="feedbacks"><span><i class="fa-solid fa-message"></i> <span class="sidebar-label">Feedbacks</span></span></button>
+      </nav>
+    </aside>
+
+    <main class="main-panel px-6 py-8">
+      <div id="tab-overview" class="tab-panel active space-y-6">
+        <div>
+          <h2 class="text-3xl font-bold mb-1">Organization Overview</h2>
+          <p class="muted">Live snapshot of your organization, classrooms and subscription.</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="card">
+            <div class="muted text-xs font-bold uppercase tracking-wide">Total Tutors</div>
+            <div class="text-4xl font-bold text-red-600 mt-3" id="stat-tutors">0</div>
+          </div>
+          <div class="card">
+            <button type="button" id="payment-history-trigger" class="overview-payment-trigger">
+              <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Payment</div><span id="overview-payment-status" class="badge pending">Pending</span></div>
+              <div id="overview-payment-amount" class="money">₦0</div>
+              <p class="muted text-sm mt-2">Monthly subscription</p>
+            </button>
+          </div>
+          <div class="card">
+            <div class="muted text-xs font-bold uppercase tracking-wide">Total Students</div>
+            <div class="text-4xl font-bold text-red-600 mt-3" id="stat-students">0</div>
+          </div>
+          <div class="card">
+            <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Profile</div><span class="badge approved">Updated</span></div>
+            <p class="muted text-sm mb-3">Organization details and settings</p>
+            <button class="btn-primary w-full mb-2" data-action="open-settings"> <i class="fa-solid fa-pen-to-square"></i> Edit</button>
+            <button class="btn-secondary w-full" data-action="check-orientation"><i class="fa-solid fa-route"></i> Check Orientation</button>
+          </div>
+        </div>
+
+        <div class="status-grid">
+          <div class="card">
+            <h3 class="text-2xl font-bold mb-4">Recent Activities</h3>
+            <div id="activity-list" class="space-y-3">
+              <div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>No student activity yet</span><strong>Awaiting first code redemption</strong></div>
             </div>
-            <div class="flex items-center gap-2"><button id="mobile-menu-btn" class="w-10 h-10 items-center justify-center rounded-lg text-primary-red hover:bg-red-50" aria-label="Toggle dashboard menu"><i class="fa-solid fa-bars"></i></button><button id="logout-btn" class="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition">
-                Log Out
-            </button></div>
-        </div>
-    </header>
+          </div>
 
-    <div class="org-shell flex h-screen bg-gray-50">
-        <!-- Sidebar -->
-        <div class="sidebar overflow-y-auto">
-            <div class="p-4 border-b border-gray-200">
-                <p id="org-name" class="font-bold text-gray-800">Organization Name</p>
-                <p id="org-type" class="text-xs text-gray-500 mt-1">Type: NGO</p>
+          <div class="card">
+            <h3 class="text-2xl font-bold mb-4">Subscription Status</h3>
+            <div class="space-y-4">
+              <div class="row"><span class="muted">Status:</span><span id="subscription-status" class="badge pending">Inactive</span></div>
+              <div class="row"><span class="muted">Monthly Amount:</span><strong id="subscription-amount">₦0</strong></div>
+              <div class="row"><span class="muted">Expiration Date:</span><strong id="subscription-expiry">Not active yet</strong></div>
+              <div class="pt-4 border-t border-gray-200">
+                <p class="muted mb-3">Activate subscription:</p>
+                <div class="flex gap-3">
+                  <button class="btn-primary flex-1" data-action="pay-monthly"><i class="fa-solid fa-wallet"></i> Pay Monthly</button>
+                  <button class="btn-primary flex-1" data-action="pay-yearly"><i class="fa-solid fa-calendar-check"></i> Pay Yearly</button>
+                </div>
+              </div>
             </div>
-            <nav>
-                <div class="sidebar-item active" data-tab="overview">
-                    <i class="fa-solid fa-chart-pie mr-2"></i> Overview
-                </div>
-                <div class="sidebar-item" data-tab="students">
-                    <i class="fa-solid fa-users mr-2"></i> Students
-                </div>
-                <div class="sidebar-item" data-tab="tutors">
-                    <i class="fa-solid fa-chalkboard-user mr-2"></i> Tutors
-                </div>
-                <div class="sidebar-item" data-tab="content">
-                    <i class="fa-solid fa-photo-film mr-2"></i> Content
-                </div>
-                <div class="sidebar-item" data-tab="codes">
-                    <i class="fa-solid fa-key mr-2"></i> Access Codes
-                </div>
-                <div class="sidebar-item" data-tab="settings">
-                    <i class="fa-solid fa-gear mr-2"></i> Settings
-                </div>
-            </nav>
+          </div>
         </div>
 
-        <!-- Main Content -->
-        <div class="org-main flex-1 overflow-auto">
-            <main class="max-w-[1440px] mx-auto px-6 py-8">
-                <!-- Overview Tab -->
-                <div id="tab-overview" class="space-y-6">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Overview</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div class="stat-card">
-                                <p class="text-gray-600 text-sm mb-2">Total Students</p>
-                                <p class="stat-number" id="stat-students">0</p>
-                            </div>
-                            <div class="stat-card">
-                                <p class="text-gray-600 text-sm mb-2">Active Tutors</p>
-                                <p class="stat-number" id="stat-tutors">0</p>
-                            </div>
-                            <div class="stat-card">
-                                <p class="text-gray-600 text-sm mb-2">Active Lessons</p>
-                                <p class="stat-number" id="stat-lessons">0</p>
-                            </div>
-                            <div class="stat-card">
-                                <p class="text-gray-600 text-sm mb-2">Code Status</p>
-                                <p class="text-sm font-semibold" id="stat-code-status">Inactive</p>
-                            </div>
-                        </div>
-                    </div>
+      </div>
 
-                    <div id="subscription-card" class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4">Subscription Status</h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <span class="text-gray-600">Status:</span>
-                                <span id="sub-status" class="badge badge-pending">Inactive</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-gray-600">Monthly Amount:</span>
-                                <span id="sub-amount" class="font-semibold">₦0</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-gray-600">Expiration Date:</span>
-                                <span id="sub-expiry">Not active yet</span>
-                            </div>
-                            <div id="payment-options" class="pt-4 border-t border-gray-200">
-                                <p class="text-sm text-gray-600 mb-3">Activate subscription:</p>
-                                <div class="flex gap-2">
-                                    <button id="pay-monthly-btn" class="flex-1 px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
-                                        Pay Monthly
-                                    </button>
-                                    <button id="pay-yearly-btn" class="flex-1 px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
-                                        Pay Yearly
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-lg shadow-lg p-6"><h3 class="text-lg font-bold text-gray-800 mb-1">Sponsored lesson bills</h3><p class="text-sm text-gray-500 mb-4">Pay these lesson bills as the sponsoring organization. Sponsored students are not charged personally.</p><div id="lesson-bills-list" class="space-y-3 text-sm text-gray-600">No pending sponsored lesson bills.</div></div>
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4">Recent Activity</h3>
-                        <div id="activity-list" class="space-y-2">
-                            <p class="text-gray-400 text-center py-4">No recent activity</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Students Tab -->
-                <div id="tab-students" class="hidden">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Students Using Your Code</h2>
-                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Active Since</th>
-                                    <th>Lessons Taken</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="students-tbody">
-                                <tr><td colspan="5" class="text-center text-gray-400 py-8">No students yet</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Tutors Tab -->
-                <div id="tab-tutors" class="hidden space-y-6">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Message Your Tutors</h2>
-                        <p class="text-gray-600 mb-6">Select a tutor to view the list of your students they teach and send messages.</p>
-                    </div>
-
-                    <div class="grid md:grid-cols-3 gap-6">
-                        <!-- Tutors List -->
-                        <div class="bg-white rounded-lg shadow-lg p-4">
-                            <h3 class="font-bold text-gray-800 mb-4">Tutors</h3>
-                            <div id="tutors-list" class="space-y-2">
-                                <p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>
-                            </div>
-                        </div>
-
-                        <!-- Chat Panel -->
-                        <div class="md:col-span-2">
-                            <div id="chat-panel" class="hidden bg-white rounded-lg shadow-lg p-6 h-96 flex flex-col">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div>
-                                        <h3 id="chat-tutor-name" class="font-bold text-gray-800">Select a tutor</h3>
-                                        <p id="chat-tutor-students" class="text-xs text-gray-500">Students: 0</p>
-                                    </div>
-                                    <button id="close-chat-btn" class="text-gray-400 hover:text-gray-600">
-                                        <i class="fa-solid fa-times text-xl"></i>
-                                    </button>
-                                </div>
-
-                                <!-- Messages -->
-                                <div id="messages-container" class="flex-1 overflow-y-auto mb-4 space-y-3 border-t border-gray-200 pt-4">
-                                    <!-- Messages will be populated here -->
-                                </div>
-
-                                <!-- Message Input -->
-                                <div class="border-t border-gray-200 pt-4">
-                                    <div class="flex gap-2">
-                                        <input type="text" id="message-input" placeholder="Type a message..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red">
-                                        <button id="send-message-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-red-700 transition">
-                                            <i class="fa-solid fa-paper-plane"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div id="no-tutor-selected" class="bg-gray-50 rounded-lg p-12 text-center">
-                                <i class="fa-solid fa-comments text-gray-300 text-4xl mb-4"></i>
-                                <p class="text-gray-400">Select a tutor to start messaging</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Content Tab (Private Organization Media) -->
-                <div id="tab-content" class="hidden space-y-6">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Content Library</h2>
-                        <p class="text-gray-600 mb-6">Upload videos, photos, information, and games that only your students and tutors can see. Use this private space to share curriculum materials and resources.</p>
-                        
-                        <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
-                            <div>
-                                <h3 class="font-bold text-gray-800 mb-4">Add New Content</h3>
-                                
-                                <div class="grid md:grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Content Type</label>
-                                        <select id="content-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                            <option value="info">Information/Update</option>
-                                            <option value="photo">Photo Gallery</option>
-                                            <option value="video">Video Tutorial</option>
-                                            <option value="game">Game/Activity Link</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Title</label>
-                                        <input type="text" id="content-title" placeholder="e.g., Weekly Update, Music Theory Lesson" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    </div>
-                                </div>
-
-                                <div id="content-form-info" class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description or Content</label>
-                                        <textarea id="content-text" rows="3" placeholder="Write your message or description here..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
-                                    </div>
-                                </div>
-
-                                <div id="content-form-photo" class="hidden space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Photo</label>
-                                        <input type="file" id="content-photo-file" accept="image/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                        <p id="photo-status" class="text-xs text-gray-500 mt-1"></p>
-                                    </div>
-                                </div>
-
-                                <div id="content-form-video" class="hidden space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Video</label>
-                                        <input type="file" id="content-video-file" accept="video/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                        <p id="video-status" class="text-xs text-gray-500 mt-1"></p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                                        <textarea id="content-video-description" rows="2" placeholder="Describe this video..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
-                                    </div>
-                                </div>
-
-                                <div id="content-form-game" class="hidden space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Game/Activity URL</label>
-                                        <input type="url" id="content-game-url" placeholder="https://example.com/game" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Instructions</label>
-                                        <textarea id="content-game-instructions" rows="2" placeholder="How to play or access this game..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
-                                    </div>
-                                </div>
-
-                                <button id="add-content-btn" class="mt-4 px-6 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
-                                    <i class="fa-solid fa-plus mr-2"></i> Add Content
-                                </button>
-                            </div>
-
-                            <div class="border-t border-gray-200 pt-6">
-                                <h3 class="font-bold text-gray-800 mb-4">Your Content</h3>
-                                <div id="content-list" class="space-y-3">
-                                    <p class="text-gray-400 text-center py-8">No content uploaded yet</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div id="tab-codes" class="hidden">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Access Code</h2>
-                    <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
-                        <p class="text-gray-600">Your organization has one shared access code. All students and staff use this single code to join your organization's network.</p>
-                        
-                        <div id="code-display-section" class="p-6 bg-red-50 rounded-lg border border-red-200">
-                            <p class="text-sm text-gray-600 mb-2">Your Access Code:</p>
-                            <div class="code-display mb-2" id="org-access-code">-----</div>
-                            <button id="copy-code-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-red-700 transition">
-                                <i class="fa-solid fa-copy mr-2"></i> Copy to Clipboard
-                            </button>
-                        </div>
-
-                        <div id="code-info" class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                            <p class="text-sm text-blue-800">
-                                <strong>How to use:</strong> Share this code with all students and staff in your organization. Each person who enters this code will be marked as part of your organization and their lessons will be paid from your subscription.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Settings Tab -->
-                <div id="tab-settings" class="hidden">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Settings</h2>
-                    <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
-                        <div>
-                            <h3 class="font-bold text-gray-800 mb-3">Organization Information</h3>
-                            <div class="grid md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Organization Name</label>
-                                    <input type="text" id="settings-name" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Organization Type</label>
-                                    <input type="text" id="settings-type" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Email</label>
-                                    <input type="email" id="settings-email" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Phone</label>
-                                    <input type="text" id="settings-phone" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="border-t border-gray-200 pt-6">
-                            <h3 class="font-bold text-gray-800 mb-3">Account</h3>
-                            <p class="text-sm text-gray-600 mb-4">Manage your account and contact details.</p>
-                            <button id="edit-profile-btn" class="px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
-                                Edit Profile
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </main>
+      <div id="payment-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
+        <div class="modal-panel">
+          <div class="row mb-4">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-red-600 font-bold">Payments</p>
+              <h3 class="text-2xl font-bold">Subscription payment history</h3>
+            </div>
+            <button id="close-payment-modal" type="button" class="btn-secondary" aria-label="Close payment history"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="modal-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="payment-history-body">
+                <tr><td colspan="3" class="text-gray-400 py-6">No payments recorded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <script>
-        const alertBox = document.getElementById('alert-box');
-        const alertMessage = document.getElementById('alert-message');
+      <div id="tab-classroom" class="tab-panel">
+        <div class="card">
+          <div class="row mb-5">
+            <div>
+              <h2 class="text-3xl font-bold">Classroom</h2>
+              <p class="muted">Manage your teaching spaces, member activity and classroom resources.</p>
+            </div>
+            <button class="btn-primary" data-action="create-classroom"><i class="fa-solid fa-square-plus"></i> Create Classroom</button>
+          </div>
 
-        function showAlert(message, type = 'info') {
-            alertMessage.textContent = message;
-            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
-            alertBox.style.opacity = '1';
-            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
-        }
+          <div class="classroom-shell">
+            <aside class="classroom-sidebar">
+              <div id="classroom-list" class="classroom-list"></div>
+              <div class="classroom-menu">
+                <button class="classroom-menu-btn active" data-page="feed"><i class="fa-solid fa-house"></i> Classroom feed</button>
+                <button class="classroom-menu-btn" data-page="members"><i class="fa-solid fa-users"></i> Students</button>
+                <button class="classroom-menu-btn" data-page="tutors"><i class="fa-solid fa-chalkboard-user"></i> Tutors</button>
+                <button class="classroom-menu-btn" data-page="announcement"><i class="fa-solid fa-bullhorn"></i> Announcement</button>
+                <button class="classroom-menu-btn" data-page="notification"><i class="fa-solid fa-bell"></i> Notification</button>
+                <button class="classroom-menu-btn" data-page="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
+                <button class="classroom-menu-btn" data-page="performance"><i class="fa-solid fa-chart-line"></i> Performance</button>
+              </div>
+              <div id="classroom-members-panel" class="mt-6 space-y-3"></div>
+            </aside>
 
-        function escapeHtml(text) {
-            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-        }
-
-        // Back button navigation
-        document.getElementById('back-btn').addEventListener('click', () => {
-            window.history.back();
-        });
-
-        // Tab navigation
-        document.querySelectorAll('.sidebar-item').forEach(item => {
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-                document.querySelectorAll('[id^="tab-"]').forEach(tab => tab.classList.add('hidden'));
-                
-                item.classList.add('active');
-                const tabName = item.dataset.tab;
-                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-                
-                // Load content when switching to content tab
-                if (tabName === 'content') {
-                    loadOrgContent();
-                }
-            });
-        });
-
-        // Current chat state
-        let currentChatTutorId = null;
-        let currentChatConversationId = null;
-
-        // Load tutors for organization
-        async function loadTutors() {
-            try {
-                const res = await fetch('/api/organizations/tutors');
-                const data = await res.json();
-                if (!data.success) {
-                    console.error('Could not load tutors:', data.error);
-                    return;
-                }
-
-                const tutorsList = document.getElementById('tutors-list');
-                if (data.tutors.length === 0) {
-                    tutorsList.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>';
-                    return;
-                }
-
-                tutorsList.innerHTML = data.tutors.map(tutor => `
-                    <div class="tutor-item p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-red-50 hover:border-primary-red transition" data-tutor-id="${tutor.id}" data-tutor-name="${escapeHtml(tutor.name)}" data-students="${tutor.studentCount}">
-                        <p class="font-semibold text-gray-800">${escapeHtml(tutor.name)}</p>
-                        <p class="text-xs text-gray-500">${tutor.categories.slice(0, 2).join(', ')}</p>
-                        <p class="text-xs text-gray-600 mt-2"><strong>${tutor.studentCount}</strong> students</p>
+            <section class="classroom-main">
+              <div class="classroom-page active" data-page-panel="feed">
+                <div class="classroom-card mb-4">
+                  <h3 class="text-2xl font-bold mb-2">Classroom feed</h3>
+                  <p class="muted mb-4">Share learning moments with your classroom community.</p>
+                  <div class="border border-red-100 rounded-xl p-3 bg-white">
+                    <textarea id="feed-post-text" rows="3" placeholder="Create a post for your classroom..." class="w-full border-0 resize-none focus:outline-none"></textarea>
+                    <div class="flex flex-wrap items-center justify-between gap-3 mt-2">
+                      <label class="btn-secondary cursor-pointer"><i class="fa-solid fa-photo-film"></i> Add photo or video<input id="feed-post-media" type="file" accept="image/*,video/*" class="hidden"></label>
+                      <button id="create-feed-post-btn" type="button" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> Create post</button>
                     </div>
-                `).join('');
-
-                // Add click handlers to tutors
-                document.querySelectorAll('.tutor-item').forEach(item => {
-                    item.addEventListener('click', () => selectTutor(
-                        item.dataset.tutorId,
-                        item.dataset.tutorName,
-                        item.dataset.students
-                    ));
-                });
-
-                // Update stats
-                document.getElementById('stat-tutors').textContent = data.tutors.length;
-            } catch (err) {
-                console.error('Error loading tutors:', err);
-            }
-        }
-
-        // Select a tutor and load conversation
-        async function selectTutor(tutorId, tutorName, studentCount) {
-            currentChatTutorId = tutorId;
-            document.getElementById('chat-tutor-name').textContent = tutorName;
-            document.getElementById('chat-tutor-students').textContent = `Students: ${studentCount}`;
-            document.getElementById('chat-panel').classList.remove('hidden');
-            document.getElementById('no-tutor-selected').classList.add('hidden');
-            document.getElementById('messages-container').innerHTML = '';
-
-            // Load or create conversation
-            await loadConversation(tutorId);
-        }
-
-        // Load conversation messages
-        async function loadConversation(tutorId) {
-            try {
-                const res = await fetch('/api/organizations/conversations');
-                const data = await res.json();
-                if (!data.success) return;
-
-                const conv = data.conversations.find(c => c.tutorId === Number(tutorId));
-                if (!conv) {
-                    currentChatConversationId = null;
-                    document.getElementById('messages-container').innerHTML = '<p class="text-gray-400 text-center">No messages yet. Start the conversation!</p>';
-                    return;
-                }
-
-                currentChatConversationId = conv.id;
-                
-                // Fetch full conversation messages
-                const msgRes = await fetch(`/api/organizations/conversations/${conv.id}/messages`);
-                const msgData = await msgRes.json();
-                if (!msgData.success) return;
-
-                renderMessages(msgData.messages);
-
-                // Mark as read
-                await fetch(`/api/organizations/conversations/${conv.id}/mark-read`, { method: 'POST' });
-            } catch (err) {
-                console.error('Error loading conversation:', err);
-            }
-        }
-
-        function linkifyHtml(text) {
-            const safe = escapeHtml(String(text || ''));
-            return safe.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
-                const href = match.startsWith('http') ? match : `https://${match}`;
-                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
-            });
-        }
-
-        // Render messages
-        function renderMessages(messages) {
-            const container = document.getElementById('messages-container');
-            if (messages.length === 0) {
-                container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet</p>';
-                return;
-            }
-
-            container.innerHTML = messages.map(msg => `
-                <div class="flex ${msg.senderType === 'org' ? 'justify-end' : 'justify-start'}">
-                    <div class="max-w-xs px-3 py-2 rounded-lg ${msg.senderType === 'org' ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-800'}">
-                        <p class="text-xs font-semibold mb-1">${msg.senderName}</p>
-                        <p class="text-sm whitespace-pre-wrap">${linkifyHtml(msg.text)}</p>
-                        <p class="text-xs mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString()}</p>
-                    </div>
+                    <p id="feed-post-status" class="text-xs text-gray-500 mt-2"></p>
+                  </div>
                 </div>
-            `).join('');
+                <div class="space-y-3" id="classroom-feed-list">
+                  <p class="text-gray-400 text-center py-8">No classroom posts yet.</p>
+                </div>
+              </div>
 
-            // Scroll to bottom
-            container.scrollTop = container.scrollHeight;
+              <div class="classroom-page" data-page-panel="members">
+                <div class="classroom-card">
+                  <h3 class="text-2xl font-bold mb-2">Classroom members</h3>
+                  <p class="muted mb-4">Students and tutors connected to this organization.</p>
+                  <div class="table-card overflow-x-auto"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active Since</th><th>Remove</th></tr></thead><tbody id="classroom-member-list"><tr><td colspan="5" class="text-center text-gray-400 py-8">No members yet</td></tr></tbody></table></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="tutors">
+                <div class="classroom-card">
+                  <h3 class="text-2xl font-bold mb-2">Tutor directory</h3>
+                  <p class="muted mb-4">All active tutors assigned to your organization.</p>
+                  <div id="classroom-tutor-list" class="space-y-3"></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="announcement">
+                <div class="classroom-card">
+                  <div class="row mb-4"><div><h3 class="text-2xl font-bold">Learning announcements</h3><p class="muted">Keep classroom updates focused on learning.</p></div><button id="create-announcement-btn" type="button" class="icon-btn w-10 h-10 rounded-lg text-red-600 hover:bg-red-50" title="Create announcement" aria-label="Create announcement"><i class="fa-solid fa-plus"></i></button></div>
+                  <div id="classroom-announcements" class="space-y-3"><p class="text-gray-400 text-center py-8">No learning announcements yet.</p></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="notification">
+                <div class="classroom-card">
+                  <h3 class="text-2xl font-bold mb-2">Notifications</h3>
+                  <p class="muted mb-4">All organization activity and account updates.</p>
+                  <div id="classroom-notifications" class="space-y-3"><p class="text-gray-400 text-center py-8">No notifications yet.</p></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="events">
+                <div class="classroom-card">
+                  <div class="row mb-4"><div><h3 class="text-2xl font-bold">Events</h3><p class="muted">Upcoming organization events.</p></div><button id="create-event-btn" type="button" class="icon-btn w-10 h-10 rounded-lg text-red-600 hover:bg-red-50" title="Create event" aria-label="Create event"><i class="fa-solid fa-plus"></i></button></div>
+                  <div id="classroom-events" class="space-y-3"><p class="text-gray-400 text-center py-8">No events scheduled.</p></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="performance">
+                <div class="classroom-card">
+                  <h3 class="text-2xl font-bold mb-2">Performance</h3>
+                  <p class="muted mb-4">Live counts from your organization’s lessons.</p>
+                  <div class="grid md:grid-cols-3 gap-4">
+                    <div class="rounded-xl border border-red-100 bg-red-50 p-4"><p class="muted text-xs uppercase">Active lessons</p><p id="performance-active" class="text-3xl font-bold text-red-600 mt-2">0</p></div>
+                    <div class="rounded-xl border border-red-100 bg-red-50 p-4"><p class="muted text-xs uppercase">Completed lessons</p><p id="performance-completed" class="text-3xl font-bold text-red-600 mt-2">0</p></div>
+                    <div class="rounded-xl border border-red-100 bg-red-50 p-4"><p class="muted text-xs uppercase">Organization members</p><p id="performance-members" class="text-3xl font-bold text-red-600 mt-2">0</p></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-students" class="tab-panel">
+        <div class="card">
+          <h2 class="text-3xl font-bold mb-3">Students Using Your Code</h2>
+          <p class="muted mb-5">See the students linked to your organization and their active lesson activity.</p>
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Active Since</th>
+                  <th>Lessons Taken</th>
+                  <th>Status</th>
+                  <th>Remove</th>
+                </tr>
+              </thead>
+              <tbody id="students-tbody">
+                <tr><td colspan="6" class="text-center text-gray-400 py-8">No students yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-tutors" class="tab-panel">
+        <div class="card">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 class="text-3xl font-bold mb-1">Organizational Tutors</h2>
+              <p class="muted">Manage tutors, assignment coverage, and direct outreach.</p>
+            </div>
+          </div>
+          <div id="tutors-list" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+
+      <div id="tab-messages" class="tab-panel">
+        <div class="card">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+            <div>
+              <h2 class="text-3xl font-bold mb-1">Messages</h2>
+              <p class="muted">Reach tutors and students individually or create a group chat.</p>
+            </div>
+            <button id="create-group-chat-btn" class="btn-primary"><i class="fa-solid fa-user-group"></i> Create Group Chat</button>
+          </div>
+
+          <div class="grid xl:grid-cols-[320px_minmax(0,1fr)] gap-5">
+            <div class="border border-red-100 rounded-2xl bg-red-50 p-4">
+              <h3 class="font-bold text-lg mb-3">Contacts</h3>
+              <div id="message-roster" class="space-y-3"></div>
+            </div>
+            <div class="border border-red-100 rounded-2xl bg-white p-4">
+              <div id="message-chat-panel" class="hidden h-[30rem] flex flex-col">
+                <div class="flex items-center justify-between gap-3 border-b border-red-100 pb-3 mb-3">
+                  <div>
+                    <h3 id="message-chat-title" class="font-bold text-lg">Conversation</h3>
+                    <p id="message-chat-meta" class="text-xs text-gray-500">Direct message</p>
+                  </div>
+                  <button id="close-message-chat-btn" class="btn-secondary text-sm"><i class="fa-solid fa-xmark"></i> Close</button>
+                </div>
+                <div id="message-messages" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
+                <div class="border-t border-red-100 pt-3 flex gap-2">
+                  <input id="message-text-input" type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                  <button id="send-message-to-contact-btn" class="btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+              </div>
+              <div id="message-empty-state" class="h-[30rem] flex items-center justify-center text-center text-gray-400">
+                <div>
+                  <i class="fa-solid fa-comments text-4xl mb-4 block"></i>
+                  <p>Select a contact or create a group chat.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-content" class="tab-panel">
+        <div class="card">
+          <h2 class="text-3xl font-bold mb-3">Content Library</h2>
+          <p class="muted mb-5">Upload private lessons, notes, media, and updates that only your students and tutors can view.</p>
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="border border-red-100 rounded-2xl bg-red-50 p-4">
+              <h3 class="font-bold text-lg mb-4">Add New Content</h3>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-semibold mb-2">Content Type</label>
+                  <select id="content-type" class="w-full border border-gray-300 rounded-lg p-3">
+                    <option value="info">Information / Update</option>
+                    <option value="photo">Photo Gallery</option>
+                    <option value="video">Video Tutorial</option>
+                    <option value="game">Game / Activity</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold mb-2">Title</label>
+                  <input id="content-title" type="text" placeholder="Weekly update, practice plan..." class="w-full border border-gray-300 rounded-lg p-3">
+                </div>
+                <div id="content-form-info">
+                  <label class="block text-sm font-semibold mb-2">Description</label>
+                  <textarea id="content-text" rows="4" placeholder="Write your message or description here..." class="w-full border border-gray-300 rounded-lg p-3"></textarea>
+                </div>
+                <div id="content-form-photo" class="hidden space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Upload Photo</label>
+                    <input type="file" id="content-photo-file" accept="image/*" class="w-full border border-gray-300 rounded-lg p-3">
+                    <p id="photo-status" class="text-xs text-gray-500 mt-1"></p>
+                  </div>
+                </div>
+                <div id="content-form-video" class="hidden space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Upload Video</label>
+                    <input type="file" id="content-video-file" accept="video/*" class="w-full border border-gray-300 rounded-lg p-3">
+                    <p id="video-status" class="text-xs text-gray-500 mt-1"></p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Description</label>
+                    <textarea id="content-video-description" rows="2" placeholder="Describe this video..." class="w-full border border-gray-300 rounded-lg p-3"></textarea>
+                  </div>
+                </div>
+                <div id="content-form-game" class="hidden space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Game / Activity URL</label>
+                    <input type="url" id="content-game-url" placeholder="https://example.com/game" class="w-full border border-gray-300 rounded-lg p-3">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Instructions</label>
+                    <textarea id="content-game-instructions" rows="2" placeholder="How to play or access this game..." class="w-full border border-gray-300 rounded-lg p-3"></textarea>
+                  </div>
+                </div>
+                <button id="submit-content-btn" class="btn-primary w-full"><i class="fa-solid fa-upload"></i> Post Content</button>
+              </div>
+            </div>
+            <div class="border border-red-100 rounded-2xl bg-white p-4">
+              <h3 class="font-bold text-lg mb-4">Private Content</h3>
+              <div id="content-list" class="space-y-3 text-gray-600">
+                <p class="text-gray-400 text-center py-8">No content uploaded yet</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-library" class="tab-panel">
+        <div class="card">
+          <div class="row mb-5"><div><h2 class="text-3xl font-bold">Organization Library</h2><p class="muted">General resources are available to students and tutors. Shared resources are for organization staff and tutors.</p></div><div class="flex gap-2"><button id="org-library-upload-toggle" type="button" class="btn-primary"><i class="fa-solid fa-upload mr-2"></i>Upload</button><button id="org-library-folder-btn" type="button" class="btn-secondary"><i class="fa-solid fa-folder-plus mr-2"></i>Create folder</button></div></div>
+          <div class="flex flex-wrap gap-2 mb-5"><button class="org-library-tab btn-primary" data-library-view="general">General Library</button><button class="org-library-tab btn-secondary" data-library-view="mine">My Uploads</button><button class="org-library-tab btn-secondary" data-library-view="shared">Shared Library</button></div>
+          <form id="org-library-upload-form" class="hidden mb-6 grid gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 md:grid-cols-2">
+            <input id="org-library-title" required class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Name">
+            <input id="org-library-category" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Subject">
+            <input id="org-library-url" type="url" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="URL, YouTube, Drive, or other link">
+            <select id="org-library-type" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="info">Link / Drive</option><option value="photo">Photo</option><option value="video">Video</option><option value="document">Document</option></select>
+            <input id="org-library-file" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+            <select id="org-library-visibility" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="general">General Library - students and tutors</option><option value="shared">Shared Library - tutors and organization staff</option></select>
+            <select id="org-library-folder" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="">No folder</option></select>
+            <button type="submit" class="btn-primary md:col-span-2"><i class="fa-solid fa-upload mr-2"></i>Upload to library</button>
+          </form>
+          <div id="org-library-grid" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+
+      <div id="tab-meeting" class="tab-panel">
+        <div class="card"><div class="row mb-5"><div><h2 class="text-3xl font-bold">Meetings</h2><p class="muted">Create a meeting with selected organization members.</p></div><button id="create-meeting-btn" class="btn-primary"><i class="fa-solid fa-plus"></i> Create meeting</button></div><div id="meeting-list" class="space-y-3"><p class="text-gray-400">No meetings scheduled.</p></div></div>
+      </div>
+
+      <div id="meeting-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
+        <div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Schedule a meeting</h3><button id="close-meeting-modal" class="btn-secondary" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-3"><input id="meeting-title" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Meeting title"><input id="meeting-start" type="datetime-local" class="w-full border border-gray-300 rounded-lg px-3 py-2"><input id="meeting-link" type="url" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Google Meet link (optional)"><label class="flex items-center gap-2 font-semibold"><input id="meeting-all-members" type="checkbox"> Meet all organization members</label><div id="meeting-member-list" class="max-h-48 overflow-y-auto space-y-2 border-t border-gray-100 pt-3"></div><button id="schedule-meeting-btn" class="btn-primary w-full"><i class="fa-solid fa-calendar-check"></i> Schedule meeting</button></div></div>
+      </div>
+
+      <div id="tab-feedbacks" class="tab-panel">
+        <div class="card"><h2 class="text-3xl font-bold mb-2">Feedbacks</h2><p class="muted mb-5">Contact Mozart Techniques about your organization experience.</p><div class="flex flex-wrap gap-3"><a class="btn-primary" href="/dashboard?open-live-support=1"><i class="fa-solid fa-comments"></i> Chat Mozart Techniques</a><a class="btn-secondary" href="https://mail.google.com/mail/?view=cm&fs=1&to=mozarttechniques@gmail.com&su=Mozart%20Techniques%20feedback" target="_blank" rel="noopener"><i class="fa-solid fa-envelope"></i> Email us</a></div></div>
+      </div>
+
+      <div id="tab-codes" class="tab-panel">
+        <div class="card">
+          <h2 class="text-3xl font-bold mb-3">Access Codes</h2>
+          <p class="muted mb-5">Generate one unique code for each student or tutor you add.</p>
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="border border-red-100 rounded-2xl bg-red-50 p-5">
+              <p class="text-sm uppercase tracking-wide text-gray-500 mb-2">Create a code</p>
+              <div class="space-y-2"><select id="code-role" class="w-full border border-gray-300 rounded-lg px-3 py-2"><option value="student">Student</option><option value="tutor">Tutor</option></select><input id="code-recipient-name" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Person's name"><input id="code-recipient-email" type="email" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Person's email (optional)"><button id="generate-code-btn" class="btn-primary w-full"><i class="fa-solid fa-plus"></i> Generate unique code</button><button id="invite-user-btn" type="button" class="btn-secondary w-full"><i class="fa-solid fa-envelope"></i> Invite user by Gmail</button></div>
+              <p id="new-code-value" class="mt-4 text-xl font-black text-red-700 tracking-[0.16em] break-all">MZT-</p>
+              <button id="copy-code-btn" class="btn-secondary mt-3"><i class="fa-solid fa-copy"></i> Copy new code</button>
+            </div>
+            <div class="border border-red-100 rounded-2xl bg-white p-5">
+              <h3 class="font-bold text-lg mb-4">Issued codes</h3>
+              <div class="grid grid-cols-3 gap-2 border-b border-gray-100 pb-2 text-xs font-bold uppercase text-gray-500"><span>Code</span><span>Person</span><span>Role / status</span></div>
+              <div id="issued-codes" class="space-y-3 text-sm"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-panel">
+        <div class="card">
+          <div class="row mb-4"><h2 class="text-3xl font-bold">Settings</h2><i class="fa-solid fa-user-pen text-red-600 text-xl" title="Edit organization profile" aria-label="Edit organization profile"></i></div>
+          <div class="grid grid-cols-1 gap-4">
+            <div class="flex items-center gap-4"><img id="settings-logo-preview" src="/mozartLogo.jpg" alt="Organization profile" class="h-16 w-16 rounded-full object-cover"><label class="btn-secondary cursor-pointer"><i class="fa-solid fa-camera mr-2"></i>Upload profile image<input id="settings-logo-input" type="file" accept="image/*" class="hidden"></label></div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Organization Name</label>
+              <input id="settings-org-name" type="text" value="Mozart Community Org" class="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Type</label>
+              <input id="settings-type" type="text" value="NGO" class="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Contact Name</label>
+              <input id="settings-name" type="text" value="Admin User" class="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Gmail</label>
+              <input id="settings-email" type="email" value="admin@example.com" class="w-full border border-gray-300 rounded-lg p-3" disabled />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Phone</label>
+              <input id="settings-phone" type="text" value="" class="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2">Country</label>
+              <input id="settings-country" type="text" value="Nigeria" class="w-full border border-gray-300 rounded-lg p-3" disabled />
+            </div>
+          </div>
+          <div class="mt-6 flex gap-3 flex-wrap">
+            <button class="btn-primary" data-action="save-settings"><i class="fa-solid fa-floppy-disk"></i> Save all changes</button>
+            <button class="btn-secondary" data-action="open-subscription"><i class="fa-solid fa-credit-card"></i> Open Subscription</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const sidebarItems = document.querySelectorAll('.sidebar-item');
+    const tabs = document.querySelectorAll('.tab-panel');
+    const state = {
+      currentChatTutorId: null,
+      currentChatConversationId: null,
+      currentContact: null,
+      classroomStudents: [],
+      classroomTutors: [],
+      organization: null,
+    };
+    const alertBox = document.getElementById('alert-box');
+    const alertMessage = document.getElementById('alert-message');
+
+    function showAlert(message, type = 'info') {
+      if (!alertMessage || !alertBox) {
+        window.alert(message);
+        return;
+      }
+      alertMessage.textContent = message;
+      alertBox.style.backgroundColor = type === 'error' ? '#b91c1c' : type === 'success' ? '#059669' : '#1f2937';
+      alertBox.style.opacity = '1';
+      setTimeout(() => {
+        alertBox.style.opacity = '0';
+      }, 4200);
+    }
+
+    function activateDashboardTab(tabName) {
+      if (!tabName) return;
+      sidebarItems.forEach((button) => {
+        button.classList.toggle('active', button.dataset.tab === tabName);
+      });
+      tabs.forEach((panel) => {
+        panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+      });
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.remove('open');
+      history.replaceState(null, '', '#'+encodeURIComponent(tabName));
+    }
+
+    function escapeHtml(value = '') {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function renderPaymentHistory(payments = []) {
+      const tbody = document.getElementById('payment-history-body');
+      if (!tbody) return;
+      if (!Array.isArray(payments) || !payments.length) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-gray-400 py-6">No payments recorded yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = payments.map((entry) => {
+        const typeName = entry.type === 'yearly' ? 'Yearly' : 'Monthly';
+        const amount = Number(entry.amount || 0);
+        return `
+          <tr>
+            <td>${new Date(entry.date || Date.now()).toLocaleDateString()}</td>
+            <td>${escapeHtml(typeName)}</td>
+            <td>₦${amount.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setOrgData(org = {}) {
+      state.organization = org;
+      const name = org.name || org.contactName || 'Organization';
+      const type = org.organizationType === 'institution' ? 'Educational Institution' : 'NGO';
+      const orgNameNode = document.getElementById('org-name');
+      const orgTypeNode = document.getElementById('org-type');
+      if (orgNameNode) orgNameNode.textContent = name;
+      if (orgTypeNode) orgTypeNode.textContent = 'Type: ' + type;
+      const profileName = document.getElementById('org-profile-name');
+      const profileEmail = document.getElementById('org-profile-email');
+      const profileButton = document.getElementById('org-profile-btn');
+      if (profileName) profileName.textContent = org.contactName || name;
+      if (profileEmail) profileEmail.textContent = org.email || '';
+      if (profileButton) profileButton.textContent = (org.contactName || name || 'O').trim().charAt(0).toUpperCase();
+      if (profileButton) {
+        profileButton.style.backgroundImage = org.logoUrl ? `url("${org.logoUrl}")` : '';
+        profileButton.style.backgroundSize = 'cover';
+        profileButton.style.backgroundPosition = 'center';
+        profileButton.style.color = org.logoUrl ? 'transparent' : '';
+      }
+      const orgLogo = document.getElementById('org-logo');
+      if (orgLogo && org.logoUrl) orgLogo.src = org.logoUrl;
+      const settingsLogo = document.getElementById('settings-logo-preview');
+      if (settingsLogo) settingsLogo.src = org.logoUrl || '/mozartLogo.jpg';
+      document.getElementById('stat-tutors').textContent = Array.isArray(org.tutors) ? org.tutors.length : 0;
+      document.getElementById('stat-students').textContent = Array.isArray(org.members) ? org.members.length : 0;
+      const amount = Number(org.monthlyAmount || 0);
+      document.getElementById('overview-payment-amount').textContent = '₦' + amount.toLocaleString();
+      document.getElementById('subscription-amount').textContent = '₦' + amount.toLocaleString();
+      const active = org.subscriptionStatus === 'active';
+      const statusNode = document.getElementById('subscription-status');
+      statusNode.textContent = active ? 'Active' : 'Inactive';
+      statusNode.className = 'badge ' + (active ? 'active' : 'pending');
+      const paymentStatus = document.getElementById('overview-payment-status');
+      paymentStatus.textContent = active ? 'Active' : 'Pending';
+      paymentStatus.className = 'badge ' + (active ? 'active' : 'pending');
+      document.getElementById('subscription-expiry').textContent = org.subscriptionEndAt ? new Date(org.subscriptionEndAt).toLocaleDateString() : 'Not active yet';
+      renderPaymentHistory(org.paymentHistory || []);
+      const activityList = document.getElementById('activity-list');
+      const members = Array.isArray(org.members) ? org.members : [];
+      if (members.length) {
+        activityList.innerHTML = members.slice(0, 3).map((member) => `
+          <div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>${escapeHtml(member.studentName || 'Student')} joined</span><strong>${new Date(member.createdAt || Date.now()).toLocaleDateString()}</strong></div>
+        `).join('');
+      } else {
+        activityList.innerHTML = '<div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>No student activity yet</span><strong>Awaiting first code redemption</strong></div>';
+      }
+      const settingsName = document.getElementById('settings-name');
+      const settingsOrgName = document.getElementById('settings-org-name');
+      const settingsEmail = document.getElementById('settings-email');
+      const settingsType = document.getElementById('settings-type');
+      const settingsPhone = document.getElementById('settings-phone');
+      if (settingsName) settingsName.value = org.contactName || 'Admin User';
+      if (settingsOrgName) settingsOrgName.value = name;
+      if (settingsEmail) settingsEmail.value = org.email || 'admin@example.com';
+      if (settingsType) settingsType.value = type;
+      if (settingsPhone) settingsPhone.value = org.phone || '';
+      const accessCodeNode = document.getElementById('org-access-code');
+      if (accessCodeNode) accessCodeNode.textContent = org.accessCode || '-----';
+    }
+
+    async function loadIssuedCodes() {
+      const list = document.getElementById('issued-codes');
+      if (!list) return;
+      const response = await fetch('/api/organizations/me/codes');
+      const data = await response.json();
+      const codes = [...(data.students || []).map((item) => ({ ...item, label: 'Student' })), ...(data.tutors || []).map((item) => ({ ...item, label: 'Tutor' }))];
+      list.innerHTML = codes.length ? codes.map((item) => `<div class="grid grid-cols-3 gap-2 items-center border-b border-gray-100 py-2"><code class="font-bold tracking-wide">${escapeHtml(item.code)}</code><span class="text-xs text-gray-600">${escapeHtml(item.redeemedName || item.issuedToName || 'Not used')}</span><span><strong class="block text-xs">${item.role === 'tutor' ? 'Tutor' : 'Student'}</strong><span class="badge ${item.redeemedAt ? 'approved' : 'pending'}">${item.redeemedAt ? 'Used' : 'Unused'}</span></span></div>`).join('') : '<p class="text-gray-400">No codes generated yet.</p>';
+    }
+
+    async function loadOrganizationLibrary(view = 'general') {
+      const grid = document.getElementById('org-library-grid');
+      if (!grid) return;
+      const response = await fetch('/api/organizations/library');
+      const data = await response.json();
+      const items = data[view] || [];
+      const folderSelect = document.getElementById('org-library-folder');
+      if (folderSelect) folderSelect.innerHTML = '<option value="">No folder</option>' + (data.folders || []).map((folder) => `<option value="${folder.id}">${escapeHtml(folder.name)}</option>`).join('');
+      const folderName = (item) => { const folder = (data.folders || []).find((entry) => String(entry.id) === String(item.folderId)); return folder ? folder.name : 'Unfiled'; };
+      const grouped = items.reduce((groups, item) => { (groups[folderName(item)] ||= []).push(item); return groups; }, {});
+      const card = (item) => `<article class="border border-red-100 rounded-xl overflow-hidden bg-white"><div class="p-4"><div class="flex justify-between gap-2"><strong>${escapeHtml(item.title || 'Library item')}</strong><span class="text-xs text-red-600">${escapeHtml(item.source || 'organization')}</span></div>${item.category ? `<p class="mt-1 text-xs font-semibold text-gray-500">${escapeHtml(item.category)}</p>` : ''}${item.text ? `<p class="mt-2 text-sm text-gray-600">${escapeHtml(item.text)}</p>` : ''}${item.fileUrl && item.type === 'photo' ? `<img src="${escapeHtml(item.fileUrl)}" class="mt-3 w-full max-h-52 object-cover rounded-lg" alt="${escapeHtml(item.title)}">` : ''}${item.fileUrl && item.type === 'video' ? `<video src="${escapeHtml(item.fileUrl)}" controls class="mt-3 w-full max-h-52 rounded-lg bg-black"></video>` : ''}${item.fileUrl && item.type === 'document' ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noreferrer" class="mt-3 inline-flex text-sm font-semibold text-red-700 underline"><i class="fa-solid fa-file-arrow-down mr-2"></i>Open document</a>` : ''}${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" class="mt-3 inline-flex text-sm font-semibold text-red-700 underline"><i class="fa-solid fa-arrow-up-right-from-square mr-2"></i>Open link</a>` : ''}</div></article>`;
+      grid.innerHTML = items.length ? Object.entries(grouped).map(([folder, folderItems]) => `<section class="col-span-full"><h3 class="mb-2 text-lg font-bold text-gray-700"><i class="fa-solid fa-folder-open mr-2 text-red-600"></i>${escapeHtml(folder)}</h3><div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">${folderItems.map(card).join('')}</div></section>`).join('') : '<p class="text-gray-400 col-span-full text-center py-8">No uploads in this library yet.</p>';
+    }
+
+    document.getElementById('org-library-upload-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const title = document.getElementById('org-library-title').value.trim();
+      const url = document.getElementById('org-library-url').value.trim();
+      const type = document.getElementById('org-library-type').value;
+      const file = document.getElementById('org-library-file').files[0];
+      if (!url && !file) return showAlert('Add a URL or choose a file.', 'error');
+      try {
+        let fileUrl = null;
+        if (file) {
+          const body = new FormData(); body.append('media', file);
+          const upload = await fetch(`/api/organizations/upload-media?type=${type === 'info' ? 'document' : type}`, { method: 'POST', body });
+          const uploadData = await upload.json();
+          if (!uploadData.success) throw new Error(uploadData.error || 'File upload failed.');
+          fileUrl = uploadData.url;
         }
+        const response = await fetch('/api/organizations/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, category: document.getElementById('org-library-category').value, url, fileUrl, type: file ? type : 'info', visibility: document.getElementById('org-library-visibility').value, folderId: document.getElementById('org-library-folder').value || null }) });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Could not add library item.');
+        event.target.reset(); showAlert('Library item uploaded.', 'success');
+        loadOrganizationLibrary(document.querySelector('.org-library-tab.btn-primary')?.dataset.libraryView || 'general');
+      } catch (error) { showAlert(error.message || 'Could not upload library item.', 'error'); }
+    });
 
-        // Send message
-        document.getElementById('send-message-btn').addEventListener('click', async () => {
-            if (!currentChatTutorId) return;
+    document.getElementById('org-library-upload-toggle')?.addEventListener('click', () => document.getElementById('org-library-upload-form')?.classList.toggle('hidden'));
+    document.getElementById('org-library-folder-btn')?.addEventListener('click', async () => {
+      const name = window.prompt('Folder name');
+      if (!name || !name.trim()) return;
+      const response = await fetch('/api/organizations/library/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) });
+      const data = await response.json();
+      if (!data.success) return showAlert(data.error || 'Could not create folder.', 'error');
+      showAlert('Folder created.', 'success');
+      loadOrganizationLibrary(document.querySelector('.org-library-tab.btn-primary')?.dataset.libraryView || 'general');
+    });
 
-            const input = document.getElementById('message-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            try {
-                const res = await fetch(`/api/organizations/conversations/${currentChatTutorId}/message`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-
-                const data = await res.json();
-                if (!data.success) {
-                    showAlert(data.error || 'Failed to send message', 'error');
-                    return;
-                }
-
-                input.value = '';
-                // Reload conversation to show new message
-                await loadConversation(currentChatTutorId);
-            } catch (err) {
-                showAlert('Error sending message: ' + err.message, 'error');
-            }
+    async function initiatePayment(billingPeriod) {
+      if (!window.currentOrg) {
+        showAlert('Organization data not loaded. Please refresh.', 'error');
+        return;
+      }
+      if (Number(window.currentOrg.monthlyAmount || 0) <= 0) {
+        showAlert('Monthly amount not set. Contact an administrator.', 'error');
+        return;
+      }
+      try {
+        const button = billingPeriod === 'monthly' ? document.querySelector('[data-action="pay-monthly"]') : document.querySelector('[data-action="pay-yearly"]');
+        if (button) {
+          button.disabled = true;
+          button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+        }
+        const res = await fetch('/api/organizations/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ billingPeriod })
         });
+        const data = await res.json();
+        if (!data.success) {
+          showAlert(data.error || 'Failed to initiate payment.', 'error');
+          return;
+        }
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          showAlert('Could not redirect to payment page.', 'error');
+        }
+      } catch (error) {
+        showAlert('Payment processing error: ' + (error.message || error), 'error');
+      }
+    }
 
-        // Close chat panel
-        document.getElementById('close-chat-btn').addEventListener('click', () => {
-            currentChatTutorId = null;
-            currentChatConversationId = null;
-            document.getElementById('chat-panel').classList.add('hidden');
-            document.getElementById('no-tutor-selected').classList.remove('hidden');
-            document.getElementById('message-input').value = '';
-        });
-        document.getElementById('mobile-menu-btn').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'));
-        document.querySelectorAll('.sidebar-item').forEach((item) => item.addEventListener('click', () => document.querySelector('.sidebar').classList.remove('open')));
-        // Load organization dashboard
-        async function loadDashboard() {
-            // Check for payment status from redirect
-            const params = new URLSearchParams(window.location.search);
-            const paymentStatus = params.get('payment');
-            if (paymentStatus === 'success') {
-                showAlert('Payment successful! Your subscription is now active.', 'success');
-                window.history.replaceState({}, document.title, window.location.pathname);
-            } else if (paymentStatus === 'error') {
-                showAlert('Payment processing failed. Please try again.', 'error');
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
+    function setClassroomPage(page) {
+      document.querySelectorAll('.classroom-menu-btn').forEach((button) => {
+        button.classList.toggle('active', button.dataset.page === page);
+      });
+      document.querySelectorAll('[data-page-panel]').forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.pagePanel === page);
+      });
+    }
 
-            const res = await fetch('/api/organizations/me');
-            if (res.status === 401) {
-                window.location.href = '/login?redirect=' + encodeURIComponent('/ngo-dashboard');
-                return;
-            }
-            if (!res.ok) {
-                showAlert('You do not have an approved organization. Redirecting...', 'error');
-                setTimeout(() => { window.location.href = '/dashboard'; }, 2000);
-                return;
-            }
-            
+    function renderStudents(data = []) {
+      const tbody = document.getElementById('students-tbody');
+      if (!tbody) return;
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">No students yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map((student) => `
+        <tr>
+          <td>${escapeHtml(student.name || 'Student')}</td>
+          <td>${escapeHtml(student.email || '—')}</td>
+          <td>${student.activeSince ? new Date(student.activeSince).toLocaleDateString() : '—'}</td>
+          <td>${Number(student.lessonsTaken || 0)}</td>
+          <td><span class="badge ${student.status === 'active' ? 'active' : 'pending'}">${escapeHtml(student.status || 'Active')}</span></td>
+          <td><button type="button" class="remove-student-btn btn-secondary text-xs px-3 py-2" data-student-id="${student.id}"><i class="fa-solid fa-user-slash"></i> Remove</button></td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.remove-student-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const studentId = button.dataset.studentId;
+          try {
+            const res = await fetch(`/api/organizations/members/${studentId}`, { method: 'DELETE' });
             const data = await res.json();
-            if (!data.success) {
-                showAlert(data.error || 'Could not load organization data.', 'error');
-                return;
-            }
-
-            const org = data.organization;
-            document.getElementById('org-name').textContent = org.name;
-            document.getElementById('org-type').textContent = `Type: ${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'}`;
-
-            // Update stats
-            document.getElementById('stat-students').textContent = (org.studentCodes || []).filter(c => c.redeemedAt).length;
-            document.getElementById('stat-tutors').textContent = '0'; // Needs API implementation
-            document.getElementById('stat-lessons').textContent = '0'; // Needs API implementation
-            document.getElementById('stat-code-status').textContent = org.subscriptionStatus === 'active' ? '✓ Active' : '⊘ Inactive';
-
-            // Update subscription info
-            const subStatus = org.subscriptionStatus === 'active' 
-                ? '<span class="badge badge-active">Active</span>'
-                : '<span class="badge badge-pending">Inactive</span>';
-            document.getElementById('sub-status').innerHTML = subStatus;
-            document.getElementById('sub-amount').textContent = `₦${org.monthlyAmount || 0}`;
-            document.getElementById('sub-expiry').textContent = org.subscriptionEndAt 
-                ? new Date(org.subscriptionEndAt).toLocaleDateString()
-                : 'Not active yet';
-
-            // Show payment options if not active
-            if (org.subscriptionStatus !== 'active') {
-                document.getElementById('payment-options').classList.remove('hidden');
+            if (data.success) {
+              button.closest('tr').remove();
+              if (!tbody.querySelector('tr')) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">No students yet</td></tr>';
+              }
+              showAlert('Student removed.', 'success');
+              loadOrganizationData();
             } else {
-                document.getElementById('payment-options').classList.add('hidden');
+              showAlert(data.error || 'Unable to remove student.', 'error');
             }
+          } catch (error) {
+            showAlert('Could not remove student.', 'error');
+          }
+        });
+      });
+    }
 
-            // Display access code
-            if (org.studentCodes && org.studentCodes.length > 0) {
-                // Older organization records may not have the organizational flag.
-                const orgCode = org.studentCodes.find(c => c.isOrganizationalCode) || org.studentCodes[0];
-                if (orgCode && orgCode.code) {
-                    document.getElementById('org-access-code').textContent = orgCode.code;
-                }
-            }
+    function renderClassroomMembers(students = [], tutors = []) {
+      const tbody = document.getElementById('classroom-member-list');
+      if (!tbody) return;
+      const members = [
+        ...students.map((student) => ({ ...student, role: 'Student', joinedAt: student.createdAt })),
+        ...tutors.map((tutor) => ({ ...tutor, role: 'Tutor', joinedAt: null })),
+      ];
+      if (!members.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">No members yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = members.map((member) => `
+        <tr>
+          <td>${escapeHtml(member.name || member.studentName || member.role)}</td>
+          <td>${escapeHtml(member.email || '—')}</td>
+          <td>${escapeHtml(member.role)}</td>
+          <td>${member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '—'}</td>
+          <td>${member.role === 'Student' ? `<button type="button" class="remove-classroom-member btn-secondary text-xs px-3 py-2" data-student-id="${member.id}"><i class="fa-solid fa-user-slash"></i> Remove</button>` : '<span class="text-gray-400">—</span>'}</td>
+        </tr>
+      `).join('');
+      tbody.querySelectorAll('.remove-classroom-member').forEach((button) => button.addEventListener('click', async () => {
+        const response = await fetch(`/api/organizations/members/${button.dataset.studentId}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (!result.success) return showAlert(result.error || 'Unable to remove student.', 'error');
+        showAlert('Student removed.', 'success');
+        loadOrganizationData();
+      }));
+    }
 
-            // Fill settings
-            document.getElementById('settings-name').value = org.name;
-            document.getElementById('settings-type').value = org.organizationType === 'institution' ? 'Educational Institution' : 'NGO';
-            document.getElementById('settings-email').value = org.email;
-            document.getElementById('settings-phone').value = org.phone || '';
+    function renderTutors(tutors = []) {
+      const list = document.getElementById('tutors-list');
+      if (!list) return;
+      if (!tutors.length) {
+        list.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>';
+        return;
+      }
+      list.innerHTML = tutors.map((tutor) => `
+        <div class="tutor-card rounded-2xl border border-red-100 bg-gradient-to-br from-white to-red-50 p-4 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center font-bold text-lg">${escapeHtml((tutor.name || 'T').charAt(0).toUpperCase())}</div>
+            <span class="badge ${tutor.status === 'approved' ? 'approved' : 'pending'}">${escapeHtml(tutor.status || 'Approved')}</span>
+          </div>
+          <div class="space-y-2 text-sm text-gray-700">
+            <div><div class="text-[10px] uppercase tracking-wide text-gray-500">Name</div><strong>${escapeHtml(tutor.name || 'Tutor')}</strong></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-gray-500">Email</div><span>${escapeHtml(tutor.email || '—')}</span></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-gray-500">Course taken</div><span>${escapeHtml((tutor.profile && tutor.profile.categories && tutor.profile.categories.length) ? tutor.profile.categories.join(', ') : 'General')}</span></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-gray-500">Students</div><span>${Number(tutor.studentCount || 0)}</span></div>
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button type="button" class="tutor-message-btn btn-primary flex-1" data-tutor-id="${tutor.id}" data-tutor-name="${escapeHtml(tutor.name || 'Tutor')}"><i class="fa-solid fa-message"></i> Message</button>
+            <button type="button" class="remove-tutor-btn btn-secondary flex-1" data-tutor-id="${tutor.id}"><i class="fa-solid fa-user-slash"></i> Remove</button>
+          </div>
+        </div>
+      `).join('');
 
-            // Store org ID for payment processing
-            window.currentOrgId = org.id;
-            window.currentOrg = org;
+      list.querySelectorAll('.tutor-message-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tutorId = button.dataset.tutorId;
+          const tutorName = button.dataset.tutorName;
+          state.currentChatTutorId = tutorId;
+          activateDashboardTab('messages');
+          openDirectMessage({ id: tutorId, name: tutorName, type: 'tutor' });
+        });
+      });
 
-            // Load tutors for messaging
-            loadTutors();
-        }
+      list.querySelectorAll('.remove-tutor-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tutorId = button.dataset.tutorId;
+          const hidden = JSON.parse(localStorage.getItem('mozart-org-removed-tutors') || '[]');
+          hidden.push(String(tutorId));
+          localStorage.setItem('mozart-org-removed-tutors', JSON.stringify([...new Set(hidden)]));
+          button.closest('.tutor-card').remove();
+          if (!list.querySelector('.tutor-card')) {
+            list.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>';
+          }
+          showAlert('Tutor removed from this org list.', 'success');
+        });
+      });
+    }
 
-        // Handle payment button clicks
-        async function initiatePayment(billingPeriod) {
-            if (!window.currentOrg) {
-                showAlert('Organization data not loaded. Please refresh.', 'error');
-                return;
-            }
+    function renderMessages(messages = []) {
+      const container = document.getElementById('message-messages');
+      if (!container) return;
+      if (!messages.length) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet</p>';
+        return;
+      }
+      container.innerHTML = messages.map((msg) => `
+        <div class="flex ${msg.senderType === 'org' ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-md px-3 py-2 rounded-xl ${msg.senderType === 'org' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-800'}">
+            <p class="text-xs font-semibold mb-1">${escapeHtml(msg.senderName || 'User')}</p>
+            <p class="text-sm whitespace-pre-wrap">${escapeHtml(msg.text || '')}</p>
+            <p class="text-[10px] mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+        </div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
 
-            if (window.currentOrg.monthlyAmount === 0) {
-                showAlert('Monthly amount not set. Contact an administrator.', 'error');
-                return;
-            }
+    function setMessagePanel(contact, messages = []) {
+      const panel = document.getElementById('message-chat-panel');
+      const empty = document.getElementById('message-empty-state');
+      if (!panel || !empty) return;
+      if (!contact) {
+        panel.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+      state.currentContact = contact;
+      const title = document.getElementById('message-chat-title');
+      const meta = document.getElementById('message-chat-meta');
+      if (title) title.textContent = contact.name || 'Conversation';
+      if (meta) meta.textContent = contact.type === 'group' ? `Group chat • ${contact.members?.length || 0} members` : contact.type === 'tutor' ? 'Tutor message' : 'Student message';
+      panel.classList.remove('hidden');
+      empty.classList.add('hidden');
+      renderMessages(messages);
+    }
 
-            const button = billingPeriod === 'monthly' ? document.getElementById('pay-monthly-btn') : document.getElementById('pay-yearly-btn');
-            button.disabled = true;
-            button.textContent = billingPeriod === 'monthly' ? 'Processing...' : 'Processing...';
+    function renderMessageRoster(conversations = []) {
+      const list = document.getElementById('message-roster');
+      if (!list) return;
 
+      const contacts = [];
+      const convMap = new Map();
+      conversations.forEach((conversation) => {
+        const key = conversation.type === 'group' ? `group-${conversation.id}` : `direct-${conversation.id}`;
+        convMap.set(key, conversation);
+        contacts.push({
+          id: conversation.id,
+          name: conversation.title || 'Conversation',
+          type: conversation.type || 'direct',
+          lastMessage: conversation.lastMessage || 'No messages yet',
+          isConversation: true,
+        });
+      });
+
+      if (!contacts.length) {
+        list.innerHTML = '<p class="text-gray-400 text-sm text-center py-6">No active chats yet.</p>';
+        return;
+      }
+
+      list.innerHTML = contacts.map((contact) => `
+        <button type="button" class="message-roster-item w-full rounded-xl border border-red-100 bg-white p-3 text-left hover:bg-red-50 transition" data-contact-id="${contact.id}" data-contact-type="${contact.type}" data-contact-name="${escapeHtml(contact.name)}">
+          <div class="flex items-center justify-between gap-2">
+            <strong>${escapeHtml(contact.name)}</strong>
+            <span class="text-[10px] uppercase tracking-wide text-red-600">${contact.type === 'group' ? 'Group' : contact.type === 'tutor' ? 'Tutor' : 'Student'}</span>
+          </div>
+          <div class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(contact.lastMessage)}</div>
+        </button>
+      `).join('');
+
+      list.querySelectorAll('.message-roster-item').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const conversationId = Number(button.dataset.contactId);
+          const messageType = button.dataset.contactType;
+          const rawName = button.dataset.contactName || 'Conversation';
+          if (messageType === 'group') {
             try {
-                const res = await fetch('/api/organizations/checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ billingPeriod })
-                });
-
+              const res = await fetch(`/api/organizations/conversations/${conversationId}/messages`);
+              const data = await res.json();
+              setMessagePanel({ id: conversationId, name: rawName, type: 'group' }, data.messages || []);
+              state.currentChatConversationId = conversationId;
+            } catch (error) {
+              console.warn('Failed to open group conversation', error);
+            }
+            return;
+          }
+          const directContact = { id: conversationId, name: rawName, type: messageType };
+          state.currentContact = directContact;
+          state.currentChatConversationId = null;
+          if (convMap.has(`direct-${conversationId}`)) {
+            const conversation = convMap.get(`direct-${conversationId}`);
+            if (conversation && conversation.id) {
+              state.currentChatConversationId = conversation.id;
+              try {
+                const res = await fetch(`/api/organizations/conversations/${conversation.id}/messages`);
                 const data = await res.json();
-                if (!data.success) {
-                    showAlert(data.error || 'Failed to initiate payment.', 'error');
-                    button.disabled = false;
-                    button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
-                    return;
-                }
-
-                // Redirect to Stripe Checkout
-                if (data.url) {
-                    window.location.href = data.url;
-                } else {
-                    showAlert('Could not redirect to payment page.', 'error');
-                    button.disabled = false;
-                    button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
-                }
-            } catch (err) {
-                showAlert('Payment processing error: ' + err.message, 'error');
-                button.disabled = false;
-                button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
-            }
-        }
-
-        // Copy code to clipboard
-        document.getElementById('copy-code-btn').addEventListener('click', () => {
-            const code = document.getElementById('org-access-code').textContent;
-            if (code === '-----') {
-                showAlert('Access code not yet generated.', 'error');
+                setMessagePanel({ id: conversation.id, name: rawName, type: messageType, targetType: messageType }, data.messages || []);
                 return;
+              } catch (error) {
+                console.warn('Failed to load direct conversation', error);
+              }
             }
-            navigator.clipboard.writeText(code);
-            showAlert('Access code copied to clipboard!', 'success');
+          }
+          setMessagePanel({ id: directContact.id, name: rawName, type: messageType, targetType: messageType }, []);
         });
+      });
+    }
 
-        // Payment button handlers
-        document.getElementById('pay-monthly-btn').addEventListener('click', () => initiatePayment('monthly'));
-        document.getElementById('pay-yearly-btn').addEventListener('click', () => initiatePayment('yearly'));
-
-        // Logout
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            window.location.href = '/logout';
-        });
-
-        async function loadLessonBills() {
-            const host = document.getElementById('lesson-bills-list');
-            const response = await fetch('/api/organizations/lesson-bills');
-            const data = await response.json();
-            if (!data.success || !data.bills.length) { host.textContent = 'No pending sponsored lesson bills.'; return; }
-            host.innerHTML = data.bills.map((bill) => `<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-3"><div><strong>${escapeHtml(bill.category)}</strong> with ${escapeHtml(bill.tutorName)} for ${escapeHtml(bill.studentName)}<br><span class="text-xs">${bill.durationMinutes} minutes · $${Number(bill.totalUsd).toFixed(2)}</span></div><button type="button" class="pay-lesson-bill px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold" data-assignment="${bill.assignmentId}" data-session="${bill.sessionId}">Pay bill</button></div>`).join('');
-            host.querySelectorAll('.pay-lesson-bill').forEach((button) => button.addEventListener('click', async () => { button.disabled = true; const response = await fetch(`/api/organizations/lesson-bills/${button.dataset.assignment}/${button.dataset.session}/checkout`, { method: 'POST' }); const result = await response.json(); if (result.success && result.url) window.location.href = result.url; else { button.disabled = false; showAlert(result.error || 'Could not start payment.', 'error'); } }));
+    async function openDirectMessage(contact) {
+      if (!contact || !contact.type) return;
+      state.currentContact = { ...contact, targetType: contact.type };
+      state.currentChatConversationId = null;
+      try {
+        const res = await fetch('/api/organizations/conversations');
+        const data = await res.json();
+        if (data.success) {
+          const directConversation = (data.conversations || []).find((conversation) => {
+            if (conversation.type === 'group') return false;
+            return (conversation.participants || []).some((participant) => participant.type === contact.type && String(participant.id) === String(contact.id));
+          });
+          if (directConversation) {
+            state.currentChatConversationId = directConversation.id;
+            const msgRes = await fetch(`/api/organizations/conversations/${directConversation.id}/messages`);
+            const msgData = await msgRes.json();
+            setMessagePanel({ id: directConversation.id, name: contact.name, type: contact.type, targetType: contact.type }, msgData.messages || []);
+            return;
+          }
         }
+      } catch (error) {
+        console.warn('Unable to find direct conversation:', error);
+      }
+      setMessagePanel({ id: contact.id, name: contact.name, type: contact.type, targetType: contact.type }, []);
+    }
 
-        // --- ORGANIZATION PRIVATE CONTENT MANAGEMENT ---
-        
-        // Handle content type selection and show/hide relevant form fields
-        document.getElementById('content-type').addEventListener('change', (e) => {
-            const type = e.target.value;
-            document.getElementById('content-form-info').classList.add('hidden');
-            document.getElementById('content-form-photo').classList.add('hidden');
-            document.getElementById('content-form-video').classList.add('hidden');
-            document.getElementById('content-form-game').classList.add('hidden');
-            
-            if (type === 'photo') {
-                document.getElementById('content-form-photo').classList.remove('hidden');
-            } else if (type === 'video') {
-                document.getElementById('content-form-video').classList.remove('hidden');
-            } else if (type === 'game') {
-                document.getElementById('content-form-game').classList.remove('hidden');
-            } else {
-                document.getElementById('content-form-info').classList.remove('hidden');
-            }
-        });
+    async function loadConversation(tutorId) {
+      try {
+        const res = await fetch('/api/organizations/conversations');
+        const data = await res.json();
+        if (!data.success) return;
+        const conv = data.conversations.find((c) => String(c.tutorId) === String(tutorId));
+        const container = document.getElementById('message-messages');
+        if (!conv) {
+          state.currentChatConversationId = null;
+          if (container) container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet. Start the conversation.</p>';
+          return;
+        }
+        state.currentChatConversationId = conv.id;
+        const msgRes = await fetch(`/api/organizations/conversations/${conv.id}/messages`);
+        const msgData = await msgRes.json();
+        renderMessages(msgData.messages || []);
+        await fetch(`/api/organizations/conversations/${conv.id}/mark-read`, { method: 'POST' });
+      } catch (error) {
+        console.warn('Error loading conversation', error);
+      }
+    }
 
-        // Load organization content
-        async function loadOrgContent() {
-            try {
-                const res = await fetch('/api/organizations/me');
-                if (!res.ok) return;
-                
-                const data = await res.json();
-                if (!data.success || !data.organization) return;
-                
-                const orgId = data.organization.id;
-                const contentRes = await fetch(`/api/organizations/${orgId}/private-content`);
-                const contentData = await contentRes.json();
-                
-                if (!contentData.success) return;
-                
-                const content = contentData.content || [];
-                const isOrgAdmin = contentData.isOrgAdmin;
-                const container = document.getElementById('content-list');
-                
-                if (content.length === 0) {
-                    container.innerHTML = '<p class="text-gray-400 text-center py-8">No content uploaded yet</p>';
-                    return;
-                }
-                
-                container.innerHTML = content.map((item) => `
-                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <p class="font-semibold text-gray-800">${escapeHtml(item.title)}</p>
-                                <p class="text-xs text-gray-500">
-                                    <span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                        ${item.type === 'info' ? '📝 Info' : item.type === 'photo' ? '📷 Photo' : item.type === 'video' ? '🎥 Video' : '🎮 Game'}
-                                    </span>
-                                    <span class="ml-2">${new Date(item.createdAt).toLocaleDateString()}</span>
-                                </p>
-                            </div>
-                            ${isOrgAdmin ? `<button class="delete-content px-2 py-1 text-red-600 hover:bg-red-50 rounded text-sm" data-id="${item.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
-                        </div>
-                        ${item.text ? `<p class="text-gray-700 text-sm mb-2">${escapeHtml(item.text).replace(/\n/g, '<br>')}</p>` : ''}
-                        ${item.fileUrl ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-sm">View ${item.type === 'photo' ? 'Photo' : 'Video'}</a>` : ''}
-                        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="text-blue-600 hover:underline text-sm">Open Game/Activity</a>` : ''}
-                    </div>
-                `).join('');
-                
-                // Add delete listeners
-                document.querySelectorAll('.delete-content').forEach((btn) => {
-                    btn.addEventListener('click', () => deleteContent(btn.dataset.id));
+    async function loadMessageRoster() {
+      try {
+        const [conversationRes, membersRes, tutorsRes] = await Promise.all([
+          fetch('/api/organizations/conversations'),
+          fetch('/api/organizations/members'),
+          fetch('/api/organizations/tutors')
+        ]);
+        const conversationData = await conversationRes.json();
+        const membersData = await membersRes.json();
+        const tutorsData = await tutorsRes.json();
+        const conversations = conversationData.success ? (conversationData.conversations || []) : [];
+        const members = membersData.success ? (membersData.students || []) : [];
+        const tutors = tutorsData.success ? (tutorsData.tutors || []) : [];
+
+        const directContacts = [
+          ...members.map((student) => ({
+            id: student.id,
+            name: student.name || 'Student',
+            type: 'student',
+            lastMessage: 'Start a message',
+          })),
+          ...tutors.map((tutor) => ({
+            id: tutor.id,
+            name: tutor.name || 'Tutor',
+            type: 'tutor',
+            lastMessage: 'Start a message',
+          }))
+        ];
+
+        const merged = [...conversations, ...directContacts.map((contact) => ({
+          id: contact.id,
+          title: contact.name,
+          type: contact.type,
+          lastMessage: contact.lastMessage,
+          participants: [{ id: contact.id, type: contact.type, name: contact.name }],
+        }))];
+
+        renderMessageRoster(merged);
+      } catch (error) {
+        console.warn('Could not load message roster', error);
+      }
+    }
+
+    async function loadOrganizationData() {
+      try {
+        const res = await fetch('/api/organizations/me');
+        if (!res.ok) {
+          if (res.status === 401) window.location.href = '/login?redirect=' + encodeURIComponent('/ngo-dashboard');
+          return;
+        }
+        const data = await res.json();
+        if (data && data.success && data.organization) {
+          const org = data.organization;
+          window.currentOrg = org;
+          setOrgData(org);
+          renderClassroomsByLocalStorage();
+          const membersRes = await fetch('/api/organizations/members');
+          const membersData = await membersRes.json();
+          if (membersData.success) {
+            state.classroomStudents = membersData.students || [];
+            state.classroomTutors = membersData.tutors || [];
+            renderClassroomMembers(membersData.students || [], membersData.tutors || []);
+            renderStudents((membersData.students || []).map((student) => ({
+              ...student,
+              status: 'active',
+              activeSince: student.createdAt || new Date().toISOString(),
+              lessonsTaken: student.lessonCount || 0,
+            })));
+            renderTutors((membersData.tutors || []).map((tutor) => ({
+              ...tutor,
+              status: 'approved',
+              studentCount: tutor.studentCount || 0,
+            })));
+          }
+          loadClassroomLiveData();
+          loadOrganizationLibrary();
+
+          const contentRes = await fetch(`/api/organizations/${org.id}/private-content`);
+          const contentData = await contentRes.json();
+          if (contentData.success) {
+            const list = document.getElementById('content-list');
+            if (list) {
+              const items = contentData.content || [];
+              list.innerHTML = items.length ? items.map((item) => `
+                <div class="rounded-xl border border-red-100 bg-red-50 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <strong>${escapeHtml(item.title || 'Content')}</strong>
+                    <span class="badge ${item.visibility === 'shared' ? 'approved' : 'pending'}">${escapeHtml(item.visibility || 'private')}</span>
+                  </div>
+                  <div class="mt-2 text-sm text-gray-600">${escapeHtml(item.text || item.caption || 'Private resource')}</div>
+                  ${item.fileUrl ? `<a href="${item.fileUrl}" target="_blank" rel="noreferrer" class="mt-2 inline-block text-sm text-blue-600 underline">Open media</a>` : ''}
+                  ${item.url ? `<a href="${item.url}" target="_blank" rel="noreferrer" class="mt-2 inline-block text-sm text-blue-600 underline">Open link</a>` : ''}
+                  <div class="mt-2 text-right"><button class="delete-content text-red-600 text-xs font-bold" data-id="${item.id}">Delete</button></div>
+                </div>
+              `).join('') : '<p class="text-gray-400 text-center py-8">No content uploaded yet</p>';
+              list.querySelectorAll('.delete-content').forEach((button) => {
+                button.addEventListener('click', async () => {
+                  if (!confirm('Delete this content?')) return;
+                  try {
+                    const delRes = await fetch(`/api/organizations/private-content/${button.dataset.id}`, { method: 'DELETE' });
+                    const delData = await delRes.json();
+                    if (delData.success) {
+                      showAlert('Content deleted.', 'success');
+                      loadOrganizationData();
+                    } else {
+                      showAlert(delData.error || 'Could not delete content.', 'error');
+                    }
+                  } catch (error) {
+                    showAlert('Error deleting content.', 'error');
+                  }
                 });
-            } catch (err) {
-                console.error('Error loading org content:', err);
+              });
             }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not load organization data', error);
+      }
+    }
+
+    function renderClassroomsByLocalStorage() {
+      const list = document.getElementById('classroom-list');
+      if (!list) return;
+      const classrooms = (state.organization && Array.isArray(state.organization.classrooms)) ? state.organization.classrooms : [];
+      if (!Array.isArray(classrooms) || !classrooms.length) {
+        list.innerHTML = '<button class="classroom-ball active" type="button">CL</button>';
+        return;
+      }
+      list.innerHTML = classrooms.map((room, index) => `
+        <button class="classroom-ball ${index === 0 ? 'active' : ''}" type="button" title="${escapeHtml(room.name || 'Classroom')}">${(room.name || 'CL').slice(0,2).toUpperCase()}</button>
+      `).join('');
+    }
+
+    function renderClassroomContent(items = []) {
+      const feed = document.getElementById('classroom-feed-list');
+      const announcements = document.getElementById('classroom-announcements');
+      const learningTypes = new Set(['feed', 'announcement']);
+      const renderItem = (item) => `<article class="rounded-xl border border-red-100 bg-red-50 p-4">
+        <div class="flex items-center justify-between gap-3"><strong>${escapeHtml(item.title)}</strong><span class="text-xs text-gray-500">${new Date(item.createdAt).toLocaleString()}</span></div>
+        ${item.text ? `<p class="mt-2 whitespace-pre-wrap text-sm text-gray-700">${escapeHtml(item.text)}</p>` : ''}
+        ${item.fileUrl && item.type === 'photo' ? `<img src="${escapeHtml(item.fileUrl)}" alt="${escapeHtml(item.title)}" class="mt-3 max-h-80 w-full rounded-lg object-cover">` : ''}
+        ${item.fileUrl && item.type === 'video' ? `<video src="${escapeHtml(item.fileUrl)}" controls preload="metadata" class="mt-3 max-h-80 w-full rounded-lg bg-black"></video>` : ''}
+        <div class="mt-2 text-xs text-gray-500">${escapeHtml(item.createdByName || 'Organization')}</div>
+      </article>`;
+      const feedItems = items.filter((item) => ['feed', 'photo', 'video'].includes(item.type));
+      const announcementItems = items.filter((item) => item.type === 'announcement');
+      if (feed) feed.innerHTML = feedItems.length ? feedItems.map(renderItem).join('') : '<p class="text-gray-400 text-center py-8">No classroom posts yet.</p>';
+      if (announcements) announcements.innerHTML = announcementItems.length ? announcementItems.map(renderItem).join('') : '<p class="text-gray-400 text-center py-8">No learning announcements yet.</p>';
+    }
+
+    async function loadClassroomLiveData() {
+      if (!state.organization) return;
+      try {
+        const [contentRes, notificationRes, eventRes, performanceRes] = await Promise.all([
+          fetch(`/api/organizations/${state.organization.id}/private-content`),
+          fetch('/api/organizations/notifications'),
+          fetch('/api/organizations/events'),
+          fetch('/api/organizations/performance')
+        ]);
+        const contentData = await contentRes.json();
+        if (contentData.success) renderClassroomContent(contentData.content || []);
+        const notificationData = await notificationRes.json();
+        const notifications = notificationData.notifications || [];
+        const notificationList = document.getElementById('classroom-notifications');
+        if (notificationList) notificationList.innerHTML = notifications.length ? notifications.map((item) => `<div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>${escapeHtml(item.message || 'Activity')}</span><strong>${item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</strong></div>`).join('') : '<p class="text-gray-400 text-center py-8">No notifications yet.</p>';
+        const eventData = await eventRes.json();
+        const eventMarkup = eventData.events?.length ? eventData.events.map((event) => `<article class="rounded-xl border border-red-100 bg-red-50 p-4"><strong>${escapeHtml(event.title)}</strong><p class="text-sm mt-2 text-gray-600">${new Date(event.scheduledAt).toLocaleString()} · ${Number(event.durationMinutes || 60)} minutes</p>${event.meetLink ? `<a class="btn-primary inline-flex mt-3 text-sm" href="${escapeHtml(event.meetLink)}" target="_blank" rel="noreferrer"><i class="fa-solid fa-video mr-2"></i>Join meeting</a>` : `<button type="button" class="add-meeting-link btn-secondary mt-3 text-sm" data-event-id="${event.id}"><i class="fa-solid fa-link mr-2"></i>Add meeting link</button>`}</article>`).join('') : '<p class="text-gray-400 text-center py-8">No events scheduled.</p>';
+        const eventList = document.getElementById('classroom-events');
+        if (eventList) eventList.innerHTML = eventMarkup;
+        const meetingList = document.getElementById('meeting-list');
+        if (meetingList) meetingList.innerHTML = eventMarkup;
+        document.querySelectorAll('.add-meeting-link').forEach((button) => button.addEventListener('click', async () => {
+          const meetLink = window.prompt('Paste the Google Meet or Zoom link');
+          if (!meetLink) return;
+          const response = await fetch(`/api/organizations/events/${button.dataset.eventId}/link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetLink }) });
+          const result = await response.json();
+          if (!result.success) return showAlert(result.error || 'Could not save meeting link.', 'error');
+          showAlert('Meeting link saved.', 'success'); loadClassroomLiveData();
+        }));
+        const performance = await performanceRes.json();
+        document.getElementById('performance-active').textContent = performance.activeLessons || 0;
+        document.getElementById('performance-completed').textContent = performance.completedLessons || 0;
+        document.getElementById('performance-members').textContent = performance.memberCount || 0;
+      } catch (error) {
+        console.warn('Could not load classroom activity', error);
+      }
+    }
+
+    document.getElementById('content-type')?.addEventListener('change', (event) => {
+      const type = event.target.value;
+      document.getElementById('content-form-info')?.classList.toggle('hidden', type !== 'info');
+      document.getElementById('content-form-photo')?.classList.toggle('hidden', type !== 'photo');
+      document.getElementById('content-form-video')?.classList.toggle('hidden', type !== 'video');
+      document.getElementById('content-form-game')?.classList.toggle('hidden', type !== 'game');
+    });
+
+    document.querySelectorAll('.classroom-menu-btn').forEach((button) => {
+      button.addEventListener('click', () => setClassroomPage(button.dataset.page));
+    });
+
+    document.getElementById('create-feed-post-btn')?.addEventListener('click', async () => {
+      const textNode = document.getElementById('feed-post-text');
+      const mediaNode = document.getElementById('feed-post-media');
+      const file = mediaNode?.files[0];
+      if (!textNode.value.trim() && !file) return showAlert('Write something or add a photo/video.', 'error');
+      const button = document.getElementById('create-feed-post-btn');
+      button.disabled = true;
+      try {
+        let fileUrl = null;
+        let type = 'feed';
+        if (file) {
+          type = file.type.startsWith('video/') ? 'video' : 'photo';
+          const body = new FormData(); body.append('media', file);
+          const upload = await fetch(`/api/organizations/upload-media?type=${type}`, { method: 'POST', body });
+          const uploadData = await upload.json();
+          if (!uploadData.success) throw new Error(uploadData.error || 'Upload failed.');
+          fileUrl = uploadData.url;
+        }
+        const response = await fetch('/api/organizations/private-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: file ? type : 'feed', title: 'Classroom post', text: textNode.value.trim(), fileUrl, visibility: 'general' }) });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Could not create post.');
+        textNode.value = ''; mediaNode.value = ''; showAlert('Post created.', 'success'); loadClassroomLiveData();
+      } catch (error) { showAlert(error.message || 'Could not create post.', 'error'); } finally { button.disabled = false; }
+    });
+
+    document.getElementById('create-announcement-btn')?.addEventListener('click', async () => {
+      const title = window.prompt('Learning announcement title');
+      if (!title) return;
+      const text = window.prompt('Learning announcement details');
+      if (!text) return;
+      const response = await fetch('/api/organizations/private-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'announcement', title, text, visibility: 'general' }) });
+      const data = await response.json();
+      if (data.success) { showAlert('Learning announcement created.', 'success'); loadClassroomLiveData(); } else showAlert(data.error || 'Could not create announcement.', 'error');
+    });
+
+    document.getElementById('create-event-btn')?.addEventListener('click', async () => {
+      const title = window.prompt('Event title');
+      const startISO = window.prompt('Start date and time (for example 2026-09-10T16:00)');
+      if (!title || !startISO) return;
+      const response = await fetch('/api/organizations/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, startISO, durationMinutes: 60, attendeeEmails: [] }) });
+      const data = await response.json();
+      if (data.success) { showAlert('Event created.', 'success'); loadClassroomLiveData(); } else showAlert(data.error || 'Connect Google Calendar before creating an event.', 'error');
+    });
+
+    document.getElementById('create-meeting-btn')?.addEventListener('click', () => {
+      const list = document.getElementById('meeting-member-list');
+      const members = [...state.classroomStudents.map((member) => ({ ...member, memberType: 'student' })), ...state.classroomTutors.map((member) => ({ ...member, memberType: 'tutor' }))];
+      list.innerHTML = members.length ? members.map((member) => `<label class="flex items-center gap-2"><input type="checkbox" class="meeting-member" value="${member.id}" data-email="${escapeHtml(member.email || '')}"><span>${escapeHtml(member.name || 'Member')} <small class="text-gray-500">(${member.memberType})</small></span></label>`).join('') : '<p class="text-sm text-gray-500">No members yet.</p>';
+      document.getElementById('meeting-modal').classList.remove('hidden');
+    });
+    document.getElementById('close-meeting-modal')?.addEventListener('click', () => document.getElementById('meeting-modal').classList.add('hidden'));
+    document.getElementById('meeting-all-members')?.addEventListener('change', (event) => document.querySelectorAll('.meeting-member').forEach((input) => { input.checked = event.target.checked; }));
+    document.getElementById('schedule-meeting-btn')?.addEventListener('click', async () => {
+      const title = document.getElementById('meeting-title').value.trim();
+      const startISO = document.getElementById('meeting-start').value;
+      if (!title || !startISO) return showAlert('Add a title and meeting time.', 'error');
+      const ids = [...document.querySelectorAll('.meeting-member:checked')].map((input) => input.value);
+      const emails = [...document.querySelectorAll('.meeting-member:checked')].map((input) => input.dataset.email).filter(Boolean);
+      const meetLink = document.getElementById('meeting-link').value.trim();
+      const response = await fetch('/api/organizations/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, startISO, durationMinutes: 60, attendeeEmails: emails, meetLink }) });
+      const data = await response.json();
+      if (!data.success) return showAlert(data.error || 'Could not schedule meeting.', 'error');
+      document.getElementById('meeting-modal').classList.add('hidden'); showAlert('Meeting scheduled.', 'success'); loadClassroomLiveData();
+    });
+
+    document.querySelectorAll('.org-library-tab').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('.org-library-tab').forEach((tab) => tab.className = 'org-library-tab btn-secondary');
+      button.className = 'org-library-tab btn-primary';
+      history.replaceState(null, '', '#library-' + button.dataset.libraryView);
+      loadOrganizationLibrary(button.dataset.libraryView);
+    }));
+
+    sidebarItems.forEach((button) => {
+      button.addEventListener('click', () => {
+        if (button.dataset.href) return window.location.href = button.dataset.href;
+        activateDashboardTab(button.dataset.tab);
+      });
+    });
+
+    document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+      document.querySelector('.sidebar')?.classList.toggle('open');
+    });
+
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+      document.querySelector('.sidebar')?.classList.toggle('collapsed');
+    });
+
+    document.getElementById('org-logo')?.addEventListener('click', () => {
+      document.querySelector('.sidebar')?.classList.remove('collapsed');
+      document.querySelector('.sidebar')?.classList.add('open');
+    });
+
+    document.getElementById('org-profile-btn')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      document.getElementById('org-profile-menu')?.classList.toggle('hidden');
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('#org-profile-menu, #org-profile-btn')) document.getElementById('org-profile-menu')?.classList.add('hidden');
+    });
+    document.getElementById('switch-account-btn')?.addEventListener('click', () => { window.location.href = '/dashboard'; });
+    document.getElementById('org-signout-btn')?.addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/home'; });
+    async function refreshOrganizationNotifications() {
+      try {
+        const data = await fetch('/api/notifications').then((response) => response.json());
+        const unread = (data.notifications || []).filter((item) => !item.read).length;
+        const badge = document.getElementById('org-notification-badge');
+        badge.textContent = unread > 99 ? '99+' : String(unread);
+        badge.classList.toggle('hidden', unread === 0);
+      } catch (error) { console.warn('Could not load organization notifications', error); }
+    }
+    document.getElementById('org-notifications-btn')?.addEventListener('click', () => { window.location.href = '/notifications'; });
+
+    document.getElementById('back-btn')?.addEventListener('click', () => {
+      window.history.back();
+    });
+
+    document.getElementById('logout-btn')?.addEventListener('click', () => {
+      window.location.href = '/logout';
+    });
+
+    document.getElementById('payment-history-trigger')?.addEventListener('click', () => {
+      const modal = document.getElementById('payment-modal');
+      if (modal) modal.classList.remove('hidden');
+    });
+
+    document.getElementById('close-payment-modal')?.addEventListener('click', () => {
+      const modal = document.getElementById('payment-modal');
+      if (modal) modal.classList.add('hidden');
+    });
+
+    document.getElementById('payment-modal')?.addEventListener('click', (event) => {
+      if (event.target && event.target.id === 'payment-modal') {
+        event.target.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('generate-code-btn')?.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/organizations/me/generate-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: document.getElementById('code-role').value, name: document.getElementById('code-recipient-name').value, email: document.getElementById('code-recipient-email').value }) });
+        const data = await res.json();
+        if (data.success && data.entry && data.entry.code) {
+          document.getElementById('new-code-value').textContent = data.entry.code;
+          loadIssuedCodes();
+          showAlert('Access code generated.', 'success');
+        } else {
+          showAlert(data.error || 'Unable to generate code.', 'error');
+        }
+      } catch (error) {
+        console.warn('Unable to generate code', error);
+        showAlert('Unable to generate code.', 'error');
+      }
+    });
+
+    document.getElementById('refresh-code-btn')?.addEventListener('click', () => {
+      document.getElementById('generate-code-btn').click();
+    });
+
+    document.getElementById('invite-user-btn')?.addEventListener('click', async () => {
+      const email = document.getElementById('code-recipient-email').value.trim();
+      const role = document.getElementById('code-role').value;
+      const name = document.getElementById('code-recipient-name').value.trim();
+      if (!email) return showAlert('Enter the invitee Gmail address.', 'error');
+      try {
+        const response = await fetch('/api/organizations/me/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) });
+        const data = await response.json();
+        if (!data.success) return showAlert(data.error || 'Could not create invitation.', 'error');
+        const subject = encodeURIComponent(`${data.organizationName || 'Mozart Techniques'} invitation`);
+        const body = encodeURIComponent(`Hello${name ? ` ${name}` : ''},\n\nYou have been invited to join ${data.organizationName || 'our organization'} on Mozart Techniques as a ${role}.\n\nRedeem code: ${data.code}\nOpen this link to redeem: ${data.redeemLink}\n\nThank you.`);
+        window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
+        loadIssuedCodes();
+      } catch (error) { showAlert('Could not create invitation.', 'error'); }
+    });
+
+    document.getElementById('settings-logo-input')?.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const body = new FormData(); body.append('photo', file);
+      const response = await fetch('/api/organizations/me/logo', { method: 'POST', body });
+      const data = await response.json();
+      if (!data.success) return showAlert(data.error || 'Could not upload profile image.', 'error');
+      setOrgData(data.organization);
+      showAlert('Profile image updated.', 'success');
+    });
+
+    document.getElementById('copy-code-btn')?.addEventListener('click', async () => {
+      const code = document.getElementById('new-code-value').textContent.trim();
+      if (!code || code === 'MZT-') {
+        showAlert('Access code not yet generated.', 'error');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(code);
+        showAlert('Access code copied to clipboard.', 'success');
+      } catch (error) {
+        console.warn('Copy to clipboard failed', error);
+        showAlert('Copy failed - code can still be selected manually.', 'error');
+      }
+    });
+
+    document.getElementById('submit-content-btn')?.addEventListener('click', async () => {
+      const title = document.getElementById('content-title').value.trim();
+      const type = document.getElementById('content-type').value;
+      let text = document.getElementById('content-text').value.trim();
+      let url = null;
+      let fileUrl = null;
+
+      if (!title) {
+        showAlert('Please add a title.', 'error');
+        return;
+      }
+
+      try {
+        if (type === 'photo') {
+          const file = document.getElementById('content-photo-file')?.files[0];
+          if (!file) {
+            showAlert('Please choose a photo file.', 'error');
+            return;
+          }
+          const formData = new FormData();
+          formData.append('media', file);
+          document.getElementById('photo-status').textContent = 'Uploading...';
+          const uploadRes = await fetch('/api/organizations/upload-media?type=photo', { method: 'POST', body: formData });
+          const uploadData = await uploadRes.json();
+          if (!uploadData.success) {
+            showAlert(uploadData.error || 'Upload failed.', 'error');
+            document.getElementById('photo-status').textContent = '';
+            return;
+          }
+          fileUrl = uploadData.url;
+          text = document.getElementById('content-text').value.trim();
+          document.getElementById('photo-status').textContent = '';
+        } else if (type === 'video') {
+          const file = document.getElementById('content-video-file')?.files[0];
+          if (!file) {
+            showAlert('Please choose a video file.', 'error');
+            return;
+          }
+          const formData = new FormData();
+          formData.append('media', file);
+          document.getElementById('video-status').textContent = 'Uploading...';
+          const uploadRes = await fetch('/api/organizations/upload-media?type=video', { method: 'POST', body: formData });
+          const uploadData = await uploadRes.json();
+          if (!uploadData.success) {
+            showAlert(uploadData.error || 'Upload failed.', 'error');
+            document.getElementById('video-status').textContent = '';
+            return;
+          }
+          fileUrl = uploadData.url;
+          text = document.getElementById('content-video-description').value.trim();
+          document.getElementById('video-status').textContent = '';
+        } else if (type === 'game') {
+          url = document.getElementById('content-game-url').value.trim();
+          if (!url) {
+            showAlert('Please enter a game URL.', 'error');
+            return;
+          }
+          text = document.getElementById('content-game-instructions').value.trim();
+        } else if (!text) {
+          showAlert('Please write a content description.', 'error');
+          return;
         }
 
-        // Delete content item
-        async function deleteContent(contentId) {
-            if (!confirm('Delete this content?')) return;
-            
-            try {
-                const res = await fetch(`/api/organizations/private-content/${contentId}`, { method: 'DELETE' });
-                const data = await res.json();
-                if (data.success) {
-                    showAlert('Content deleted', 'success');
-                    loadOrgContent();
-                } else {
-                    showAlert(data.error || 'Failed to delete', 'error');
-                }
-            } catch (err) {
-                showAlert('Error deleting content', 'error');
-            }
-        }
-
-        // Add new content
-        document.getElementById('add-content-btn').addEventListener('click', async () => {
-            const type = document.getElementById('content-type').value;
-            const title = document.getElementById('content-title').value.trim();
-            
-            if (!title) {
-                showAlert('Please enter a title', 'error');
-                return;
-            }
-            
-            let fileUrl = null;
-            let text = '';
-            let url = null;
-            
-            try {
-                if (type === 'photo') {
-                    const file = document.getElementById('content-photo-file').files[0];
-                    if (!file) {
-                        showAlert('Please select a photo', 'error');
-                        return;
-                    }
-                    document.getElementById('photo-status').textContent = 'Uploading...';
-                    const formData = new FormData();
-                    formData.append('media', file);
-                    const uploadRes = await fetch('/api/organizations/upload-media?type=photo', { method: 'POST', body: formData });
-                    const uploadData = await uploadRes.json();
-                    if (!uploadData.success) {
-                        showAlert(uploadData.error || 'Upload failed', 'error');
-                        document.getElementById('photo-status').textContent = '';
-                        return;
-                    }
-                    fileUrl = uploadData.url;
-                    text = document.getElementById('content-text').value.trim();
-                    document.getElementById('photo-status').textContent = '';
-                } else if (type === 'video') {
-                    const file = document.getElementById('content-video-file').files[0];
-                    if (!file) {
-                        showAlert('Please select a video', 'error');
-                        return;
-                    }
-                    document.getElementById('video-status').textContent = 'Uploading...';
-                    const formData = new FormData();
-                    formData.append('media', file);
-                    const uploadRes = await fetch('/api/organizations/upload-media?type=video', { method: 'POST', body: formData });
-                    const uploadData = await uploadRes.json();
-                    if (!uploadData.success) {
-                        showAlert(uploadData.error || 'Upload failed', 'error');
-                        document.getElementById('video-status').textContent = '';
-                        return;
-                    }
-                    fileUrl = uploadData.url;
-                    text = document.getElementById('content-video-description').value.trim();
-                    document.getElementById('video-status').textContent = '';
-                } else if (type === 'game') {
-                    url = document.getElementById('content-game-url').value.trim();
-                    if (!url) {
-                        showAlert('Please enter a game URL', 'error');
-                        return;
-                    }
-                    text = document.getElementById('content-game-instructions').value.trim();
-                } else {
-                    text = document.getElementById('content-text').value.trim();
-                }
-                
-                const res = await fetch('/api/organizations/private-content', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type, title, text, url, fileUrl }),
-                });
-                
-                const result = await res.json();
-                if (!result.success) {
-                    showAlert(result.error || 'Failed to add content', 'error');
-                    return;
-                }
-                
-                showAlert('Content added successfully!', 'success');
-                document.getElementById('content-title').value = '';
-                document.getElementById('content-text').value = '';
-                document.getElementById('content-photo-file').value = '';
-                document.getElementById('content-video-file').value = '';
-                document.getElementById('content-video-description').value = '';
-                document.getElementById('content-game-url').value = '';
-                document.getElementById('content-game-instructions').value = '';
-                loadOrgContent();
-            } catch (err) {
-                showAlert('Error: ' + err.message, 'error');
-            }
+        const res = await fetch('/api/organizations/private-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, title, text, url, fileUrl, visibility: 'general' })
         });
-        
-        loadDashboard().then(loadLessonBills).catch(() => showAlert('Could not load dashboard.', 'error'));
-    </script>
+        const data = await res.json();
+        if (!data.success) {
+          showAlert(data.error || 'Failed to add content.', 'error');
+          return;
+        }
+        document.getElementById('content-title').value = '';
+        document.getElementById('content-text').value = '';
+        document.getElementById('content-photo-file').value = '';
+        document.getElementById('content-video-file').value = '';
+        document.getElementById('content-video-description').value = '';
+        document.getElementById('content-game-url').value = '';
+        document.getElementById('content-game-instructions').value = '';
+        showAlert('Content added successfully.', 'success');
+        loadOrganizationData();
+      } catch (error) {
+        console.warn('Could not upload content', error);
+        showAlert('Error: ' + (error.message || error), 'error');
+      }
+    });
 
-    <script src="/assets/footer.js"></script>
+    document.getElementById('send-message-btn')?.addEventListener('click', async () => {
+      if (!state.currentChatTutorId) return;
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+      try {
+        const res = await fetch(`/api/organizations/conversations/${state.currentChatTutorId}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, type: 'tutor', targetType: 'tutor' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          input.value = '';
+          loadConversation(state.currentChatTutorId);
+        } else {
+          showAlert(data.error || 'Message failed to send.', 'error');
+        }
+      } catch (error) {
+        console.warn('Error sending message', error);
+      }
+    });
+
+    document.getElementById('close-message-chat-btn')?.addEventListener('click', () => {
+      state.currentChatConversationId = null;
+      state.currentContact = null;
+      setMessagePanel(null, []);
+      document.getElementById('message-text-input').value = '';
+    });
+
+    document.getElementById('send-message-to-contact-btn')?.addEventListener('click', async () => {
+      const input = document.getElementById('message-text-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      try {
+        let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
+        let payload = { text };
+
+        if (!state.currentChatConversationId && state.currentContact && state.currentContact.type !== 'group') {
+          endpoint = `/api/organizations/conversations/${state.currentContact.id}/message`;
+          payload = {
+            text,
+            type: state.currentContact.type,
+            targetType: state.currentContact.type,
+            name: state.currentContact.name,
+          };
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          const convoId = data.conversation && data.conversation.id ? data.conversation.id : state.currentChatConversationId;
+          state.currentChatConversationId = convoId;
+          input.value = '';
+          const msgRes = await fetch(`/api/organizations/conversations/${convoId}/messages`);
+          const msgData = await msgRes.json();
+          renderMessages(msgData.messages || []);
+          loadMessageRoster();
+        } else {
+          showAlert(data.error || 'Message failed to send.', 'error');
+        }
+      } catch (error) {
+        console.warn('Error sending message', error);
+      }
+    });
+
+    document.getElementById('create-group-chat-btn')?.addEventListener('click', async () => {
+      try {
+        const members = [];
+        const participantNames = [];
+        const roster = document.querySelectorAll('.message-roster-item');
+        roster.forEach((button) => {
+          const label = button.dataset.contactName || 'Contact';
+          participantNames.push(label);
+        });
+        const groupName = window.prompt('Group chat name', participantNames.slice(0, 2).join(', ') || 'Org Group Chat');
+        if (!groupName) return;
+        const students = (window.currentOrg && window.currentOrg.students) || [];
+        const tutors = (window.currentOrg && window.currentOrg.tutors) || [];
+        const membersList = [...students.slice(0, 2), ...tutors.slice(0, 2)].map((member) => ({
+          id: member.id,
+          type: member.role === 'Tutor' ? 'tutor' : 'student',
+          name: member.name || 'Member',
+        }));
+        if (!membersList.length) {
+          showAlert('There are no students or tutors to add yet.', 'error');
+          return;
+        }
+        const res = await fetch('/api/organizations/group-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupName, members: membersList })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert('Group chat created.', 'success');
+          loadMessageRoster();
+          setMessagePanel({ id: data.conversation.id, name: data.conversation.title, type: 'group', members: data.conversation.participants || [] }, []);
+          state.currentChatConversationId = data.conversation.id;
+        } else {
+          showAlert(data.error || 'Could not create group chat.', 'error');
+        }
+      } catch (error) {
+        showAlert('Group chat creation failed.', 'error');
+      }
+    });
+
+    document.querySelectorAll('[data-action]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const action = button.dataset.action;
+        if (action === 'open-settings') activateDashboardTab('settings');
+        if (action === 'check-orientation') window.location.href = '/orientation';
+        if (action === 'create-classroom') {
+          if (!state.organization) return showAlert('Organization data is still loading. Please try again.', 'error');
+          const name = window.prompt('Classroom name', 'JSS1') || '';
+          if (!name.trim()) return;
+          const response = await fetch('/api/organizations/classrooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          const data = await response.json();
+          if (data.success) { state.organization.classrooms = [...(state.organization.classrooms || []), data.classroom]; renderClassroomsByLocalStorage(); showAlert('Classroom created.', 'success'); } else showAlert(data.error || 'Could not create classroom.', 'error');
+        }
+        if (action === 'open-subscription') activateDashboardTab('overview');
+        if (action === 'save-settings') {
+          const org = state.organization || {};
+          const profileResponse = await fetch('/api/organizations/me/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.getElementById('settings-org-name').value.trim(), contactName: document.getElementById('settings-name').value.trim(), phone: document.getElementById('settings-phone').value.trim() }) });
+          const profileData = await profileResponse.json();
+          if (!profileData.success) return showAlert(profileData.error || 'Could not save settings.', 'error');
+          setOrgData(profileData.organization);
+          showAlert('Settings saved.', 'success');
+        }
+        if (action === 'pay-monthly') initiatePayment('monthly');
+        if (action === 'pay-yearly') initiatePayment('yearly');
+      });
+    });
+
+    window.activateDashboardTab = activateDashboardTab;
+    window.currentOrg = null;
+    const initialTab = decodeURIComponent(window.location.hash.slice(1));
+    renderClassroomsByLocalStorage();
+    setClassroomPage('feed');
+    if (initialTab && initialTab.startsWith('library-')) {
+      activateDashboardTab('library');
+      const libraryView = initialTab.slice('library-'.length);
+      const libraryButton = document.querySelector(`.org-library-tab[data-library-view="${libraryView}"]`);
+      if (libraryButton) libraryButton.click();
+    } else if (initialTab && document.getElementById('tab-' + initialTab)) activateDashboardTab(initialTab);
+    loadOrganizationData();
+    loadIssuedCodes();
+    loadOrganizationLibrary();
+    loadMessageRoster();
+    refreshOrganizationNotifications();
+  </script>
 </body>
 </html>

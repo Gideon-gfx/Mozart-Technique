@@ -48,14 +48,18 @@
            with the timestamp inline at the end of the last line rather than
            on its own row, which is what made them look oversized. */
         .bubble {
-            max-width: 76%;
+            max-width: min(62%, 520px);
+            overflow-wrap: anywhere;
+            word-break: break-word;
             padding: 6px 12px;
             /* Fully curved on every corner - a short message reads as a
                pill, a long one keeps the same soft edge as it wraps. */
             border-radius: 18px;
-            font-size: 13.5px;
+            font-size: 14px;
+            font-weight: 600;
             line-height: 1.35;
         }
+        .bubble.bg-primary-red, .bubble.bg-primary-red * { color: #fff !important; background-color: #cc0000 !important; }
         .bubble p { margin: 0; }
         .bubble .stamp {
             font-size: 9.5px;
@@ -181,6 +185,8 @@
             border-radius: 8px; background: rgba(0,0,0,.07);
             font-size: 12px; text-decoration: none;
         }
+        .library-clip { display: block; width: min(100%, 320px); margin-top: 7px; border-radius: 10px; background: #111; }
+        .library-clip-link { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
@@ -242,6 +248,9 @@
                     <button type="button" id="attach-media-btn" title="Photo or video" class="composer-icon">
                         <i class="fa-solid fa-paperclip"></i>
                     </button>
+                    <button type="button" id="tutor-library-btn" title="Tutor library" class="composer-icon hidden">
+                        <i class="fa-solid fa-photo-film"></i>
+                    </button>
                     <button type="button" id="camera-btn" title="Take a photo" class="composer-icon">
                         <i class="fa-solid fa-camera"></i>
                     </button>
@@ -256,6 +265,11 @@
                 <input type="file" id="media-input" class="hidden" aria-hidden="true" accept="image/*,video/*">
                 <input type="file" id="camera-input" class="hidden" aria-hidden="true" accept="image/*" capture="environment">
             </form>
+
+            <div id="tutor-library-panel" class="hidden border-t border-gray-100 bg-gray-50 p-3">
+                <p class="text-xs font-semibold text-gray-600 mb-2">Tutor library for this course</p>
+                <div id="tutor-library-items" class="grid gap-2"></div>
+            </div>
 
             <div id="emoji-panel" class="emoji-panel hidden"></div>
             <div id="attach-preview" class="attach-preview hidden"></div>
@@ -286,6 +300,16 @@
         let myName = '';
         let lastMessageId = 0;
         let pickedLibraryItem = null;
+        async function loadTutorLibraryPicker() {
+            if (myRole !== 'tutor') return;
+            const response = await fetch(`/api/tutor-library/${assignmentId}`);
+            const data = await response.json();
+            if (!data.success) return;
+            const panel = document.getElementById('tutor-library-panel');
+            const host = document.getElementById('tutor-library-items');
+            host.innerHTML = data.items.length ? data.items.map((item) => `<button type="button" class="text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-primary-red" data-library-id="${item.id}"><strong class="block text-sm">${escapeHtml(item.title)}</strong><span class="text-xs text-gray-500">${escapeHtml(item.category || 'All courses')}</span></button>`).join('') : '<p class="text-xs text-gray-400">No tutor uploads for this course yet.</p>';
+            host.querySelectorAll('[data-library-id]').forEach((button) => button.addEventListener('click', () => { pickedLibraryItem = data.items.find((item) => String(item.id) === button.dataset.libraryId); panel.classList.add('hidden'); refreshSendButton(); showAlert(`Selected ${pickedLibraryItem.title}`, 'success'); }));
+        }
 
         // Own display name, used only to label the typing indicator on the
         // other side ("Gideon is typing…").
@@ -350,6 +374,7 @@
                     const response = await fetch(`/api/assignments/${assignmentId}/sessions/${button.dataset.sessionId}/confirm`, { method: 'POST' });
                     const result = await response.json();
                     if (!result.success) { button.disabled = false; showAlert(result.error || 'Could not confirm payment.', 'error'); return; }
+                    if (result.redirectToCheckout && result.checkoutUrl) { window.location.href = result.checkoutUrl; return; }
                     showAlert('Class confirmed and payment released.', 'success');
                     loadLessonStrip();
                 });
@@ -382,9 +407,21 @@
 
         function messageBubbleHtml(m) {
             const mine = m.senderRole === myRole;
-            const clip = m.libraryItem
-                ? `<a href="${escapeHtml(m.libraryItem.url)}" target="_blank" class="block mt-1.5 text-xs font-semibold ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>@${escapeHtml(m.libraryItem.title)}</a>`
-                : '';
+            const clip = m.libraryItem ? (() => {
+                const mediaUrl = escapeHtml(m.libraryItem.url);
+                const libraryUrl = escapeHtml(m.libraryItem.href || `/library?item=${encodeURIComponent(String(m.libraryItem.title || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))}`);
+                const isVideo = /\.(mp4|webm|ogg|mov|m4v|m3u8)(?:[?#]|$)/i.test(m.libraryItem.url || '');
+                const youtube = (m.libraryItem.url || '').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/i);
+                const vimeo = (m.libraryItem.url || '').match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+                const player = isVideo
+                    ? `<video src="${mediaUrl}" controls preload="metadata" class="library-clip"></video>`
+                    : youtube
+                        ? `<iframe src="https://www.youtube-nocookie.com/embed/${youtube[1]}" title="${escapeHtml(m.libraryItem.title)}" class="library-clip aspect-video" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
+                        : vimeo
+                            ? `<iframe src="https://player.vimeo.com/video/${vimeo[1]}" title="${escapeHtml(m.libraryItem.title)}" class="library-clip aspect-video" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`
+                            : '';
+                return `${player}<a href="${libraryUrl}" target="_blank" rel="noopener" class="library-clip-link ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>${escapeHtml(m.libraryItem.title)}</a>`;
+            })() : '';
             const a = m.attachment;
             let attachmentHtml = '';
             if (a) {
@@ -417,6 +454,11 @@
             const data = await res.json();
             if (!data.success) return;
             myRole = data.role;
+            if (myRole === 'tutor' && !document.getElementById('tutor-library-btn').dataset.bound) {
+                document.getElementById('tutor-library-btn').classList.remove('hidden');
+                document.getElementById('tutor-library-btn').addEventListener('click', () => { const panel = document.getElementById('tutor-library-panel'); panel.classList.toggle('hidden'); if (!panel.classList.contains('hidden')) loadTutorLibraryPicker(); });
+                document.getElementById('tutor-library-btn').dataset.bound = 'true';
+            }
             if (data.messages.length && data.messages[data.messages.length - 1].id === lastMessageId) return; // nothing new
             lastMessageId = data.messages.length ? data.messages[data.messages.length - 1].id : 0;
 

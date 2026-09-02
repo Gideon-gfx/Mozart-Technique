@@ -80,10 +80,16 @@ async function initialize() {
     return { connected: true, mode: 'mongodb', files: SNAPSHOT_FILES.length };
   } catch (error) {
     const message = `MongoDB unavailable: ${error.message}`;
-    if (process.env.NODE_ENV === 'production') {
+    const allowLocalFallback =
+      process.env.ALLOW_LOCAL_FALLBACK === 'true' ||
+      process.env.NODE_ENV !== 'production' ||
+      /localhost|127\.0\.0\.1/i.test(String(process.env.BASE_URL || ''));
+
+    if (!allowLocalFallback) {
       throw new Error(message);
     }
-    console.warn(`${message} Falling back to local JSON persistence for development.`);
+
+    console.warn(`${message} Falling back to local JSON persistence for this runtime.`);
     return { connected: false, mode: 'local-fallback', error: error.message };
   }
 }

@@ -1,0 +1,903 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGO Dashboard - Mozart Techniques</title>
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            color: #333;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+        }
+        h1, h2, h3, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .sidebar { width: 250px; border-right: 1px solid #eadedc; background: linear-gradient(180deg,#fff 0%,#fff6f4 100%); }
+        .sidebar-item { padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: all .2s; }
+        .sidebar-item:hover { background: #f0f0f0; }
+        .sidebar-item.active { background: #fff; border-left-color: #cc0000; font-weight: 600; }
+        .stat-card { background: white; border-radius: 18px; padding: 20px; box-shadow: 0 12px 32px rgba(89,28,25,.08); border: 1px solid rgba(204,0,0,.09); }
+        .stat-number { font-size: 28px; font-weight: bold; color: #cc0000; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th { background: #f9fafb; padding: 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #666; }
+        .table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+        .table tr:hover { background: #f9fafb; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .badge-approved { background: #dcfce7; color: #166534; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-active { background: #dbeafe; color: #1e40af; }
+        #tab-codes { color: #1f2937; }
+        #tab-codes h2, #tab-codes h3, #tab-codes p, #tab-codes strong { color: #1f2937; }
+        .code-display { font-family: 'Courier New', monospace; font-size: 24px; font-weight: bold; letter-spacing: 3px; color: #991b1b; background: #fff; padding: 8px 12px; border-radius: 6px; display: inline-block; }
+        #mobile-menu-btn { display:none; } @media(max-width:768px){ #mobile-menu-btn{display:inline-flex}.sidebar{position:fixed;top:74px;bottom:0;left:0;z-index:50;transform:translateX(-105%);transition:transform .2s}.sidebar.open{transform:translateX(0)}.org-shell{display:block}.org-main{min-height:calc(100vh - 74px)} }
+    </style>
+</head>
+<body>
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="header">
+        <div class="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
+            <div class="flex items-center gap-2">
+                <button id="back-btn" class="w-10 h-10 flex items-center justify-center rounded-lg text-primary-red hover:bg-red-50 transition" aria-label="Go back" title="Go back to previous page">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <a href="/home" class="flex items-center gap-3 hover:opacity-80 transition">
+                    <img src="/mozartLogo.jpg" alt="Mozart" style="height: 40px; width: 40px; border-radius: 8px;">
+                    <div><p class="text-xs text-primary-red font-bold uppercase tracking-wider">Mozart Techniques</p><h1 class="text-xl font-bold">Organization Dashboard</h1></div>
+                </a>
+            </div>
+            <div class="flex items-center gap-2"><button id="mobile-menu-btn" class="w-10 h-10 items-center justify-center rounded-lg text-primary-red hover:bg-red-50" aria-label="Toggle dashboard menu"><i class="fa-solid fa-bars"></i></button><button id="logout-btn" class="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition">
+                Log Out
+            </button></div>
+        </div>
+    </header>
+
+    <div class="org-shell flex h-screen bg-gray-50">
+        <!-- Sidebar -->
+        <div class="sidebar overflow-y-auto">
+            <div class="p-4 border-b border-gray-200">
+                <p id="org-name" class="font-bold text-gray-800">Organization Name</p>
+                <p id="org-type" class="text-xs text-gray-500 mt-1">Type: NGO</p>
+            </div>
+            <nav>
+                <div class="sidebar-item active" data-tab="overview">
+                    <i class="fa-solid fa-chart-pie mr-2"></i> Overview
+                </div>
+                <div class="sidebar-item" data-tab="students">
+                    <i class="fa-solid fa-users mr-2"></i> Students
+                </div>
+                <div class="sidebar-item" data-tab="tutors">
+                    <i class="fa-solid fa-chalkboard-user mr-2"></i> Tutors
+                </div>
+                <div class="sidebar-item" data-tab="content">
+                    <i class="fa-solid fa-photo-film mr-2"></i> Content
+                </div>
+                <div class="sidebar-item" data-tab="codes">
+                    <i class="fa-solid fa-key mr-2"></i> Access Codes
+                </div>
+                <div class="sidebar-item" data-tab="settings">
+                    <i class="fa-solid fa-gear mr-2"></i> Settings
+                </div>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="org-main flex-1 overflow-auto">
+            <main class="max-w-[1440px] mx-auto px-6 py-8">
+                <!-- Overview Tab -->
+                <div id="tab-overview" class="space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Overview</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div class="stat-card">
+                                <p class="text-gray-600 text-sm mb-2">Total Students</p>
+                                <p class="stat-number" id="stat-students">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <p class="text-gray-600 text-sm mb-2">Active Tutors</p>
+                                <p class="stat-number" id="stat-tutors">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <p class="text-gray-600 text-sm mb-2">Active Lessons</p>
+                                <p class="stat-number" id="stat-lessons">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <p class="text-gray-600 text-sm mb-2">Code Status</p>
+                                <p class="text-sm font-semibold" id="stat-code-status">Inactive</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="subscription-card" class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">Subscription Status</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Status:</span>
+                                <span id="sub-status" class="badge badge-pending">Inactive</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Monthly Amount:</span>
+                                <span id="sub-amount" class="font-semibold">Γéª0</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Expiration Date:</span>
+                                <span id="sub-expiry">Not active yet</span>
+                            </div>
+                            <div id="payment-options" class="pt-4 border-t border-gray-200">
+                                <p class="text-sm text-gray-600 mb-3">Activate subscription:</p>
+                                <div class="flex gap-2">
+                                    <button id="pay-monthly-btn" class="flex-1 px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                                        Pay Monthly
+                                    </button>
+                                    <button id="pay-yearly-btn" class="flex-1 px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                                        Pay Yearly
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6"><h3 class="text-lg font-bold text-gray-800 mb-1">Sponsored lesson bills</h3><p class="text-sm text-gray-500 mb-4">Pay these lesson bills as the sponsoring organization. Sponsored students are not charged personally.</p><div id="lesson-bills-list" class="space-y-3 text-sm text-gray-600">No pending sponsored lesson bills.</div></div>
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">Recent Activity</h3>
+                        <div id="activity-list" class="space-y-2">
+                            <p class="text-gray-400 text-center py-4">No recent activity</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Students Tab -->
+                <div id="tab-students" class="hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Students Using Your Code</h2>
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Active Since</th>
+                                    <th>Lessons Taken</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-tbody">
+                                <tr><td colspan="5" class="text-center text-gray-400 py-8">No students yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tutors Tab -->
+                <div id="tab-tutors" class="hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Message Your Tutors</h2>
+                        <p class="text-gray-600 mb-6">Select a tutor to view the list of your students they teach and send messages.</p>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <!-- Tutors List -->
+                        <div class="bg-white rounded-lg shadow-lg p-4">
+                            <h3 class="font-bold text-gray-800 mb-4">Tutors</h3>
+                            <div id="tutors-list" class="space-y-2">
+                                <p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>
+                            </div>
+                        </div>
+
+                        <!-- Chat Panel -->
+                        <div class="md:col-span-2">
+                            <div id="chat-panel" class="hidden bg-white rounded-lg shadow-lg p-6 h-96 flex flex-col">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 id="chat-tutor-name" class="font-bold text-gray-800">Select a tutor</h3>
+                                        <p id="chat-tutor-students" class="text-xs text-gray-500">Students: 0</p>
+                                    </div>
+                                    <button id="close-chat-btn" class="text-gray-400 hover:text-gray-600">
+                                        <i class="fa-solid fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Messages -->
+                                <div id="messages-container" class="flex-1 overflow-y-auto mb-4 space-y-3 border-t border-gray-200 pt-4">
+                                    <!-- Messages will be populated here -->
+                                </div>
+
+                                <!-- Message Input -->
+                                <div class="border-t border-gray-200 pt-4">
+                                    <div class="flex gap-2">
+                                        <input type="text" id="message-input" placeholder="Type a message..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red">
+                                        <button id="send-message-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-red-700 transition">
+                                            <i class="fa-solid fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="no-tutor-selected" class="bg-gray-50 rounded-lg p-12 text-center">
+                                <i class="fa-solid fa-comments text-gray-300 text-4xl mb-4"></i>
+                                <p class="text-gray-400">Select a tutor to start messaging</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Tab (Private Organization Media) -->
+                <div id="tab-content" class="hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Content Library</h2>
+                        <p class="text-gray-600 mb-6">Upload videos, photos, information, and games that only your students and tutors can see. Use this private space to share curriculum materials and resources.</p>
+                        
+                        <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
+                            <div>
+                                <h3 class="font-bold text-gray-800 mb-4">Add New Content</h3>
+                                
+                                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Content Type</label>
+                                        <select id="content-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                            <option value="info">Information/Update</option>
+                                            <option value="photo">Photo Gallery</option>
+                                            <option value="video">Video Tutorial</option>
+                                            <option value="game">Game/Activity Link</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Title</label>
+                                        <input type="text" id="content-title" placeholder="e.g., Weekly Update, Music Theory Lesson" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    </div>
+                                </div>
+
+                                <div id="content-form-info" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description or Content</label>
+                                        <textarea id="content-text" rows="3" placeholder="Write your message or description here..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-photo" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Photo</label>
+                                        <input type="file" id="content-photo-file" accept="image/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        <p id="photo-status" class="text-xs text-gray-500 mt-1"></p>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-video" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Video</label>
+                                        <input type="file" id="content-video-file" accept="video/*" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                        <p id="video-status" class="text-xs text-gray-500 mt-1"></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                        <textarea id="content-video-description" rows="2" placeholder="Describe this video..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="content-form-game" class="hidden space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Game/Activity URL</label>
+                                        <input type="url" id="content-game-url" placeholder="https://example.com/game" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">Instructions</label>
+                                        <textarea id="content-game-instructions" rows="2" placeholder="How to play or access this game..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                                    </div>
+                                </div>
+
+                                <button id="add-content-btn" class="mt-4 px-6 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                                    <i class="fa-solid fa-plus mr-2"></i> Add Content
+                                </button>
+                            </div>
+
+                            <div class="border-t border-gray-200 pt-6">
+                                <h3 class="font-bold text-gray-800 mb-4">Your Content</h3>
+                                <div id="content-list" class="space-y-3">
+                                    <p class="text-gray-400 text-center py-8">No content uploaded yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-codes" class="hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Access Code</h2>
+                    <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
+                        <p class="text-gray-600">Your organization has one shared access code. All students and staff use this single code to join your organization's network.</p>
+                        
+                        <div id="code-display-section" class="p-6 bg-red-50 rounded-lg border border-red-200">
+                            <p class="text-sm text-gray-600 mb-2">Your Access Code:</p>
+                            <div class="code-display mb-2" id="org-access-code">-----</div>
+                            <button id="copy-code-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-red-700 transition">
+                                <i class="fa-solid fa-copy mr-2"></i> Copy to Clipboard
+                            </button>
+                        </div>
+
+                        <div id="code-info" class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                            <p class="text-sm text-blue-800">
+                                <strong>How to use:</strong> Share this code with all students and staff in your organization. Each person who enters this code will be marked as part of your organization and their lessons will be paid from your subscription.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="tab-settings" class="hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Organization Settings</h2>
+                    <div class="bg-white rounded-lg shadow-lg p-6 space-y-6">
+                        <div>
+                            <h3 class="font-bold text-gray-800 mb-3">Organization Information</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Organization Name</label>
+                                    <input type="text" id="settings-name" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Organization Type</label>
+                                    <input type="text" id="settings-type" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Email</label>
+                                    <input type="email" id="settings-email" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Phone</label>
+                                    <input type="text" id="settings-phone" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-200 pt-6">
+                            <h3 class="font-bold text-gray-800 mb-3">Account</h3>
+                            <p class="text-sm text-gray-600 mb-4">Manage your account and contact details.</p>
+                            <button id="edit-profile-btn" class="px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                                Edit Profile
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        // Back button navigation
+        document.getElementById('back-btn').addEventListener('click', () => {
+            window.history.back();
+        });
+
+        // Tab navigation
+        document.querySelectorAll('.sidebar-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('[id^="tab-"]').forEach(tab => tab.classList.add('hidden'));
+                
+                item.classList.add('active');
+                const tabName = item.dataset.tab;
+                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+                
+                // Load content when switching to content tab
+                if (tabName === 'content') {
+                    loadOrgContent();
+                }
+            });
+        });
+
+        // Current chat state
+        let currentChatTutorId = null;
+        let currentChatConversationId = null;
+
+        // Load tutors for organization
+        async function loadTutors() {
+            try {
+                const res = await fetch('/api/organizations/tutors');
+                const data = await res.json();
+                if (!data.success) {
+                    console.error('Could not load tutors:', data.error);
+                    return;
+                }
+
+                const tutorsList = document.getElementById('tutors-list');
+                if (data.tutors.length === 0) {
+                    tutorsList.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>';
+                    return;
+                }
+
+                tutorsList.innerHTML = data.tutors.map(tutor => `
+                    <div class="tutor-item p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-red-50 hover:border-primary-red transition" data-tutor-id="${tutor.id}" data-tutor-name="${escapeHtml(tutor.name)}" data-students="${tutor.studentCount}">
+                        <p class="font-semibold text-gray-800">${escapeHtml(tutor.name)}</p>
+                        <p class="text-xs text-gray-500">${tutor.categories.slice(0, 2).join(', ')}</p>
+                        <p class="text-xs text-gray-600 mt-2"><strong>${tutor.studentCount}</strong> students</p>
+                    </div>
+                `).join('');
+
+                // Add click handlers to tutors
+                document.querySelectorAll('.tutor-item').forEach(item => {
+                    item.addEventListener('click', () => selectTutor(
+                        item.dataset.tutorId,
+                        item.dataset.tutorName,
+                        item.dataset.students
+                    ));
+                });
+
+                // Update stats
+                document.getElementById('stat-tutors').textContent = data.tutors.length;
+            } catch (err) {
+                console.error('Error loading tutors:', err);
+            }
+        }
+
+        // Select a tutor and load conversation
+        async function selectTutor(tutorId, tutorName, studentCount) {
+            currentChatTutorId = tutorId;
+            document.getElementById('chat-tutor-name').textContent = tutorName;
+            document.getElementById('chat-tutor-students').textContent = `Students: ${studentCount}`;
+            document.getElementById('chat-panel').classList.remove('hidden');
+            document.getElementById('no-tutor-selected').classList.add('hidden');
+            document.getElementById('messages-container').innerHTML = '';
+
+            // Load or create conversation
+            await loadConversation(tutorId);
+        }
+
+        // Load conversation messages
+        async function loadConversation(tutorId) {
+            try {
+                const res = await fetch('/api/organizations/conversations');
+                const data = await res.json();
+                if (!data.success) return;
+
+                const conv = data.conversations.find(c => c.tutorId === Number(tutorId));
+                if (!conv) {
+                    currentChatConversationId = null;
+                    document.getElementById('messages-container').innerHTML = '<p class="text-gray-400 text-center">No messages yet. Start the conversation!</p>';
+                    return;
+                }
+
+                currentChatConversationId = conv.id;
+                
+                // Fetch full conversation messages
+                const msgRes = await fetch(`/api/organizations/conversations/${conv.id}/messages`);
+                const msgData = await msgRes.json();
+                if (!msgData.success) return;
+
+                renderMessages(msgData.messages);
+
+                // Mark as read
+                await fetch(`/api/organizations/conversations/${conv.id}/mark-read`, { method: 'POST' });
+            } catch (err) {
+                console.error('Error loading conversation:', err);
+            }
+        }
+
+        function linkifyHtml(text) {
+            const safe = escapeHtml(String(text || ''));
+            return safe.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
+                const href = match.startsWith('http') ? match : `https://${match}`;
+                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
+            });
+        }
+
+        // Render messages
+        function renderMessages(messages) {
+            const container = document.getElementById('messages-container');
+            if (messages.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet</p>';
+                return;
+            }
+
+            container.innerHTML = messages.map(msg => `
+                <div class="flex ${msg.senderType === 'org' ? 'justify-end' : 'justify-start'}">
+                    <div class="max-w-xs px-3 py-2 rounded-lg ${msg.senderType === 'org' ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-800'}">
+                        <p class="text-xs font-semibold mb-1">${msg.senderName}</p>
+                        <p class="text-sm whitespace-pre-wrap">${linkifyHtml(msg.text)}</p>
+                        <p class="text-xs mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString()}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Send message
+        document.getElementById('send-message-btn').addEventListener('click', async () => {
+            if (!currentChatTutorId) return;
+
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            try {
+                const res = await fetch(`/api/organizations/conversations/${currentChatTutorId}/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await res.json();
+                if (!data.success) {
+                    showAlert(data.error || 'Failed to send message', 'error');
+                    return;
+                }
+
+                input.value = '';
+                // Reload conversation to show new message
+                await loadConversation(currentChatTutorId);
+            } catch (err) {
+                showAlert('Error sending message: ' + err.message, 'error');
+            }
+        });
+
+        // Close chat panel
+        document.getElementById('close-chat-btn').addEventListener('click', () => {
+            currentChatTutorId = null;
+            currentChatConversationId = null;
+            document.getElementById('chat-panel').classList.add('hidden');
+            document.getElementById('no-tutor-selected').classList.remove('hidden');
+            document.getElementById('message-input').value = '';
+        });
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'));
+        document.querySelectorAll('.sidebar-item').forEach((item) => item.addEventListener('click', () => document.querySelector('.sidebar').classList.remove('open')));
+        // Load organization dashboard
+        async function loadDashboard() {
+            // Check for payment status from redirect
+            const params = new URLSearchParams(window.location.search);
+            const paymentStatus = params.get('payment');
+            if (paymentStatus === 'success') {
+                showAlert('Payment successful! Your subscription is now active.', 'success');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (paymentStatus === 'error') {
+                showAlert('Payment processing failed. Please try again.', 'error');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            const res = await fetch('/api/organizations/me');
+            if (res.status === 401) {
+                window.location.href = '/login?redirect=' + encodeURIComponent('/ngo-dashboard');
+                return;
+            }
+            if (!res.ok) {
+                showAlert('You do not have an approved organization. Redirecting...', 'error');
+                setTimeout(() => { window.location.href = '/dashboard'; }, 2000);
+                return;
+            }
+            
+            const data = await res.json();
+            if (!data.success) {
+                showAlert(data.error || 'Could not load organization data.', 'error');
+                return;
+            }
+
+            const org = data.organization;
+            document.getElementById('org-name').textContent = org.name;
+            document.getElementById('org-type').textContent = `Type: ${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'}`;
+
+            // Update stats
+            document.getElementById('stat-students').textContent = (org.studentCodes || []).filter(c => c.redeemedAt).length;
+            document.getElementById('stat-tutors').textContent = '0'; // Needs API implementation
+            document.getElementById('stat-lessons').textContent = '0'; // Needs API implementation
+            document.getElementById('stat-code-status').textContent = org.subscriptionStatus === 'active' ? 'Γ£ô Active' : 'Γèÿ Inactive';
+
+            // Update subscription info
+            const subStatus = org.subscriptionStatus === 'active' 
+                ? '<span class="badge badge-active">Active</span>'
+                : '<span class="badge badge-pending">Inactive</span>';
+            document.getElementById('sub-status').innerHTML = subStatus;
+            document.getElementById('sub-amount').textContent = `Γéª${org.monthlyAmount || 0}`;
+            document.getElementById('sub-expiry').textContent = org.subscriptionEndAt 
+                ? new Date(org.subscriptionEndAt).toLocaleDateString()
+                : 'Not active yet';
+
+            // Show payment options if not active
+            if (org.subscriptionStatus !== 'active') {
+                document.getElementById('payment-options').classList.remove('hidden');
+            } else {
+                document.getElementById('payment-options').classList.add('hidden');
+            }
+
+            // Display access code
+            if (org.studentCodes && org.studentCodes.length > 0) {
+                // Older organization records may not have the organizational flag.
+                const orgCode = org.studentCodes.find(c => c.isOrganizationalCode) || org.studentCodes[0];
+                if (orgCode && orgCode.code) {
+                    document.getElementById('org-access-code').textContent = orgCode.code;
+                }
+            }
+
+            // Fill settings
+            document.getElementById('settings-name').value = org.name;
+            document.getElementById('settings-type').value = org.organizationType === 'institution' ? 'Educational Institution' : 'NGO';
+            document.getElementById('settings-email').value = org.email;
+            document.getElementById('settings-phone').value = org.phone || '';
+
+            // Store org ID for payment processing
+            window.currentOrgId = org.id;
+            window.currentOrg = org;
+
+            // Load tutors for messaging
+            loadTutors();
+        }
+
+        // Handle payment button clicks
+        async function initiatePayment(billingPeriod) {
+            if (!window.currentOrg) {
+                showAlert('Organization data not loaded. Please refresh.', 'error');
+                return;
+            }
+
+            if (window.currentOrg.monthlyAmount === 0) {
+                showAlert('Monthly amount not set. Contact an administrator.', 'error');
+                return;
+            }
+
+            const button = billingPeriod === 'monthly' ? document.getElementById('pay-monthly-btn') : document.getElementById('pay-yearly-btn');
+            button.disabled = true;
+            button.textContent = billingPeriod === 'monthly' ? 'Processing...' : 'Processing...';
+
+            try {
+                const res = await fetch('/api/organizations/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ billingPeriod })
+                });
+
+                const data = await res.json();
+                if (!data.success) {
+                    showAlert(data.error || 'Failed to initiate payment.', 'error');
+                    button.disabled = false;
+                    button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
+                    return;
+                }
+
+                // Redirect to Stripe Checkout
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    showAlert('Could not redirect to payment page.', 'error');
+                    button.disabled = false;
+                    button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
+                }
+            } catch (err) {
+                showAlert('Payment processing error: ' + err.message, 'error');
+                button.disabled = false;
+                button.textContent = billingPeriod === 'monthly' ? 'Pay Monthly' : 'Pay Yearly';
+            }
+        }
+
+        // Copy code to clipboard
+        document.getElementById('copy-code-btn').addEventListener('click', () => {
+            const code = document.getElementById('org-access-code').textContent;
+            if (code === '-----') {
+                showAlert('Access code not yet generated.', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(code);
+            showAlert('Access code copied to clipboard!', 'success');
+        });
+
+        // Payment button handlers
+        document.getElementById('pay-monthly-btn').addEventListener('click', () => initiatePayment('monthly'));
+        document.getElementById('pay-yearly-btn').addEventListener('click', () => initiatePayment('yearly'));
+
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            window.location.href = '/logout';
+        });
+
+        async function loadLessonBills() {
+            const host = document.getElementById('lesson-bills-list');
+            const response = await fetch('/api/organizations/lesson-bills');
+            const data = await response.json();
+            if (!data.success || !data.bills.length) { host.textContent = 'No pending sponsored lesson bills.'; return; }
+            host.innerHTML = data.bills.map((bill) => `<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-3"><div><strong>${escapeHtml(bill.category)}</strong> with ${escapeHtml(bill.tutorName)} for ${escapeHtml(bill.studentName)}<br><span class="text-xs">${bill.durationMinutes} minutes ┬╖ $${Number(bill.totalUsd).toFixed(2)}</span></div><button type="button" class="pay-lesson-bill px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold" data-assignment="${bill.assignmentId}" data-session="${bill.sessionId}">Pay bill</button></div>`).join('');
+            host.querySelectorAll('.pay-lesson-bill').forEach((button) => button.addEventListener('click', async () => { button.disabled = true; const response = await fetch(`/api/organizations/lesson-bills/${button.dataset.assignment}/${button.dataset.session}/checkout`, { method: 'POST' }); const result = await response.json(); if (result.success && result.url) window.location.href = result.url; else { button.disabled = false; showAlert(result.error || 'Could not start payment.', 'error'); } }));
+        }
+
+        // --- ORGANIZATION PRIVATE CONTENT MANAGEMENT ---
+        
+        // Handle content type selection and show/hide relevant form fields
+        document.getElementById('content-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            document.getElementById('content-form-info').classList.add('hidden');
+            document.getElementById('content-form-photo').classList.add('hidden');
+            document.getElementById('content-form-video').classList.add('hidden');
+            document.getElementById('content-form-game').classList.add('hidden');
+            
+            if (type === 'photo') {
+                document.getElementById('content-form-photo').classList.remove('hidden');
+            } else if (type === 'video') {
+                document.getElementById('content-form-video').classList.remove('hidden');
+            } else if (type === 'game') {
+                document.getElementById('content-form-game').classList.remove('hidden');
+            } else {
+                document.getElementById('content-form-info').classList.remove('hidden');
+            }
+        });
+
+        // Load organization content
+        async function loadOrgContent() {
+            try {
+                const res = await fetch('/api/organizations/me');
+                if (!res.ok) return;
+                
+                const data = await res.json();
+                if (!data.success || !data.organization) return;
+                
+                const orgId = data.organization.id;
+                const contentRes = await fetch(`/api/organizations/${orgId}/private-content`);
+                const contentData = await contentRes.json();
+                
+                if (!contentData.success) return;
+                
+                const content = contentData.content || [];
+                const isOrgAdmin = contentData.isOrgAdmin;
+                const container = document.getElementById('content-list');
+                
+                if (content.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400 text-center py-8">No content uploaded yet</p>';
+                    return;
+                }
+                
+                container.innerHTML = content.map((item) => `
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <p class="font-semibold text-gray-800">${escapeHtml(item.title)}</p>
+                                <p class="text-xs text-gray-500">
+                                    <span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        ${item.type === 'info' ? '≡ƒô¥ Info' : item.type === 'photo' ? '≡ƒô╖ Photo' : item.type === 'video' ? '≡ƒÄÑ Video' : '≡ƒÄ« Game'}
+                                    </span>
+                                    <span class="ml-2">${new Date(item.createdAt).toLocaleDateString()}</span>
+                                </p>
+                            </div>
+                            ${isOrgAdmin ? `<button class="delete-content px-2 py-1 text-red-600 hover:bg-red-50 rounded text-sm" data-id="${item.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                        ${item.text ? `<p class="text-gray-700 text-sm mb-2">${escapeHtml(item.text).replace(/\n/g, '<br>')}</p>` : ''}
+                        ${item.fileUrl ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-sm">View ${item.type === 'photo' ? 'Photo' : 'Video'}</a>` : ''}
+                        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="text-blue-600 hover:underline text-sm">Open Game/Activity</a>` : ''}
+                    </div>
+                `).join('');
+                
+                // Add delete listeners
+                document.querySelectorAll('.delete-content').forEach((btn) => {
+                    btn.addEventListener('click', () => deleteContent(btn.dataset.id));
+                });
+            } catch (err) {
+                console.error('Error loading org content:', err);
+            }
+        }
+
+        // Delete content item
+        async function deleteContent(contentId) {
+            if (!confirm('Delete this content?')) return;
+            
+            try {
+                const res = await fetch(`/api/organizations/private-content/${contentId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('Content deleted', 'success');
+                    loadOrgContent();
+                } else {
+                    showAlert(data.error || 'Failed to delete', 'error');
+                }
+            } catch (err) {
+                showAlert('Error deleting content', 'error');
+            }
+        }
+
+        // Add new content
+        document.getElementById('add-content-btn').addEventListener('click', async () => {
+            const type = document.getElementById('content-type').value;
+            const title = document.getElementById('content-title').value.trim();
+            
+            if (!title) {
+                showAlert('Please enter a title', 'error');
+                return;
+            }
+            
+            let fileUrl = null;
+            let text = '';
+            let url = null;
+            
+            try {
+                if (type === 'photo') {
+                    const file = document.getElementById('content-photo-file').files[0];
+                    if (!file) {
+                        showAlert('Please select a photo', 'error');
+                        return;
+                    }
+                    document.getElementById('photo-status').textContent = 'Uploading...';
+                    const formData = new FormData();
+                    formData.append('media', file);
+                    const uploadRes = await fetch('/api/organizations/upload-media?type=photo', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadData.success) {
+                        showAlert(uploadData.error || 'Upload failed', 'error');
+                        document.getElementById('photo-status').textContent = '';
+                        return;
+                    }
+                    fileUrl = uploadData.url;
+                    text = document.getElementById('content-text').value.trim();
+                    document.getElementById('photo-status').textContent = '';
+                } else if (type === 'video') {
+                    const file = document.getElementById('content-video-file').files[0];
+                    if (!file) {
+                        showAlert('Please select a video', 'error');
+                        return;
+                    }
+                    document.getElementById('video-status').textContent = 'Uploading...';
+                    const formData = new FormData();
+                    formData.append('media', file);
+                    const uploadRes = await fetch('/api/organizations/upload-media?type=video', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadData.success) {
+                        showAlert(uploadData.error || 'Upload failed', 'error');
+                        document.getElementById('video-status').textContent = '';
+                        return;
+                    }
+                    fileUrl = uploadData.url;
+                    text = document.getElementById('content-video-description').value.trim();
+                    document.getElementById('video-status').textContent = '';
+                } else if (type === 'game') {
+                    url = document.getElementById('content-game-url').value.trim();
+                    if (!url) {
+                        showAlert('Please enter a game URL', 'error');
+                        return;
+                    }
+                    text = document.getElementById('content-game-instructions').value.trim();
+                } else {
+                    text = document.getElementById('content-text').value.trim();
+                }
+                
+                const res = await fetch('/api/organizations/private-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, title, text, url, fileUrl }),
+                });
+                
+                const result = await res.json();
+                if (!result.success) {
+                    showAlert(result.error || 'Failed to add content', 'error');
+                    return;
+                }
+                
+                showAlert('Content added successfully!', 'success');
+                document.getElementById('content-title').value = '';
+                document.getElementById('content-text').value = '';
+                document.getElementById('content-photo-file').value = '';
+                document.getElementById('content-video-file').value = '';
+                document.getElementById('content-video-description').value = '';
+                document.getElementById('content-game-url').value = '';
+                document.getElementById('content-game-instructions').value = '';
+                loadOrgContent();
+            } catch (err) {
+                showAlert('Error: ' + err.message, 'error');
+            }
+        });
+        
+        loadDashboard().then(loadLessonBills).catch(() => showAlert('Could not load dashboard.', 'error'));
+    </script>
+
+    <script src="/assets/footer.js"></script>
+</body>
+</html>

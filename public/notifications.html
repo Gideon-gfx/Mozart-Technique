@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications - Mozart Techniques</title>
+  <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="/assets/redesign.css">
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-800">
+  <header class="sticky top-0 z-20 bg-white shadow-sm">
+    <nav class="mx-auto flex h-20 max-w-5xl items-center justify-between px-4 sm:px-6">
+      <a href="/dashboard" class="flex items-center gap-3 font-bold text-primary-red"><img src="/mozartLogo.jpg" alt="Mozart Techniques" class="h-10 w-10 rounded-full object-cover">Notifications</a>
+      <a href="/dashboard" class="text-sm font-semibold text-gray-600 hover:text-primary-red"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    </nav>
+  </header>
+  <main class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div><h1 class="text-3xl font-extrabold text-gray-900">Notifications</h1><p class="mt-1 text-sm text-gray-500">Updates about your lessons, messages, and account.</p></div>
+      <button id="mark-all" type="button" class="rounded-lg bg-primary-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700">Mark all as read</button>
+    </div>
+    <section id="notification-list" class="grid gap-3"></section>
+    <p id="empty-state" class="hidden rounded-xl bg-white p-10 text-center text-gray-500 shadow">No notifications yet.</p>
+  </main>
+  <div id="notification-modal" class="fixed inset-0 z-30 hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <article class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-start justify-between gap-4"><h2 id="modal-title" class="text-xl font-bold">Notification</h2><button id="close-modal" type="button" class="text-2xl text-gray-400 hover:text-gray-800" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><p id="modal-message" class="mt-4 whitespace-pre-wrap text-gray-600"></p><a id="modal-link" class="mt-5 hidden inline-flex rounded-lg bg-primary-red px-4 py-2 font-semibold text-white" href="#">Open related page</a></article>
+  </div>
+  <script>
+    const list = document.getElementById('notification-list');
+    const empty = document.getElementById('empty-state');
+    const modal = document.getElementById('notification-modal');
+    let notifications = [];
+    function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, (match) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match])); }
+    function render() {
+      empty.classList.toggle('hidden', notifications.length > 0);
+      list.innerHTML = notifications.map((item, index) => `<button type="button" class="w-full rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition hover:border-red-200 hover:shadow ${item.read ? '' : 'border-l-4 border-l-primary-red'}" data-index="${index}"><span class="flex items-center justify-between gap-3"><strong>${escapeHtml(item.type || 'Update')}</strong><time class="text-xs text-gray-400">${item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</time></span><span class="mt-2 block text-sm text-gray-600">${escapeHtml(item.message)}</span></button>`).join('');
+      list.querySelectorAll('[data-index]').forEach((button) => button.addEventListener('click', () => openNotification(notifications[Number(button.dataset.index)])));
+    }
+    function openNotification(item) {
+      if (!item) return;
+      document.getElementById('modal-title').textContent = item.type || 'Notification';
+      document.getElementById('modal-message').textContent = item.message || '';
+      const link = document.getElementById('modal-link');
+      link.classList.toggle('hidden', !item.href);
+      if (item.href) link.href = item.href;
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+      if (!item.read) { item.read = true; render(); fetch(`/api/notifications/${encodeURIComponent(item.id)}/read`, { method: 'POST' }).catch(() => {}); }
+    }
+    async function load() { const response = await fetch('/api/notifications'); const data = await response.json(); notifications = data.notifications || []; render(); }
+    document.getElementById('mark-all').addEventListener('click', async () => { await fetch('/api/notifications/read-all', { method: 'POST' }); notifications.forEach((item) => { item.read = true; }); render(); });
+    document.getElementById('close-modal').addEventListener('click', () => { modal.classList.add('hidden'); modal.classList.remove('flex'); });
+    modal.addEventListener('click', (event) => { if (event.target === modal) document.getElementById('close-modal').click(); });
+    load().catch(() => { empty.textContent = 'Could not load notifications.'; empty.classList.remove('hidden'); });
+  </script>
+</body>
+</html>

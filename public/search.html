@@ -54,10 +54,15 @@
         </div>
 
         <div id="results" class="hidden">
-            <section>
+            <section class="mb-8">
                 <h2 class="text-lg font-bold text-gray-800 mb-4">Tutors <span id="tutor-count" class="text-gray-400 font-normal"></span></h2>
                 <div id="tutor-results" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
                 <p id="no-tutor-results" class="hidden text-gray-400 text-sm">No matching tutors.</p>
+            </section>
+            <section>
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Library Videos <span id="video-count" class="text-gray-400 font-normal"></span></h2>
+                <div id="video-results" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+                <p id="no-video-results" class="hidden text-gray-400 text-sm">No matching library videos.</p>
             </section>
         </div>
     </main>
@@ -103,6 +108,25 @@
             `;
         }
 
+        function videoCardHtml(video) {
+            const label = video.ownerScope === 'tutor' ? `Tutor upload · ${escapeHtml(video.ownerName || 'Tutor')}` : 'Mozart Techniques library';
+            const preview = video.isFile || /\.(mp4|webm|ogg|mov|m4v)(?:[?#]|$)/i.test(String(video.url || ''))
+                ? `<video src="${escapeHtml(video.url)}" class="w-full h-44 object-cover rounded-xl bg-black" controls preload="metadata"></video>`
+                : `<div class="w-full h-44 rounded-xl bg-gradient-to-br from-red-50 to-stone-100 border border-red-100 flex items-center justify-center text-center p-4"><div><i class="fa-solid fa-video text-2xl text-primary-red mb-2"></i><p class="text-sm font-semibold text-gray-700">${escapeHtml(video.title)}</p></div></div>`;
+            return `
+                <article class="result-card block hover:-translate-y-1 transition duration-150">
+                    ${preview}
+                    <div class="mt-4">
+                        <p class="text-xs uppercase tracking-wide text-primary-red font-semibold mb-1">${label}</p>
+                        <h3 class="font-bold text-gray-800">${escapeHtml(video.title)}</h3>
+                        <p class="text-xs text-gray-500 mt-1">${video.category ? escapeHtml(video.category) : 'All subjects'}${video.genre ? ' · ' + escapeHtml(video.genre) : ''}</p>
+                        ${video.description ? `<p class="text-sm text-gray-600 mt-2">${escapeHtml(video.description)}</p>` : ''}
+                        <a href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" class="inline-block mt-3 text-sm font-semibold text-primary-red hover:underline">Open video</a>
+                    </div>
+                </article>
+            `;
+        }
+
         let searchTimer;
         async function runSearch(q) {
             if (!q) {
@@ -120,6 +144,10 @@
             document.getElementById('tutor-count').textContent = `(${data.tutors.length})`;
             document.getElementById('tutor-results').innerHTML = data.tutors.map(tutorCardHtml).join('');
             document.getElementById('no-tutor-results').classList.toggle('hidden', data.tutors.length > 0);
+
+            document.getElementById('video-count').textContent = `(${data.videos.length})`;
+            document.getElementById('video-results').innerHTML = data.videos.map(videoCardHtml).join('');
+            document.getElementById('no-video-results').classList.toggle('hidden', data.videos.length > 0);
         }
 
         const input = document.getElementById('search-input');

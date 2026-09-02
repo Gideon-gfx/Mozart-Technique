@@ -121,6 +121,17 @@ function markNotificationsRead(userId) {
   return user;
 }
 
+function markNotificationRead(userId, notificationId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  const notification = (user.notifications || []).find((item) => item.id === Number(notificationId));
+  if (!notification) return null;
+  notification.read = true;
+  persist(db);
+  return user;
+}
+
 function setCountry(userId, countryCode) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
@@ -464,7 +475,7 @@ function clearCalendarTokens(userId) {
 module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, getBadges, addNotification, markNotificationsRead, setRole, setCountryAdmin, setPayoutDetails, listUsers,
+  markActive, getBadges, addNotification, markNotificationsRead, markNotificationRead, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,

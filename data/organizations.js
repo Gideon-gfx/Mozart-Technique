@@ -47,7 +47,7 @@ function removeByUserId(userId) {
   return true;
 }
 
-async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, certificateUrl }) {
+async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, certificateUrl, numStudents, numTutors }) {
   const db = load();
   const coords = address ? await geocodeAddress(address) : null;
   const org = {
@@ -65,12 +65,15 @@ async function apply({ userId, name, contactName, email, phone, registrationNumb
     sponsorType: sponsorType || 'individual', // 'individual' | 'ngo'
     organizationType: organizationType || 'ngo', // 'ngo' | 'institution' (only for sponsor type 'ngo')
     certificateUrl: certificateUrl || null,
+    numStudents: numStudents || null,
+    numTutors: numTutors || null,
     status: 'pending', // pending | approved | rejected - the application itself
     subscriptionStatus: 'inactive', // inactive | active | expired
     monthlyAmount: 0, // Amount in currency for monthly subscription (set by admin)
     subscriptionStartAt: null,
     subscriptionEndAt: null,
     studentCodes: [],
+    folders: [],
     createdAt: new Date().toISOString(),
   };
   db.organizations.push(org);
@@ -91,22 +94,6 @@ function setStatus(id, status) {
     org.subscriptionEndAt = null;
   }
 
-  if (status === 'approved' && org.sponsorType === 'ngo') {
-    const existingOrgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
-    if (!existingOrgCode) {
-      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-      org.studentCodes.push({
-        code,
-        isOrganizationalCode: true,
-        studentId: null,
-        studentName: null,
-        redeemedAt: null,
-        sentToOrganization: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-  }
-
   persist(db);
   return org;
 }
@@ -125,6 +112,12 @@ function activateSubscription(id, months = 12) {
   const endsAt = new Date(startsFrom);
   endsAt.setMonth(endsAt.getMonth() + Number(months || 12));
   org.subscriptionEndAt = endsAt.toISOString();
+  if (!org.paymentHistory) org.paymentHistory = [];
+  org.paymentHistory.unshift({
+    type: Number(months) === 1 ? 'monthly' : 'yearly',
+    amount: Number(org.monthlyAmount || 0) * (Number(months) === 1 ? 1 : 12 * 0.99),
+    date: now.toISOString(),
+  });
   persist(db);
   return org;
 }
@@ -146,75 +139,47 @@ function isSubscriptionActive(org) {
 // beneficiary. The code itself carries no auth power until redeemed by a
 // signed-in student, at which point it links that student's account to
 // the org and marks their access as sponsor-activated.
-function generateStudentCode(orgId) {
+function newCode(prefix) {
+  return `${prefix}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function generateOrganizationCode(orgId, role = 'student', recipient = {}) {
   const db = load();
   const org = db.organizations.find((o) => o.id === Number(orgId));
   if (!org) return null;
   if (!isSubscriptionActive(org)) return null;
-  
-  // For NGO/Institution type: return existing organizational code if it exists
-  if (org.sponsorType === 'ngo') {
-    const existingOrgCode = org.studentCodes.find((c) => c.isOrganizationalCode);
-    if (existingOrgCode) {
-      return existingOrgCode;
-    }
-    // Generate the single organizational code for NGO
-    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-    const entry = { 
-      code, 
-      isOrganizationalCode: true,
-      studentId: null, 
-      studentName: null, 
-      redeemedAt: null,
-      sentToOrganization: false,
-      createdAt: new Date().toISOString() 
-    };
-    org.studentCodes.push(entry);
-    persist(db);
-    return entry;
-  }
-  
-  // For individual sponsors: generate multiple codes
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-  const entry = { 
-    code, 
-    isOrganizationalCode: false,
-    studentId: null, 
-    studentName: null, 
-    redeemedAt: null, 
-    createdAt: new Date().toISOString() 
-  };
-  org.studentCodes.push(entry);
+  const normalizedRole = role === 'tutor' ? 'tutor' : 'student';
+  const field = normalizedRole === 'tutor' ? 'tutorCodes' : 'studentCodes';
+  if (!org[field]) org[field] = [];
+  let code;
+  do {
+    code = newCode(normalizedRole === 'tutor' ? 'MZT-T' : 'MZT-S');
+  } while (db.organizations.some((organization) => [...(organization.studentCodes || []), ...(organization.tutorCodes || [])].some((entry) => entry.code === code)));
+  const entry = { code, role: normalizedRole, organizationId: org.id, issuedToName: String(recipient.name || '').trim() || null, sentToEmail: String(recipient.email || '').trim().toLowerCase() || null, createdAt: new Date().toISOString(), redeemedAt: null, redeemedBy: null };
+  org[field].push(entry);
   persist(db);
   return entry;
 }
 
-function redeemCode(code, studentUserId, studentName) {
+function generateStudentCode(orgId) { return generateOrganizationCode(orgId, 'student'); }
+
+function redeemCode(code, userId, userName, expectedRole = null) {
   const db = load();
   const normalized = String(code || '').trim().toUpperCase();
   for (const org of db.organizations) {
     if (!isSubscriptionActive(org)) continue;
-    const entry = org.studentCodes.find((c) => c.code === normalized);
+    const entry = [...(org.studentCodes || []), ...(org.tutorCodes || [])].find((c) => c.code === normalized);
     if (!entry) continue;
+    if (expectedRole && entry.role !== expectedRole) return { error: 'wrong-role' };
     
-    // For organizational codes (NGO): allow multiple students to use the same code
-    if (entry.isOrganizationalCode) {
-      // Just return the org - the student will be linked to this org
-      // Don't mark it as redeemed since multiple students need to use it.
-      // Keep membership separately so the organization can see shared-code users.
-      if (!org.members) org.members = [];
-      if (!org.members.some((member) => member.studentId === studentUserId)) {
-        org.members.push({ studentId: studentUserId, studentName, redeemedAt: new Date().toISOString() });
-        persist(db);
-      }
-      return { org, entry };
-    }
-    
-    // For individual sponsor codes: each code can only be used once
     if (entry.redeemedAt) return { error: 'already-redeemed' };
-    entry.studentId = studentUserId;
-    entry.studentName = studentName;
+    entry.redeemedBy = userId;
+    entry.redeemedName = userName;
     entry.redeemedAt = new Date().toISOString();
+    if (!org.members) org.members = [];
+    if (!org.members.some((member) => member.studentId === userId && (member.role || 'student') === entry.role)) {
+      org.members.push({ studentId: userId, studentName: userName, role: entry.role, redeemedAt: entry.redeemedAt });
+    }
     persist(db);
     return { org, entry };
   }
@@ -233,8 +198,38 @@ function markCodeSent(orgId) {
   return org;
 }
 
+function markCodeInvited(orgId, code, email) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return null;
+  const entry = [...(org.studentCodes || []), ...(org.tutorCodes || [])].find((item) => item.code === code);
+  if (!entry) return null;
+  entry.sentToEmail = String(email || '').trim().toLowerCase();
+  entry.sentAt = new Date().toISOString();
+  persist(db);
+  return entry;
+}
+
+function listCodes(orgId) {
+  const org = findById(orgId);
+  if (!org) return { students: [], tutors: [] };
+  return { students: org.studentCodes || [], tutors: org.tutorCodes || [] };
+}
+
+function updateProfile(orgId, fields) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return null;
+  ['name', 'contactName', 'phone', 'address', 'description', 'logoUrl'].forEach((field) => {
+    if (fields[field] !== undefined) org[field] = String(fields[field] || '').trim();
+  });
+  org.updatedAt = new Date().toISOString();
+  persist(db);
+  return org;
+}
+
 function findOrgForStudent(studentUserId) {
-  return listAll().find((o) => o.studentCodes.some((c) => c.studentId === studentUserId)) || null;
+  return listAll().find((o) => o.studentCodes.some((c) => (c.redeemedBy || c.studentId) === studentUserId)) || null;
 }
 
 // Get all students who have redeemed codes from this organization
@@ -242,17 +237,72 @@ function getStudentsForOrganization(orgId) {
   const org = findById(orgId);
   if (!org) return [];
   const individualStudents = org.studentCodes
-    .filter((c) => c.studentId && c.redeemedAt)
+    .filter((c) => (c.redeemedBy || c.studentId) && c.redeemedAt && c.role === 'student')
     .map((c) => ({
-      studentId: c.studentId,
-      studentName: c.studentName,
+      studentId: c.redeemedBy || c.studentId,
+      studentName: c.redeemedName || c.studentName,
       redeemedAt: c.redeemedAt,
     }));
-  return [...individualStudents, ...(org.members || [])];
+  return [...individualStudents, ...(org.members || []).filter((member) => (member.role || 'student') === 'student')];
+}
+
+function removeMember(orgId, studentId) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return false;
+  const before = (org.members || []).length;
+  org.members = (org.members || []).filter((member) => Number(member.studentId) !== Number(studentId));
+  org.studentCodes = (org.studentCodes || []).map((entry) => entry.studentId === Number(studentId) ? { ...entry, studentId: null, studentName: null, redeemedAt: null } : entry);
+  if (org.members.length === before) return false;
+  persist(db);
+  return true;
+}
+
+function addEvent(orgId, event) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return null;
+  if (!org.events) org.events = [];
+  const saved = { id: Date.now(), ...event, createdAt: new Date().toISOString() };
+  org.events.unshift(saved);
+  persist(db);
+  return saved;
+}
+
+function updateEvent(orgId, eventId, meetLink) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  const event = org && (org.events || []).find((entry) => String(entry.id) === String(eventId));
+  if (!event) return null;
+  event.meetLink = meetLink || null;
+  persist(db);
+  return event;
+}
+
+function addClassroom(orgId, classroom) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return null;
+  if (!org.classrooms) org.classrooms = [];
+  const saved = { id: Date.now(), name: String(classroom.name || '').trim() || 'Classroom', createdAt: new Date().toISOString() };
+  org.classrooms.push(saved);
+  persist(db);
+  return saved;
+}
+
+function addFolder(orgId, name) {
+  const db = load();
+  const org = db.organizations.find((entry) => entry.id === Number(orgId));
+  if (!org) return null;
+  if (!org.folders) org.folders = [];
+  const folder = { id: Date.now(), name: String(name || '').trim() || 'Untitled folder', createdAt: new Date().toISOString() };
+  org.folders.push(folder);
+  persist(db);
+  return folder;
 }
 
 module.exports = {
   listAll, findById, findByUserId, removeByUserId, apply, setStatus,
   activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
-  getStudentsForOrganization, markCodeSent,
+  getStudentsForOrganization, removeMember, addEvent, updateEvent, addClassroom, addFolder, listCodes, updateProfile, markCodeSent, markCodeInvited, generateOrganizationCode,
 };

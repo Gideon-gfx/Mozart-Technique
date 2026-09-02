@@ -40,7 +40,7 @@ function send(assignmentId, { senderId, senderRole, text, libraryItem, attachmen
     senderId,
     senderRole, // 'student' | 'tutor'
     text: text || '',
-    libraryItem: libraryItem ? { id: libraryItem.id, title: libraryItem.title, url: libraryItem.url } : null,
+    libraryItem: libraryItem ? { id: libraryItem.id, title: libraryItem.title, url: libraryItem.url, href: libraryItem.href || null } : null,
     attachment: attachment
       ? {
         url: attachment.url,

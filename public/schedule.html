@@ -62,11 +62,16 @@
     };
     function lessonCard(lesson, section) {
       const when = new Date(lesson.scheduledAt);
+      const durationMinutes = Number(lesson.durationMinutes || 60);
+      const endTime = new Date(when.getTime() + durationMinutes * 60000);
       const hasMeet = Boolean(lesson.meetingLink);
+      const isPast = section === 'Past' || endTime.getTime() < Date.now();
       const color = section === 'Current' ? '#059669' : section === 'Past' ? '#82726d' : '#a3121a';
-      const action = hasMeet
-        ? `<a href="${esc(lesson.meetingLink)}" target="_blank" rel="noopener" style="background:#c00;color:#fff" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-red-800"><i class="fa-solid fa-video"></i>${section === 'Past' ? 'Open meeting link' : 'Join Google Meet'}</a>`
-        : '<span class="text-sm text-stone-400"><i class="fa-regular fa-calendar-xmark mr-1"></i>Meeting link will appear once your tutor schedules it.</span>';
+      const action = hasMeet && !isPast
+        ? `<a href="${esc(lesson.meetingLink)}" target="_blank" rel="noopener" style="background:#c00;color:#fff" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-red-800"><i class="fa-solid fa-video"></i>${section === 'Past' ? 'Meeting ended' : 'Join Google Meet'}</a>`
+        : (section === 'Past'
+          ? '<span class="text-sm text-stone-400"><i class="fa-regular fa-hourglass-half mr-1"></i>Lesson history: link is no longer active.</span>'
+          : '<span class="text-sm text-stone-400"><i class="fa-regular fa-calendar-xmark mr-1"></i>Meeting link will appear once your tutor schedules it.</span>');
       return `<div class="time-rail"><span class="time-dot" style="background:${color}"></span><article class="lesson-card bg-white rounded-2xl p-5 sm:p-6"><div class="flex flex-wrap items-start justify-between gap-4"><div><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide ${details[section].tone}"><i class="fa-solid ${details[section].icon}"></i>${details[section].note}</span><h3 class="text-xl font-bold mt-3">${esc(lesson.category)}</h3><p class="text-sm text-stone-500 mt-1">with <strong class="text-stone-700">${esc(lesson.tutorName || 'your tutor')}</strong></p></div><div class="text-left sm:text-right"><p class="font-bold text-stone-800">${when.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' })}</p><p class="text-sm text-stone-500 mt-1"><i class="fa-regular fa-clock mr-1"></i>${when.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}</p></div></div><div class="mt-5 pt-4 border-t border-stone-100 flex flex-wrap items-center gap-3">${action}<a href="/messages/chat/${lesson.id}" class="text-sm font-bold text-stone-600 hover:text-primary-red"><i class="fa-regular fa-comment mr-1"></i>Message tutor</a></div></article></div>`;
     }
     async function loadSchedule() {

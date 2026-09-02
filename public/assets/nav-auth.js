@@ -90,8 +90,77 @@
         font-size: .72rem; font-weight: 700; text-align: center;
       }
       .mt-auth-menu button[data-mt-logout] { color: #B91C1C; }
+
+      body.mt-page-loading > *:not(#mt-page-loader) {
+        filter: blur(4px) saturate(.8);
+        transition: filter .25s ease;
+        pointer-events: none;
+      }
+      #mt-page-loader {
+        position: fixed; inset: 0; z-index: 99999;
+        display: none; align-items: center; justify-content: center;
+        background: rgba(17, 17, 17, 0.22);
+        backdrop-filter: blur(8px);
+      }
+      body.mt-page-loading #mt-page-loader {
+        display: flex;
+      }
+      .mt-loader-shell {
+        position: relative; width: 128px; height: 128px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.12);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.18), 0 0 30px rgba(204,0,0,.38), 0 0 80px rgba(255,93,93,.2);
+        animation: mtLogoPulse 1.7s ease-in-out infinite;
+      }
+      .mt-loader-shell::before {
+        content: ''; position: absolute; inset: -10px; border-radius: 50%;
+        border: 2px solid rgba(204,0,0,.68); border-top-color: transparent; border-right-color: transparent;
+        animation: mtLoaderSpin 1.2s linear infinite;
+      }
+      .mt-loader-shell img {
+        width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+        box-shadow: 0 0 30px rgba(204,0,0,.45);
+      }
+      @keyframes mtLogoPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 1px rgba(255,255,255,.18), 0 0 28px rgba(204,0,0,.32), 0 0 70px rgba(255,93,93,.15); }
+        50% { transform: scale(1.08); box-shadow: 0 0 0 1px rgba(255,255,255,.3), 0 0 42px rgba(204,0,0,.48), 0 0 100px rgba(255,93,93,.26); }
+      }
+      @keyframes mtLoaderSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
     `;
     document.head.appendChild(style);
+  }
+
+  function initPageLoader() {
+    if (document.getElementById('mt-page-loader')) return;
+    const loader = document.createElement('div');
+    loader.id = 'mt-page-loader';
+    loader.setAttribute('aria-live', 'polite');
+    loader.setAttribute('aria-busy', 'true');
+    loader.innerHTML = '<div class="mt-loader-shell"><img src="/mozartLogo.jpg" alt="Mozart Techniques logo" /></div>';
+    document.body.appendChild(loader);
+
+    const removePageLoader = () => {
+      document.body.classList.remove('mt-page-loading');
+    };
+
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest('a[href]');
+      if (!link) return;
+      const href = link.getAttribute('href') || '';
+      if (!href || href.starts('#') || href.starts('javascript:') || href.starts('mailto:') || href.starts('tel:')) return;
+      if (link.hasAttribute('download') || link.target === '_blank') return;
+      document.body.classList.remove('mt-page-loading');
+      document.body.classList.add('mt-page-loading');
+      window.setTimeout(removePageLoader, 1800);
+    }, true);
+
+    window.addEventListener('pageshow', removePageLoader);
+    window.addEventListener('load', removePageLoader);
+    window.setTimeout(removePageLoader, 1500);
   }
 
   function escapeHtml(text) {
@@ -123,6 +192,7 @@
           <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
           <a href="/orientation"><i class="fa-solid fa-compass"></i> Orientation</a>
+          <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
           <a href="/messages" target="_blank" rel="noopener" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
           ${sponsorLink}
@@ -209,6 +279,7 @@
     if (!targets.length) return;
 
     injectStyle();
+    initPageLoader();
     try {
       const res = await fetch('/api/session');
       const data = await res.json();

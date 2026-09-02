@@ -81,6 +81,7 @@
                 <a href="/find-tutor">Find a Tutor</a>
                 <a href="/library">Library</a>
                 <a href="/dashboard" class="active">Dashboard</a>
+                <a id="organization-workspace-link" href="/ngo-dashboard" class="hidden">Organization</a>
                 <a id="admin-link" href="/admin" class="hidden">Admin</a>
                 <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
                 <button type="button" id="notif-btn" title="Notifications" class="relative">
@@ -276,6 +277,7 @@
 
             // Handle sponsor status
             if (data.user.sponsor) {
+                document.getElementById('organization-workspace-link')?.classList.remove('hidden');
                 document.getElementById('sponsor-status-text').innerHTML = `
                     <span class="font-semibold text-emerald-700">Code Redeemed.</span> You're under ${escapeHtml(data.user.sponsor.orgName)}'s sponsorship plan. You can now message them directly and continue with sponsored lessons.
                     <a href="/messages" class="ml-2 inline-flex items-center text-primary-red font-semibold hover:underline">Message sponsor <i class="fa-solid fa-arrow-right ml-1"></i></a>
@@ -340,11 +342,7 @@
                 : '<p class="text-gray-400">No notifications yet.</p>';
         }
 
-        document.getElementById('notif-btn').addEventListener('click', async () => {
-            const panel = document.getElementById('notif-panel');
-            panel.classList.toggle('hidden');
-            if (!panel.classList.contains('hidden')) loadNotifications();
-        });
+        document.getElementById('notif-btn').addEventListener('click', () => { window.location.href = '/notifications'; });
         document.getElementById('mark-all-notifications-read').addEventListener('click', async () => {
             await fetch('/api/notifications/read-all', { method: 'POST' });
             document.getElementById('notif-badge').classList.add('hidden');
@@ -957,6 +955,5 @@
         loadCertificates().catch(() => {});
     </script>
     <script src="/assets/mobile-nav.js"></script>
-    <script src="/assets/footer.js"></script>
 </body>
 </html>

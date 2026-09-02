@@ -13,10 +13,37 @@ const SUBJECTS = [
   // Percussion
   'Drums', 'Xylophone', 'Talking Drum', 'Percussive Instruments (Native)',
   // Study & performance
-  'Composition', 'Form & Analysis', 'Conducting', 'Music Theory', 'Dance',
+  'Composition', 'Form & Analysis', 'Conducting', 'Music Theory and Extra Curricula Activities', 'Music History', 'Dance',
   // Studio
   'DJing', 'Production',
 ];
+
+const fs = require('fs');
+const path = require('path');
+
+const SUBJECTS_FILE = path.join(__dirname, 'subjects.json');
+
+function loadSubjects() {
+  try {
+    if (!fs.existsSync(SUBJECTS_FILE)) return SUBJECTS.slice();
+    const saved = JSON.parse(fs.readFileSync(SUBJECTS_FILE, 'utf8'));
+    return Array.isArray(saved.subjects) && saved.subjects.length ? saved.subjects : SUBJECTS.slice();
+  } catch {
+    return SUBJECTS.slice();
+  }
+}
+
+function saveSubjects(subjects) {
+  const unique = [...new Set(subjects.map((subject) => String(subject).trim()).filter(Boolean))];
+  fs.writeFileSync(SUBJECTS_FILE, JSON.stringify({ subjects: unique }, null, 2));
+  return unique;
+}
+
+function addSubject(subject) {
+  const updated = saveSubjects([...loadSubjects(), subject]);
+  SUBJECTS.splice(0, SUBJECTS.length, ...updated);
+  return SUBJECTS.slice();
+}
 
 const GENRES = ['Classical', 'Jazz', 'Musical Theatre', 'Gospel', 'Folk', 'Pop', 'Rock', 'World Music'];
 
@@ -39,4 +66,4 @@ function levelForScore(score) {
   return 'Beginner';
 }
 
-module.exports = { SUBJECTS, GENRES, AGE_GROUPS, LEVELS, levelForScore };
+module.exports = { SUBJECTS: loadSubjects(), GENRES, AGE_GROUPS, LEVELS, levelForScore, loadSubjects, addSubject };

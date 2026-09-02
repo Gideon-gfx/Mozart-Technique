@@ -25,22 +25,38 @@ function persist(db) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
+function titleSortKey(value) {
+  const text = String(value || '').trim();
+  const first = text.charAt(0).toLowerCase();
+  const alphaFirst = /^[a-z]/.test(first) ? 0 : 1;
+  return [alphaFirst, text.toLowerCase()];
+}
+
+function sortByTitle(items) {
+  return [...items].sort((a, b) => {
+    const left = titleSortKey(a && a.title);
+    const right = titleSortKey(b && b.title);
+    if (left[0] !== right[0]) return left[0] - right[0];
+    return left[1].localeCompare(right[1]);
+  });
+}
+
 function listAll() {
-  return load().reels;
+  return sortByTitle(load().reels);
 }
 
 function listActive({ category, genre } = {}) {
   let list = listAll().filter((r) => r.status === 'active');
   if (category) list = list.filter((r) => r.category === category);
   if (genre) list = list.filter((r) => r.genre === genre);
-  return list;
+  return sortByTitle(list);
 }
 
 function findById(id) {
   return listAll().find((r) => r.id === Number(id)) || null;
 }
 
-function create({ title, description, url, category, genre, addedBy, isFile }) {
+function create({ title, description, url, category, genre, addedBy, isFile, ownerScope = 'mozart' }) {
   const db = load();
   const reel = {
     id: db.nextId++,
@@ -52,6 +68,7 @@ function create({ title, description, url, category, genre, addedBy, isFile }) {
     genre: genre || null,
     status: 'active',
     addedBy,
+    ownerScope,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
