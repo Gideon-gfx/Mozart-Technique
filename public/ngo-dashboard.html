@@ -500,16 +500,20 @@
         <div class="card">
           <div class="row mb-5"><div><h2 class="text-3xl font-bold">Organization Library</h2><p class="muted">General resources are available to students and tutors. Shared resources are for organization staff and tutors.</p></div><div class="flex gap-2"><button id="org-library-upload-toggle" type="button" class="btn-primary"><i class="fa-solid fa-upload mr-2"></i>Upload</button><button id="org-library-folder-btn" type="button" class="btn-secondary"><i class="fa-solid fa-folder-plus mr-2"></i>Create folder</button></div></div>
           <div class="flex flex-wrap gap-2 mb-5"><button class="org-library-tab btn-primary" data-library-view="general">General Library</button><button class="org-library-tab btn-secondary" data-library-view="mine">My Uploads</button><button class="org-library-tab btn-secondary" data-library-view="shared">Shared Library</button></div>
-          <form id="org-library-upload-form" class="hidden mb-6 grid gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 md:grid-cols-2">
-            <input id="org-library-title" required class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Name">
-            <input id="org-library-category" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Subject">
-            <input id="org-library-url" type="url" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="URL, YouTube, Drive, or other link">
-            <select id="org-library-type" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="info">Link / Drive</option><option value="photo">Photo</option><option value="video">Video</option><option value="document">Document</option></select>
-            <input id="org-library-file" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-            <select id="org-library-visibility" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="general">General Library - students and tutors</option><option value="shared">Shared Library - tutors and organization staff</option></select>
-            <select id="org-library-folder" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="">No folder</option></select>
-            <button type="submit" class="btn-primary md:col-span-2"><i class="fa-solid fa-upload mr-2"></i>Upload to library</button>
-          </form>
+          <div id="org-library-upload-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
+            <div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Upload to Library</h3><button id="close-library-upload-modal" class="btn-secondary" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+              <form id="org-library-upload-form" class="grid gap-3 md:grid-cols-2">
+                <input id="org-library-title" required class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Name">
+                <input id="org-library-category" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="Subject">
+                <input id="org-library-url" type="url" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" placeholder="URL, YouTube, Drive, or other link">
+                <select id="org-library-type" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="info">Link / Drive</option><option value="photo">Photo</option><option value="video">Video</option><option value="document">Document</option></select>
+                <input id="org-library-file" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                <select id="org-library-visibility" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="general">General Library - students and tutors</option><option value="shared">Shared Library - tutors and organization staff</option></select>
+                <select id="org-library-folder" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"><option value="">No folder</option></select>
+                <button type="submit" class="btn-primary md:col-span-2"><i class="fa-solid fa-upload mr-2"></i>Upload to library</button>
+              </form>
+            </div>
+          </div>
           <div id="org-library-grid" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
         </div>
       </div>
@@ -520,6 +524,10 @@
 
       <div id="meeting-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
         <div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Schedule a meeting</h3><button id="close-meeting-modal" class="btn-secondary" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-3"><input id="meeting-title" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Meeting title"><input id="meeting-start" type="datetime-local" class="w-full border border-gray-300 rounded-lg px-3 py-2"><input id="meeting-link" type="url" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Google Meet link (optional)"><label class="flex items-center gap-2 font-semibold"><input id="meeting-all-members" type="checkbox"> Meet all organization members</label><div id="meeting-member-list" class="max-h-48 overflow-y-auto space-y-2 border-t border-gray-100 pt-3"></div><button id="schedule-meeting-btn" class="btn-primary w-full"><i class="fa-solid fa-calendar-check"></i> Schedule meeting</button></div></div>
+      </div>
+
+      <div id="folder-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
+        <div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create Folder</h3><button id="close-folder-modal" class="btn-secondary" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-3"><input id="folder-name-input" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Folder name" maxlength="100"><button id="create-folder-btn" class="btn-primary w-full"><i class="fa-solid fa-folder-plus mr-2"></i>Create folder</button></div></div>
       </div>
 
       <div id="tab-feedbacks" class="tab-panel">
@@ -760,18 +768,31 @@
         const response = await fetch('/api/organizations/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, category: document.getElementById('org-library-category').value, url, fileUrl, type, visibility: document.getElementById('org-library-visibility').value, folderId: document.getElementById('org-library-folder').value || null }) });
         const data = await response.json();
         if (!data.success) throw new Error(data.error || 'Could not add library item.');
-        event.target.reset(); showAlert('Library item uploaded.', 'success');
+        event.target.reset(); 
+        document.getElementById('org-library-upload-modal').classList.add('hidden');
+        showAlert('Library item uploaded.', 'success');
         loadOrganizationLibrary(document.querySelector('.org-library-tab.btn-primary')?.dataset.libraryView || 'general');
       } catch (error) { showAlert(error.message || 'Could not upload library item.', 'error'); }
     });
 
-    document.getElementById('org-library-upload-toggle')?.addEventListener('click', () => document.getElementById('org-library-upload-form')?.classList.toggle('hidden'));
-    document.getElementById('org-library-folder-btn')?.addEventListener('click', async () => {
-      const name = window.prompt('Folder name');
-      if (!name || !name.trim()) return;
-      const response = await fetch('/api/organizations/library/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) });
+    document.getElementById('org-library-upload-toggle')?.addEventListener('click', () => document.getElementById('org-library-upload-modal')?.classList.remove('hidden'));
+    document.getElementById('close-library-upload-modal')?.addEventListener('click', () => document.getElementById('org-library-upload-modal')?.classList.add('hidden'));
+    document.getElementById('org-library-upload-modal')?.addEventListener('click', (event) => {
+      if (event.target && event.target.id === 'org-library-upload-modal') document.getElementById('org-library-upload-modal').classList.add('hidden');
+    });
+    document.getElementById('org-library-folder-btn')?.addEventListener('click', () => {
+      document.getElementById('folder-modal').classList.remove('hidden');
+      document.getElementById('folder-name-input').value = '';
+      document.getElementById('folder-name-input').focus();
+    });
+    document.getElementById('close-folder-modal')?.addEventListener('click', () => document.getElementById('folder-modal').classList.add('hidden'));
+    document.getElementById('create-folder-btn')?.addEventListener('click', async () => {
+      const name = document.getElementById('folder-name-input').value.trim();
+      if (!name) return showAlert('Enter a folder name.', 'error');
+      const response = await fetch('/api/organizations/library/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
       const data = await response.json();
       if (!data.success) return showAlert(data.error || 'Could not create folder.', 'error');
+      document.getElementById('folder-modal').classList.add('hidden');
       showAlert('Folder created.', 'success');
       loadOrganizationLibrary(document.querySelector('.org-library-tab.btn-primary')?.dataset.libraryView || 'general');
     });
