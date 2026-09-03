@@ -292,6 +292,18 @@
             alertBox.style.opacity = '1';
             setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
         }
+        
+        // Set back button based on user role
+        fetch('/api/session')
+            .then((r) => r.json())
+            .then((d) => {
+                const backBtn = document.querySelector('a[href="/messages"]');
+                if (backBtn && d.user && d.user.role === 'tutor') {
+                    backBtn.href = '/tutor';
+                    backBtn.title = 'Back to tutor dashboard';
+                }
+            })
+            .catch(() => { /* fallback to /messages */ });
         function escapeHtml(text) {
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
