@@ -47,6 +47,15 @@ function removeByUserId(userId) {
   return true;
 }
 
+function removeById(orgId) {
+  const db = load();
+  const index = db.organizations.findIndex((entry) => entry.id === Number(orgId));
+  if (index < 0) return null;
+  const [removed] = db.organizations.splice(index, 1);
+  persist(db);
+  return removed;
+}
+
 async function apply({ userId, name, contactName, email, phone, registrationNumber, address, description, sponsorType, organizationType, certificateUrl, numStudents, numTutors }) {
   const db = load();
   const coords = address ? await geocodeAddress(address) : null;
@@ -302,7 +311,7 @@ function addFolder(orgId, name) {
 }
 
 module.exports = {
-  listAll, findById, findByUserId, removeByUserId, apply, setStatus,
+  listAll, findById, findByUserId, removeByUserId, removeById, apply, setStatus,
   activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
   getStudentsForOrganization, removeMember, addEvent, updateEvent, addClassroom, addFolder, listCodes, updateProfile, markCodeSent, markCodeInvited, generateOrganizationCode,
 };

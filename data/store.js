@@ -284,6 +284,16 @@ function setSponsor(userId, { orgId, orgName }) {
   return user;
 }
 
+function clearSponsor(userId, orgId = null) {
+  const db = load();
+  const user = db.users.find((entry) => entry.id === userId);
+  if (!user || !user.sponsor) return user;
+  if (orgId != null && Number(user.sponsor.orgId) !== Number(orgId)) return user;
+  user.sponsor = null;
+  persist(db);
+  return user;
+}
+
 // A placement quiz gives a suggested level; a tutor's first-lesson
 // evaluation (finalizePlacement) can override it with the final say.
 function setPlacementSuggestion(userId, category, { score, level }) {
@@ -477,7 +487,7 @@ module.exports = {
   setCalendarTokens, clearCalendarTokens,
   markActive, getBadges, addNotification, markNotificationsRead, markNotificationRead, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
-  setStudentProfile, setRealLocation, setSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
+  setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

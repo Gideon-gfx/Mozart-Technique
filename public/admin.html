@@ -310,6 +310,7 @@
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">Technique Video Library</h1>
                 <p class="text-gray-500 mb-4">Upload your own clips, or link back to an original creator's post - never a downloaded/rehosted copy. Swap in a replacement when a link goes dead.</p>
 
+                <div class="relative mb-3"><i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i><input id="library-admin-search" type="search" placeholder="Search uploaded library items" class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3"></div>
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                     <input id="library-title" type="text" placeholder="Title" class="px-3 py-2 border border-gray-300 rounded-lg">
                     <input id="library-url" type="text" placeholder="Link (or upload below)" class="px-3 py-2 border border-gray-300 rounded-lg">
@@ -873,6 +874,7 @@
                         </div>
 
                         ${codeBox}
+                        <button class="delete-ngo-btn mt-2 px-3 py-2 bg-red-700 text-white rounded text-xs font-semibold" data-org-id="${org.id}"><i class="fa-solid fa-trash mr-1"></i>Delete application</button>
                         ${approvalButtons}
 
                         <div class="grid grid-cols-2 gap-4">
@@ -928,6 +930,16 @@
                     }
                 });
             });
+            document.querySelectorAll('.generate-org-code-btn').forEach((btn) => btn.remove());
+            document.querySelectorAll('.delete-ngo-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                if (!window.confirm('Delete this organization application permanently?')) return;
+                const response = await fetch(`/api/admin/organizations/${btn.dataset.orgId}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (!result.success) return showAlert(result.error || 'Could not delete application.', 'error');
+                showAlert('Organization application deleted.', 'success');
+                loadNgoInstitutions();
+            }));
+
             document.querySelectorAll('.generate-org-code-btn').forEach((btn) => btn.addEventListener('click', async () => {
                 const response = await fetch(`/api/admin/organizations/${btn.dataset.orgId}/code`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: btn.dataset.role }) });
                 const result = await response.json();
@@ -1155,8 +1167,10 @@
         async function loadLibrary() {
             const res = await fetch('/api/admin/library');
             const data = await res.json();
-            document.getElementById('library-tbody').innerHTML = data.items.length
-                ? data.items.map(libraryRowHtml).join('')
+            const query = document.getElementById('library-admin-search').value.trim().toLowerCase();
+            const items = (data.items || []).filter((item) => !query || [item.title, item.description, item.category, item.genre].filter(Boolean).join(' ').toLowerCase().includes(query));
+            document.getElementById('library-tbody').innerHTML = items.length
+                ? items.map(libraryRowHtml).join('')
                 : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No clips added yet.</td></tr>';
 
             document.querySelectorAll('.library-status-btn').forEach((btn) => {
@@ -1217,6 +1231,8 @@
             });
             window.__libraryItems = data.items;
         }
+
+        document.getElementById('library-admin-search').addEventListener('input', loadLibrary);
 
         document.getElementById('library-upload').addEventListener('change', async (e) => {
             const file = e.target.files[0];

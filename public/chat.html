@@ -363,6 +363,10 @@
                     </div>`);
             }
 
+            if (tutorRecord && tutorRecord.status === 'active' && !tutorRecord.lessonStartedAt) {
+                parts.push(`<button type="button" id="start-chat-lesson" class="inline-flex items-center gap-2 rounded-lg bg-primary-red px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-play"></i>Start lesson</button>`);
+            }
+
             const recs = record.recordings || [];
             if (recs.length) {
                 parts.push(`
@@ -390,6 +394,14 @@
                     showAlert('Class confirmed and payment released.', 'success');
                     loadLessonStrip();
                 });
+            });
+            document.getElementById('start-chat-lesson')?.addEventListener('click', async (event) => {
+                event.currentTarget.disabled = true;
+                const response = await fetch(`/api/assignments/${assignmentId}/lesson-start`, { method: 'POST' });
+                const result = await response.json();
+                if (!result.success) { event.currentTarget.disabled = false; showAlert(result.error || 'Could not start lesson.', 'error'); return; }
+                showAlert('Lesson started.', 'success');
+                loadLessonStrip();
             });
         }
 

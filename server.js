@@ -493,6 +493,16 @@ app.get('/tutor', requireTutorProfilePage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
 });
 
+app.get('/org-tutor', requireTutorProfilePage, (req, res) => {
+  const user = currentUser(req);
+  if (!user.sponsor) return res.redirect('/tutor');
+  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+});
+
+app.get('/tutor-dashboard.html', requireTutorProfilePage, (req, res) => {
+  res.redirect(currentUser(req).sponsor ? '/org-tutor' : '/tutor');
+});
+
 // Public per-tutor page by slug (e.g. /tutor/jane-doe) and nested profile routes
 app.get('/tutor/:slug', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
@@ -1909,6 +1919,7 @@ app.delete('/api/organizations/members/:studentId', requireAuthApi, (req, res) =
   const org = organizations.findByUserId(user.id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Organization access required.' });
   const removed = organizations.removeMember(org.id, req.params.studentId);
+  if (removed) store.clearSponsor(Number(req.params.studentId), org.id);
   res.json({ success: removed });
 });
 
@@ -3547,6 +3558,13 @@ app.post('/api/admin/organizations/:id/code-sent', requireAdminApi, (req, res) =
     message: 'Your sponsor access code has been sent to your organization after payment confirmation.',
   });
   res.json({ success: true, organization: updated });
+});
+
+app.delete('/api/admin/organizations/:id', requireAdminApi, (req, res) => {
+  const removed = organizations.removeById(req.params.id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Organization application not found.' });
+  (removed.members || []).forEach((member) => store.clearSponsor(Number(member.studentId), removed.id));
+  res.json({ success: true });
 });
 
 app.post('/api/admin/tutors/:id/expel', requireAdminApi, (req, res) => {

@@ -673,6 +673,7 @@
                                 : `<button class="rate-session-btn text-primary-red font-semibold shrink-0 ml-2 hover:underline" data-request-id="${requestId}" data-session-id="${s.id}" data-role="${role}" data-name="${escapeHtml(counterpartName)}">Rate</button>`}
                         </div>
                         ${reelLinks ? `<div class="mt-1">${reelLinks}</div>` : ''}
+                        ${role === 'student' && s.paymentStatus === 'held' ? `<button type="button" class="confirm-dashboard-bill mt-2 rounded-lg bg-primary-red px-3 py-1.5 text-xs font-bold text-white" data-request-id="${requestId}" data-session-id="${s.id}"><i class="fa-solid fa-credit-card mr-1"></i>Proceed to payment</button>` : ''}
                     </div>
                 `;
             }).join('')}</div>`;
@@ -709,6 +710,16 @@
                     const record = list.find((r) => String(r.id) === btn.dataset.requestId);
                     const session = record && record.sessions.find((s) => String(s.id) === btn.dataset.sessionId);
                     if (session) openRateModal(btn.dataset.requestId, session, btn.dataset.role, btn.dataset.name);
+                });
+            });
+            document.querySelectorAll('.confirm-dashboard-bill').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    button.disabled = true;
+                    const response = await fetch(`/api/assignments/${button.dataset.requestId}/sessions/${button.dataset.sessionId}/confirm`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success && result.checkoutUrl) return window.location.href = result.checkoutUrl;
+                    button.disabled = false;
+                    showAlert(result.error || 'Could not open payment checkout.', 'error');
                 });
             });
             document.querySelectorAll('.log-session-btn').forEach((btn) => {

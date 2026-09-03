@@ -57,7 +57,7 @@
                     <a href="/home">Home</a>
                     <a href="/find-tutor">Find a Tutor</a>
                     <a href="/library">Library</a>
-                    <a id="organization-workspace-link" href="/tutor-dashboard.html" class="hidden">Organization</a>
+                    <a id="organization-workspace-link" href="/org-tutor" class="hidden">Organization</a>
                     <a href="/become-tutor">Become a Tutor</a>
                     <a href="/become-sponsor">Sponsor</a>
                     <a href="/contact">Contact</a>
@@ -435,11 +435,7 @@
                         <p class="text-xs text-gray-500">${escapeHtml(r.category || '')} • ${when || 'no lesson scheduled'}</p>
                         <div>${meet}</div>
                         ${recs ? `<ul class="mt-2 space-y-1 border-t border-gray-100 pt-2">${recs}</ul>` : ''}
-                        <div class="flex flex-wrap gap-2 pt-1">
-                            <button type="button" class="row-btn-outline text-xs schedule-meet-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Schedule lesson</button>
-                            ${billingControl}
-                            <button type="button" class="row-btn-outline text-xs post-recording-btn" data-request-id="${r.id}" data-student-name="${escapeHtml(r.studentName || '')}">Post recording</button>
-                        </div>
+                        <div class="flex flex-wrap gap-2 pt-1">${billingControl}</div>
                     </div>`;
             }).join('');
 
