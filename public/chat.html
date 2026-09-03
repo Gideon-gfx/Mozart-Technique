@@ -363,10 +363,13 @@
                     </div>`);
             }
 
-            if (tutorRecord && tutorRecord.status === 'active' && !tutorRecord.lessonStartedAt) {
-                parts.push(`<button type="button" id="start-chat-lesson" class="inline-flex items-center gap-2 rounded-lg bg-primary-red px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-play"></i>Start lesson</button>`);
+            if (tutorRecord && tutorRecord.status === 'active') {
+                if (tutorRecord.lessonStartedAt) {
+                    parts.push(`<div class="inline-flex flex-wrap items-center gap-2"><button type="button" id="end-chat-lesson" class="inline-flex items-center gap-2 rounded-lg bg-primary-red px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-stopwatch"></i>End lesson & send bill</button><span class="text-xs font-semibold text-emerald-700">Lesson in progress</span></div>`);
+                } else {
+                    parts.push(`<button type="button" id="start-chat-lesson" class="inline-flex items-center gap-2 rounded-lg bg-primary-red px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-play"></i>Start lesson</button>`);
+                }
             }
-
             const recs = record.recordings || [];
             if (recs.length) {
                 parts.push(`
@@ -396,11 +399,23 @@
                 });
             });
             document.getElementById('start-chat-lesson')?.addEventListener('click', async (event) => {
-                event.currentTarget.disabled = true;
+                const button = event.currentTarget;
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Starting…';
                 const response = await fetch(`/api/assignments/${assignmentId}/lesson-start`, { method: 'POST' });
                 const result = await response.json();
-                if (!result.success) { event.currentTarget.disabled = false; showAlert(result.error || 'Could not start lesson.', 'error'); return; }
-                showAlert('Lesson started.', 'success');
+                if (!result.success) { button.disabled = false; button.innerHTML = '<i class="fa-solid fa-play"></i>Start lesson'; showAlert(result.error || 'Could not start lesson.', 'error'); return; }
+                showAlert('Lesson started. End it when the class finishes to send the bill.', 'success');
+                loadLessonStrip();
+            });
+            document.getElementById('end-chat-lesson')?.addEventListener('click', async (event) => {
+                const button = event.currentTarget;
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing bill…';
+                const response = await fetch(`/api/assignments/${assignmentId}/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                const result = await response.json();
+                if (!result.success) { button.disabled = false; button.innerHTML = '<i class="fa-solid fa-stopwatch"></i>End lesson & send bill'; showAlert(result.error || 'Could not end lesson.', 'error'); return; }
+                showAlert(`Bill sent: ${result.session.durationMinutes} minutes — $${result.session.totalUsd}.`, 'success');
                 loadLessonStrip();
             });
         }
