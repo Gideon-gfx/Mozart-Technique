@@ -340,9 +340,9 @@
             const record = studentRecord || tutorRecord;
             if (!record) return;
             const meetingButton = document.getElementById('chat-meeting-btn');
-            meetingButton.classList.remove('hidden');
-            meetingButton.onclick = () => { if (record.meetingLink) window.open(record.meetingLink, '_blank', 'noopener'); else if (tutorRecord) window.location.href = `/schedule?assignment=${assignmentId}`; else showAlert('Your tutor has not scheduled a meeting yet.', 'info'); };
-
+            const meetingHasPassed = record.scheduledAt && new Date(record.scheduledAt).getTime() < Date.now();
+            meetingButton.classList.toggle('hidden', Boolean(meetingHasPassed));
+            meetingButton.onclick = () => { if (record.meetingLink && !meetingHasPassed) window.location.href = record.meetingLink; else if (tutorRecord && !meetingHasPassed) window.location.href = `/schedule?assignment=${assignmentId}`; else showAlert('This scheduled meeting has ended.', 'info'); };
             const parts = [];
             if (record.scheduledAt) {
                 const when = new Date(record.scheduledAt);
@@ -352,14 +352,14 @@
                         <i class="fa-regular fa-calendar text-primary-red"></i>
                         <span class="${past ? 'text-gray-400' : 'text-gray-700 font-semibold'}">${past ? 'Last lesson' : 'Next lesson'}: ${when.toLocaleString()}</span>
                         ${record.meetingLink && !past
-                            ? `<a href="${escapeHtml(record.meetingLink)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-red text-white font-semibold"><i class="fa-solid fa-video"></i> Join</a>`
+                            ? `<a href="${escapeHtml(record.meetingLink)}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-red text-white font-semibold"><i class="fa-solid fa-video"></i> Join</a>`
                             : ''}
                     </div>`);
             } else if (record.meetingLink) {
                 parts.push(`
                     <div class="flex items-center gap-2 flex-wrap">
                         <i class="fa-solid fa-video text-primary-red"></i>
-                        <a href="${escapeHtml(record.meetingLink)}" target="_blank" rel="noopener" class="text-primary-red font-semibold hover:underline">Join meeting</a>
+                        <a href="${escapeHtml(record.meetingLink)}" class="text-primary-red font-semibold hover:underline">Join meeting</a>
                     </div>`);
             }
 
@@ -376,7 +376,7 @@
                     <div class="flex items-start gap-2 flex-wrap mt-1">
                         <i class="fa-solid fa-film text-gray-400 mt-0.5"></i>
                         <span class="text-gray-500">Recordings:</span>
-                        ${recs.map((v) => `<a href="${escapeHtml(v.url)}" target="_blank" rel="noopener" class="text-primary-red hover:underline">${escapeHtml(v.title)}</a>`).join('<span class="text-gray-300">·</span>')}
+                        ${recs.map((v) => `<a href="${escapeHtml(v.url)}" class="text-primary-red hover:underline">${escapeHtml(v.title)}</a>`).join('<span class="text-gray-300">·</span>')}
                     </div>`);
             }
 
@@ -440,7 +440,7 @@
             const safe = escapeHtml(String(text || ''));
             return safe.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
                 const href = match.startsWith('http') ? match : `https://${match}`;
-                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
+                return `<a href="${escapeHtml(href)}" class="underline decoration-inherit hover:opacity-80">${escapeHtml(match)}</a>`;
             });
         }
 
@@ -459,7 +459,7 @@
                         : vimeo
                             ? `<iframe src="https://player.vimeo.com/video/${vimeo[1]}" title="${escapeHtml(m.libraryItem.title)}" class="library-clip aspect-video" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`
                             : '';
-                return `${player}<a href="${libraryUrl}" target="_blank" rel="noopener" class="library-clip-link ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>${escapeHtml(m.libraryItem.title)}</a>`;
+                return `${player}<a href="${libraryUrl}" class="library-clip-link ${mine ? 'text-red-100' : 'text-primary-red'} hover:underline"><i class="fa-solid fa-clapperboard mr-1"></i>${escapeHtml(m.libraryItem.title)}</a>`;
             })() : '';
             const a = m.attachment;
             let attachmentHtml = '';
@@ -467,13 +467,13 @@
                 const url = escapeHtml(a.url);
                 const name = escapeHtml(a.name || 'file');
                 if (a.kind === 'image') {
-                    attachmentHtml = `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${name}" class="att-img"></a>`;
+                    attachmentHtml = `<a href="${url}"><img src="${url}" alt="${name}" class="att-img"></a>`;
                 } else if (a.kind === 'video') {
                     attachmentHtml = `<video src="${url}" controls preload="metadata" class="att-video"></video>`;
                 } else if (a.kind === 'audio') {
                     attachmentHtml = `<audio src="${url}" controls preload="metadata" class="att-audio"></audio>`;
                 } else {
-                    attachmentHtml = `<a href="${url}" target="_blank" rel="noopener" download class="att-file ${mine ? 'text-white' : 'text-gray-700'}"><i class="fa-regular fa-file-lines"></i>${name}</a>`;
+                    attachmentHtml = `<a href="${url}" download class="att-file ${mine ? 'text-white' : 'text-gray-700'}"><i class="fa-regular fa-file-lines"></i>${name}</a>`;
                 }
             }
             const stamp = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

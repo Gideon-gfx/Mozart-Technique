@@ -742,8 +742,11 @@
       event.preventDefault();
       const title = document.getElementById('org-library-title').value.trim();
       const url = document.getElementById('org-library-url').value.trim();
-      const type = document.getElementById('org-library-type').value;
+      const selectedType = document.getElementById('org-library-type').value;
       const file = document.getElementById('org-library-file').files[0];
+      const type = file && selectedType === 'info'
+        ? (file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'document')
+        : selectedType;
       if (!url && !file) return showAlert('Add a URL or choose a file.', 'error');
       try {
         let fileUrl = null;
@@ -754,7 +757,7 @@
           if (!uploadData.success) throw new Error(uploadData.error || 'File upload failed.');
           fileUrl = uploadData.url;
         }
-        const response = await fetch('/api/organizations/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, category: document.getElementById('org-library-category').value, url, fileUrl, type: file ? type : 'info', visibility: document.getElementById('org-library-visibility').value, folderId: document.getElementById('org-library-folder').value || null }) });
+        const response = await fetch('/api/organizations/library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, category: document.getElementById('org-library-category').value, url, fileUrl, type, visibility: document.getElementById('org-library-visibility').value, folderId: document.getElementById('org-library-folder').value || null }) });
         const data = await response.json();
         if (!data.success) throw new Error(data.error || 'Could not add library item.');
         event.target.reset(); showAlert('Library item uploaded.', 'success');
@@ -1474,7 +1477,9 @@
         if (!data.success) return showAlert(data.error || 'Could not create invitation.', 'error');
         const subject = encodeURIComponent(`${data.organizationName || 'Mozart Techniques'} invitation`);
         const body = encodeURIComponent(`Hello${name ? ` ${name}` : ''},\n\nYou have been invited to join ${data.organizationName || 'our organization'} on Mozart Techniques as a ${role}.\n\nRedeem code: ${data.code}\nOpen this link to redeem: ${data.redeemLink}\n\nThank you.`);
-        window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
+        const composeUrl = `https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
+        const composeWindow = window.open(composeUrl, '_blank', 'noopener');
+        if (!composeWindow) window.location.assign(composeUrl);
         loadIssuedCodes();
       } catch (error) { showAlert('Could not create invitation.', 'error'); }
     });

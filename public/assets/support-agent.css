@@ -1,1 +1,16 @@
 html,body{height:100%;overflow:hidden}.shell{height:calc(100dvh - 36px);margin:18px auto!important;padding:18px 28px!important;display:flex;flex-direction:column}.top{flex:none}.layout{height:auto!important;min-height:0!important;flex:1}.chat,.messages{min-height:0}.reply{flex:none}@media(max-width:760px){html,body{overflow:auto}.shell{height:calc(100dvh - 24px);margin:12px auto!important;padding:12px!important}.top{margin-bottom:12px!important}.layout{min-height:0!important;grid-template-rows:minmax(105px,34%) minmax(0,1fr)}.list{max-height:none!important;min-height:0}.chat{min-height:0!important}.messages{min-height:0}.reply{padding:10px!important}}
+
+/* Keep every message and control inside the phone viewport. */
+.message{overflow-wrap:anywhere;word-break:break-word}
+.reply textarea{min-width:0;flex:1;border:1px solid #d8cfca;border-radius:18px;padding:10px 13px;font:inherit;line-height:1.35;resize:none;max-height:96px;overflow-y:auto}
+.reply button{white-space:nowrap}
+@media(max-width:760px){
+  html,body{height:100%;overflow:hidden}
+  .shell{height:100dvh!important;margin:0!important;padding:12px!important;box-sizing:border-box}
+  .top{gap:10px;align-items:flex-start}.top a{padding-top:4px;white-space:nowrap}.top p{margin:4px 0 0}
+  .layout{grid-template-rows:minmax(140px,35%) minmax(0,1fr)!important;border-radius:14px}
+  .list{overflow:auto!important;padding:10px!important}.thread{padding:10px;margin:3px 0}
+  .chat header{padding:12px;font-size:14px}.messages{padding:12px;gap:7px}.message{max-width:88%;font-size:13px}
+  .reply{display:grid!important;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:'attach text send' 'claim claim claim';align-items:center;gap:7px;padding:9px!important}
+  .reply .attach{grid-area:attach}.reply textarea{grid-area:text;width:100%;box-sizing:border-box}.reply #reply-button{grid-area:send;padding:10px 12px}.reply #claim-button{grid-area:claim;width:100%;padding:10px 12px}
+}

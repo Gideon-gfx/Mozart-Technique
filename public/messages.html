@@ -167,13 +167,8 @@
         }
 
         async function setupTutorGroupButton() {
-            const [session, tutorData] = await Promise.all([
-                fetch('/api/session').then((r) => r.json()),
-                fetch('/api/tutors/me').then((r) => r.json()).catch(() => ({}))
-            ]);
-            if (session.user?.role !== 'tutor' && !tutorData.profile) return;
-            if (!document.getElementById('create-tutor-group-btn')) return;
-            const button = document.getElementById('create-tutor-group-btn');
+            // The server verifies tutor access when a group is created. Do not
+            // depend on an extra profile request here, which can fail on some roles.            const button = document.getElementById('create-tutor-group-btn');
             button.classList.remove('hidden');
             button.addEventListener('click', async () => {
                 const assignmentData = await fetch('/api/my-assignments').then((r) => r.json());
