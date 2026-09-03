@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -26,6 +26,9 @@
     h1, h2, h3, h4, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: .01em; }
     .header { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); border-bottom: 2px solid var(--mozart-red); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
     .sidebar { width: 280px; background: linear-gradient(180deg,#fff 0%,#fff8f7 100%); border-right: 1px solid var(--mozart-line); transition: width .2s ease; }
+    .sidebar { position: sticky; top: 82px; height: calc(100vh - 82px); overflow-y: auto; align-self: flex-start; }
+    .sidebar-item > span { display: flex; align-items: center; gap: 10px; text-align: left; }
+    @media (max-width: 768px) { .sidebar { position: fixed; top: 0; left: 0; z-index: 60; height: 100vh; transform: translateX(-100%); width: 280px; } .sidebar.open { transform: translateX(0); } #org-logo { display: none; } }
     .sidebar.collapsed { width: 90px; }
     .sidebar.collapsed .sidebar-label { display: none; }
     .sidebar.collapsed .sidebar-brand-details { display: none; }
@@ -90,11 +93,26 @@
       .classroom-shell { grid-template-columns: 1fr; }
     }
     @media (max-width: 700px) {
-      #mobile-menu-btn { display: flex; position: fixed; left: 12px; top: 78px; z-index: 35; background: white; overflow: hidden; }
+      #mobile-menu-btn { display: flex; position: static; margin: 12px; align-self: flex-start; background: white; overflow: hidden; }
       #sidebarToggle { display: none; }
+      #org-logo { display: none !important; }
+
       .sidebar { position: fixed; left: 0; top: 72px; bottom: 0; transform: translateX(-100%); z-index: 30; }
       .sidebar.open { transform: translateX(0); }
       .stats-grid, .status-grid { grid-template-columns: 1fr; }
+      .main-panel { width: 100%; min-width: 0; overflow-x: hidden; }
+      .card { padding: 14px; border-radius: 14px; }
+      .row { align-items: flex-start; flex-wrap: wrap; }
+      .row > div:first-child { min-width: 0; }
+      #org-library-grid { grid-template-columns: minmax(0, 1fr); }
+      #org-library-upload-form { grid-template-columns: minmax(0, 1fr); }
+      #org-library-upload-form .md\\:col-span-2 { grid-column: auto; }
+      .btn-primary, .btn-secondary { max-width: 100%; }
+      .text-3xl { font-size: 1.5rem !important; line-height: 1.2; }
+      .text-2xl { font-size: 1.25rem !important; }
+      .btn-primary, .btn-secondary { padding: 9px 12px; font-size: .82rem; border-radius: 10px; }
+      .sidebar-item { padding: 10px 12px; font-size: .85rem; }
+      .muted { font-size: .84rem; }
     }
   </style>
 </head>
@@ -116,7 +134,7 @@
       <div class="flex items-center gap-3">
         <button id="org-notifications-btn" class="relative w-10 h-10 rounded-lg hover:bg-red-50 text-red-600" aria-label="Notifications" title="Notifications"><i class="fa-solid fa-bell"></i><span id="org-notification-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] leading-4">0</span></button>
         <div class="relative">
-          <button id="org-profile-btn" class="w-10 h-10 rounded-full bg-red-600 text-white font-bold" aria-label="Open profile menu">O</button>
+          <button id="org-profile-btn" class="w-10 h-10 rounded-full bg-cover bg-center text-transparent" aria-label="Open profile menu" style="background-image:url(&quot;/mozartLogo.jpg&quot;)">Organization</button>
           <div id="org-profile-menu" class="hidden absolute right-0 top-12 z-40 w-56 rounded-xl border border-red-100 bg-white p-3 shadow-xl">
             <p id="org-profile-name" class="font-bold text-gray-800 truncate">Organization</p>
             <p id="org-profile-email" class="text-xs text-gray-500 truncate mb-2"> </p>
@@ -130,7 +148,7 @@
   </header>
 
   <div class="flex min-h-screen">
-    <button id="mobile-menu-btn" class="hidden w-10 h-10 items-center justify-center rounded-lg border border-red-100 text-red-600 shadow-sm" aria-label="Open sidebar"><img src="/mozartLogo.jpg" alt="Open sidebar" class="h-full w-full rounded-lg object-cover"></button>
+    <button id="mobile-menu-btn" class="hidden w-10 h-10 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 shadow-sm" aria-label="Open sidebar"><i class="fa-solid fa-bars text-lg"></i></button>
     <aside class="sidebar">
       <div class="flex items-center gap-3 p-5 border-b border-red-100">
         <button id="sidebarToggle" title="Collapse sidebar" aria-label="Collapse sidebar" class="w-10 h-10 rounded-lg hover:bg-red-50 text-red-600"><i class="fa-solid fa-bars"></i></button>
@@ -497,7 +515,7 @@
       </div>
 
       <div id="tab-meeting" class="tab-panel">
-        <div class="card"><div class="row mb-5"><div><h2 class="text-3xl font-bold">Meetings</h2><p class="muted">Create a meeting with selected organization members.</p></div><button id="create-meeting-btn" class="btn-primary"><i class="fa-solid fa-plus"></i> Create meeting</button></div><div id="meeting-list" class="space-y-3"><p class="text-gray-400">No meetings scheduled.</p></div></div>
+        <div class="card"><div class="row mb-5"><div><h2 class="text-3xl font-bold">Meetings</h2><p class="muted">Create a meeting with selected organization members.</p></div><div class="flex gap-2"><button id="join-meeting-btn" type="button" class="btn-secondary"><i class="fa-solid fa-video"></i> Join meeting</button><button id="create-meeting-btn" class="btn-primary"><i class="fa-solid fa-plus"></i> Create meeting</button></div></div><div id="meeting-list" class="space-y-3"><p class="text-gray-400">No meetings scheduled.</p></div></div>
       </div>
 
       <div id="meeting-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
@@ -649,12 +667,12 @@
       const profileButton = document.getElementById('org-profile-btn');
       if (profileName) profileName.textContent = org.contactName || name;
       if (profileEmail) profileEmail.textContent = org.email || '';
-      if (profileButton) profileButton.textContent = (org.contactName || name || 'O').trim().charAt(0).toUpperCase();
+      if (profileButton) profileButton.textContent = '';
       if (profileButton) {
-        profileButton.style.backgroundImage = org.logoUrl ? `url("${org.logoUrl}")` : '';
+        profileButton.style.backgroundImage = "url('/mozartLogo.jpg')";
         profileButton.style.backgroundSize = 'cover';
         profileButton.style.backgroundPosition = 'center';
-        profileButton.style.color = org.logoUrl ? 'transparent' : '';
+        profileButton.style.color = 'transparent';
       }
       const orgLogo = document.getElementById('org-logo');
       if (orgLogo && org.logoUrl) orgLogo.src = org.logoUrl;
@@ -1312,15 +1330,21 @@
       if (data.success) { showAlert('Learning announcement created.', 'success'); loadClassroomLiveData(); } else showAlert(data.error || 'Could not create announcement.', 'error');
     });
 
-    document.getElementById('create-event-btn')?.addEventListener('click', async () => {
-      const title = window.prompt('Event title');
-      const startISO = window.prompt('Start date and time (for example 2026-09-10T16:00)');
-      if (!title || !startISO) return;
-      const response = await fetch('/api/organizations/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, startISO, durationMinutes: 60, attendeeEmails: [] }) });
-      const data = await response.json();
-      if (data.success) { showAlert('Event created.', 'success'); loadClassroomLiveData(); } else showAlert(data.error || 'Connect Google Calendar before creating an event.', 'error');
+    document.getElementById('create-event-btn')?.addEventListener('click', () => {
+      document.getElementById('meeting-title').value = '';
+      document.getElementById('meeting-start').value = '';
+      document.getElementById('meeting-link').value = '';
+      document.getElementById('create-meeting-btn')?.click();
     });
-
+    document.getElementById('join-meeting-btn')?.addEventListener('click', () => {
+      const events = state.events || [];
+      const event = events.find((item) => item.meetLink);
+      if (event) return window.open(event.meetLink, '_blank', 'noopener');
+      const link = window.prompt('Paste the Google Meet link to join');
+      if (!link || !link.trim()) return;
+      if (!/^https?:\/\//i.test(link.trim())) return showAlert('Paste the full meeting link beginning with https://', 'error');
+      window.open(link.trim(), '_blank', 'noopener');
+    });
     document.getElementById('create-meeting-btn')?.addEventListener('click', () => {
       const list = document.getElementById('meeting-member-list');
       const members = [...state.classroomStudents.map((member) => ({ ...member, memberType: 'student' })), ...state.classroomTutors.map((member) => ({ ...member, memberType: 'tutor' }))];
@@ -1369,6 +1393,11 @@
       document.querySelector('.sidebar')?.classList.add('open');
     });
 
+    document.addEventListener('click', (event) => {
+      const sidebar = document.querySelector('.sidebar');
+      const mobileButton = document.getElementById('mobile-menu-btn');
+      if (window.innerWidth <= 700 && sidebar?.classList.contains('open') && !sidebar.contains(event.target) && !mobileButton?.contains(event.target)) sidebar.classList.remove('open');
+    });
     document.getElementById('org-profile-btn')?.addEventListener('click', (event) => {
       event.stopPropagation();
       document.getElementById('org-profile-menu')?.classList.toggle('hidden');

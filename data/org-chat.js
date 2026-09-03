@@ -168,6 +168,13 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text })
   return message;
 }
 
+function listAll() {
+  return load().conversations.map((conversation) => normalizeConversation(conversation));
+}
+function findById(conversationId) {
+  const conv = load().conversations.find((item) => Number(item.id) === Number(conversationId));
+  return conv ? normalizeConversation(conv) : null;
+}
 function getMessages(conversationId) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
@@ -198,6 +205,8 @@ module.exports = {
   getOrCreateTutorGroupConversation,
   sendMessage,
   getMessages,
+  findById,
+  listAll,
   markRead,
   getUnreadCount,
 };

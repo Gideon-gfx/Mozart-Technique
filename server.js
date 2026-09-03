@@ -575,6 +575,7 @@ function serveChatPage(req, res) {
 }
 
 app.get('/messages/chat/:id', requireAuthPage, serveChatPage);
+app.get('/messages/group/:id', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'group-chat.html')));
 // Kept so older links (notifications, emails already sent) still work.
 app.get('/chat/:id', requireAuthPage, serveChatPage);
 
@@ -1505,6 +1506,40 @@ app.post('/api/tutors/me/group-chats/:id/messages', requireApprovedTutorApi, (re
   res.json({ success: true, message });
 });
 
+function tutorGroupAccess(user, conversationId) {
+  const conversation = orgChat.findById(conversationId);
+  if (!conversation || conversation.type !== 'tutor-group') return null;
+  const tutor = tutors.findByUserId(user.id);
+  if (tutor && Number(conversation.tutorId) === Number(tutor.id)) return { conversation, role: 'tutor', name: tutor.name };
+  const participant = (conversation.participants || []).find((entry) => entry.type === 'student' && Number(entry.id) === Number(user.id));
+  return participant ? { conversation, role: 'student', name: user.name || participant.name || 'Student' } : null;
+}
+
+app.get('/api/group-chats', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutor = tutors.findByUserId(user.id);
+  const chats = (tutor ? orgChat.listForTutor(tutor.id) : [])
+    .filter((item) => item.type === 'tutor-group')
+    .concat((!tutor ? [] : []));
+  const studentChats = orgChat.listAll ? orgChat.listAll() : [];
+  const visible = tutor ? chats : studentChats.filter((item) => item.type === 'tutor-group' && (item.participants || []).some((entry) => entry.type === 'student' && Number(entry.id) === Number(user.id)));
+  res.json({ success: true, chats: visible.map((item) => ({ id: item.id, name: item.title, course: item.course, studentCount: (item.participants || []).filter((entry) => entry.type === 'student').length, lastAt: (item.messages || []).slice(-1)[0]?.createdAt || item.createdAt, lastMessage: (item.messages || []).slice(-1)[0]?.text || '' })) });
+});
+
+app.get('/api/group-chats/:id', requireAuthApi, (req, res) => {
+  const access = tutorGroupAccess(currentUser(req), req.params.id);
+  if (!access) return res.status(404).json({ success: false, error: 'Group chat not found.' });
+  res.json({ success: true, group: access.conversation, role: access.role, messages: orgChat.getMessages(access.conversation.id) });
+});
+
+app.post('/api/group-chats/:id/messages', requireAuthApi, (req, res) => {
+  const access = tutorGroupAccess(currentUser(req), req.params.id);
+  const text = String(req.body && req.body.text || '').trim();
+  if (!access) return res.status(404).json({ success: false, error: 'Group chat not found.' });
+  if (!text) return res.status(400).json({ success: false, error: 'Write a message first.' });
+  const message = orgChat.sendMessage(access.conversation.id, { senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text });
+  res.json({ success: true, message });
+});
 app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
   const region = String(req.query.region || '').trim().toLowerCase();
   const list = payouts.listAll().filter((item) => {
@@ -2062,7 +2097,7 @@ app.get('/api/organizations/:orgId/private-content', requireAuthApi, (req, res) 
 app.get('/api/organizations/library', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(currentUser(req).id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  const content = orgContent.listForOrg(org.id).filter((item) => ['photo', 'video', 'document', 'info'].includes(item.type)).map((item) => ({ ...item, source: 'organization' }));
+  const content = orgContent.listForOrg(org.id).filter((item) => item.libraryItem === true).map((item) => ({ ...item, source: 'organization' }));
   const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart').map((item) => ({ ...item, source: 'Mozart Techniques' }));
   const studentIds = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
   const tutorUserIds = new Set(assignments.listAll().filter((record) => studentIds.has(Number(record.studentId)) && record.tutorId).map((record) => {
@@ -2073,7 +2108,7 @@ app.get('/api/organizations/library', requireAuthApi, (req, res) => {
   const organizationItems = content.filter((item) => item.createdByUserId === org.userId);
   const sharedItems = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
   const sort = (items) => items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  res.json({ success: true, folders: org.folders || [], general: sort([...mozartItems, ...content, ...tutorItems]), mine: sort(organizationItems), shared: sort(sharedItems) });
+  res.json({ success: true, folders: org.folders || [], general: sort(content), mine: sort(organizationItems), shared: sort(sharedItems) });
 });
 
 app.post('/api/organizations/library/folders', requireAuthApi, (req, res) => {
@@ -2100,6 +2135,7 @@ app.post('/api/organizations/library', requireAuthApi, (req, res) => {
     fileUrl: fileUrl || null,
     visibility: visibility === 'shared' ? 'shared' : 'general',
     folderId: folderId || null,
+    libraryItem: true,
     createdByUserId: org.userId,
     createdByName: org.name || org.contactName,
   });
@@ -2753,19 +2789,9 @@ app.get('/api/tutor-library/:assignmentId', requireAuthApi, (req, res) => {
   const role = assignmentParticipantRole(user, record);
   if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
   const tutor = tutors.findById(record.tutorId);
-  const tutorItems = tutor ? reels.listActive().filter((item) => item.ownerScope === 'tutor' && item.addedBy === tutor.userId && (!item.category || item.category === record.category)) : [];
-  const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart' && (!item.category || item.category === record.category));
-  const ordered = [...tutorItems, ...mozartItems].sort((a, b) => {
-    const aKey = String(a.title || '').trim();
-    const bKey = String(b.title || '').trim();
-    const aIsAlpha = /^[A-Za-z]/.test(aKey) ? 0 : 1;
-    const bIsAlpha = /^[A-Za-z]/.test(bKey) ? 0 : 1;
-    if (aIsAlpha !== bIsAlpha) return aIsAlpha - bIsAlpha;
-    return aKey.toLowerCase().localeCompare(bKey.toLowerCase());
-  });
-  res.json({ success: true, items: ordered });
+  const items = tutor ? reels.listActive().filter((item) => item.ownerScope === 'tutor' && item.addedBy === tutor.userId && (!item.category || item.category === record.category)) : [];
+  res.json({ success: true, items });
 });
-
 app.post('/api/tutor-library', requireApprovedTutorApi, (req, res) => {
   const { title, description, url, category, isFile } = req.body || {};
   if (!title || !url) return res.status(400).json({ success: false, error: 'Title and link/file are required.' });

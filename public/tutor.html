@@ -855,7 +855,7 @@
                                 <p class="text-sm text-gray-500 mt-1">${escapeHtml(request.category || '')} · ${when}</p>
                                 ${meet ? `<p class="mt-2">${meet}</p>` : ''}
                                 <div class="mt-3 flex gap-2">
-                                    <button type="button" class="row-btn-primary schedule-session-btn" data-request-id="${request.id}" data-student-name="${escapeHtml(request.studentName || '')}">${request.meetingLink ? 'Reschedule meeting' : 'Schedule a meeting'}</button>
+                                    <button type="button" class="schedule-session-btn inline-flex items-center justify-center rounded-lg bg-primary-red px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700" data-request-id="${request.id}" data-student-name="${escapeHtml(request.studentName || '')}">${request.meetingLink ? 'Reschedule meeting' : 'Schedule a meeting'}</button>
                                     <a class="row-btn-outline" href="/messages/chat/${request.id}" target="_blank" rel="noopener">Open chat</a>
                                 </div>
                             </div>

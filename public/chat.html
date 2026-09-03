@@ -220,6 +220,7 @@
                 <p id="chat-name" class="font-bold text-gray-800 leading-tight truncate">Loading...</p>
                 <p id="chat-subject" class="text-xs text-gray-400 truncate"></p>
             </div>
+            <button id="chat-meeting-btn" type="button" title="Join or schedule meeting" class="hidden h-9 w-9 rounded-full bg-red-50 text-red-700 hover:bg-red-100"><i class="fa-solid fa-video"></i></button>
         </div>
     </div>
 
@@ -267,7 +268,7 @@
             </form>
 
             <div id="tutor-library-panel" class="hidden border-t border-gray-100 bg-gray-50 p-3">
-                <p class="text-xs font-semibold text-gray-600 mb-2">Tutor library for this course</p>
+                <div class="mb-2 flex items-center justify-between gap-2"><p class="text-xs font-semibold text-gray-700">Choose a video to send</p><div class="flex gap-1"><button type="button" class="library-tab rounded-md bg-primary-red px-2 py-1 text-xs font-semibold text-white" data-library-tab="mine">My library</button><button type="button" class="library-tab rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600" data-library-tab="mozart">Mozart library</button></div></div><input id="tutor-library-search" type="search" placeholder="Search this library" class="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
                 <div id="tutor-library-items" class="grid gap-2"></div>
             </div>
 
@@ -300,17 +301,25 @@
         let myName = '';
         let lastMessageId = 0;
         let pickedLibraryItem = null;
+        let libraryPickerItems = { mine: [], mozart: [] };
+        let libraryPickerTab = 'mine';
+        function renderTutorLibraryPicker() {
+            const host = document.getElementById('tutor-library-items');
+            const query = document.getElementById('tutor-library-search').value.trim().toLowerCase();
+            const items = (libraryPickerItems[libraryPickerTab] || []).filter((item) => !query || `${item.title || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(query));
+            host.innerHTML = items.length ? items.map((item) => `<button type="button" class="text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-primary-red" data-library-id="${item.id}"><strong class="block text-sm">${escapeHtml(item.title)}</strong><span class="text-xs text-gray-500">${escapeHtml(item.category || 'All courses')}</span></button>`).join('') : '<p class="text-xs text-gray-400">No matching videos in this library.</p>';
+            host.querySelectorAll('[data-library-id]').forEach((button) => button.addEventListener('click', () => { pickedLibraryItem = (libraryPickerItems[libraryPickerTab] || []).find((item) => String(item.id) === button.dataset.libraryId); document.getElementById('tutor-library-panel').classList.add('hidden'); refreshSendButton(); showAlert(`Selected ${pickedLibraryItem.title}`, 'success'); }));
+        }
         async function loadTutorLibraryPicker() {
             if (myRole !== 'tutor') return;
-            const response = await fetch(`/api/tutor-library/${assignmentId}`);
-            const data = await response.json();
-            if (!data.success) return;
-            const panel = document.getElementById('tutor-library-panel');
-            const host = document.getElementById('tutor-library-items');
-            host.innerHTML = data.items.length ? data.items.map((item) => `<button type="button" class="text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-primary-red" data-library-id="${item.id}"><strong class="block text-sm">${escapeHtml(item.title)}</strong><span class="text-xs text-gray-500">${escapeHtml(item.category || 'All courses')}</span></button>`).join('') : '<p class="text-xs text-gray-400">No tutor uploads for this course yet.</p>';
-            host.querySelectorAll('[data-library-id]').forEach((button) => button.addEventListener('click', () => { pickedLibraryItem = data.items.find((item) => String(item.id) === button.dataset.libraryId); panel.classList.add('hidden'); refreshSendButton(); showAlert(`Selected ${pickedLibraryItem.title}`, 'success'); }));
+            const [mineRes, mozartRes] = await Promise.all([fetch(`/api/tutor-library/${assignmentId}`), fetch('/api/library')]);
+            const [mineData, mozartData] = await Promise.all([mineRes.json(), mozartRes.json()]);
+            libraryPickerItems = { mine: mineData.success ? (mineData.items || []) : [], mozart: mozartData.success ? (mozartData.items || []) : [] };
+            const search = document.getElementById('tutor-library-search');
+            if (!search.dataset.bound) { search.addEventListener('input', renderTutorLibraryPicker); search.dataset.bound = 'true'; }
+            document.querySelectorAll('.library-tab').forEach((button) => { button.onclick = () => { libraryPickerTab = button.dataset.libraryTab; document.querySelectorAll('.library-tab').forEach((tab) => tab.className = `library-tab rounded-md px-2 py-1 text-xs font-semibold ${tab === button ? 'bg-primary-red text-white' : 'border border-gray-200 bg-white text-gray-600'}`); renderTutorLibraryPicker(); }; });
+            renderTutorLibraryPicker();
         }
-
         // Own display name, used only to label the typing indicator on the
         // other side ("Gideon is typing…").
         fetch('/api/session')
@@ -330,6 +339,9 @@
             const tutorRecord = (data.asTutor || []).find((r) => String(r.id) === String(assignmentId));
             const record = studentRecord || tutorRecord;
             if (!record) return;
+            const meetingButton = document.getElementById('chat-meeting-btn');
+            meetingButton.classList.remove('hidden');
+            meetingButton.onclick = () => { if (record.meetingLink) window.open(record.meetingLink, '_blank', 'noopener'); else if (tutorRecord) window.location.href = `/schedule?assignment=${assignmentId}`; else showAlert('Your tutor has not scheduled a meeting yet.', 'info'); };
 
             const parts = [];
             if (record.scheduledAt) {
@@ -494,18 +506,14 @@
 
         function showAttachPreview() {
             const box = document.getElementById('attach-preview');
-            if (!pendingAttachment) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-            const thumb = pendingAttachment.kind === 'image'
-                ? `<img src="${escapeHtml(pendingAttachment.url)}" alt="">`
-                : `<i class="fa-solid ${pendingAttachment.kind === 'video' ? 'fa-film' : pendingAttachment.kind === 'audio' ? 'fa-microphone' : 'fa-file-lines'} text-gray-400"></i>`;
-            box.innerHTML = `${thumb}<span>${escapeHtml(pendingAttachment.name)}</span>
-                <button type="button" class="drop" title="Remove attachment"><i class="fa-solid fa-xmark"></i></button>`;
+            const selected = pendingAttachment || pickedLibraryItem;
+            if (!selected) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            const isLibrary = Boolean(pickedLibraryItem && !pendingAttachment);
+            const thumb = selected.kind === 'image' ? `<img src="${escapeHtml(selected.url)}" alt="">` : isLibrary ? '<i class="fa-solid fa-photo-film text-primary-red"></i>' : `<i class="fa-solid ${selected.kind === 'video' ? 'fa-film' : selected.kind === 'audio' ? 'fa-microphone' : 'fa-file-lines'} text-gray-400"></i>`;
+            box.innerHTML = `${thumb}<span>${escapeHtml(selected.title || selected.name || 'Selected video')}</span><button type="button" class="drop" title="Remove attachment"><i class="fa-solid fa-xmark"></i></button>`;
             box.classList.remove('hidden');
-            box.querySelector('.drop').addEventListener('click', () => {
-                pendingAttachment = null; showAttachPreview(); refreshSendButton();
-            });
+            box.querySelector('.drop').addEventListener('click', () => { pendingAttachment = null; pickedLibraryItem = null; showAttachPreview(); refreshSendButton(); });
         }
-
         async function uploadFile(file) {
             if (!file) return;
             const body = new FormData();
