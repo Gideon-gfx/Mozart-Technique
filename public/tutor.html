@@ -143,8 +143,8 @@
                 <div class="col-span-2">
                     <h3 class="font-semibold text-gray-700 mb-3">Students & Requests</h3>
                     <div id="students-requests-list" class="space-y-3"></div>
-                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Schedule & Sessions</h3>
-                    <div id="sessions-list" class="space-y-3"></div>
+                    <h3 class="hidden font-semibold text-gray-700 mt-6 mb-3">Schedule & Sessions</h3>
+                    <div id="sessions-list" class="hidden space-y-3"></div>
                 </div>
                 <div>
                     <h3 class="font-semibold text-gray-700 mb-3">Wallet</h3>
@@ -169,7 +169,8 @@
                                 </div>
                             </div>
                             <p class="text-xs text-gray-500 px-3">You can now teach students from this organization. Visit the orientation to learn about their teaching standards.</p>
-                            <a href="/orientation" class="inline-block w-full text-center px-3 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition text-sm">Go to Orientation</a>
+                            <a id="org-tutor-open-link" href="/org-tutor" target="_blank" rel="noopener" class="inline-block w-full text-center px-3 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition text-sm">Go to Organization Tutor Dashboard</a>
+                            <button id="add-organization-btn" type="button" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><i class="fa-solid fa-plus mr-1"></i>Join another organization</button>
                         </div>
                         <p id="sponsor-status-text" class="text-sm text-gray-600 mb-4">If an organization gave you an access code, enter it here to join their tutoring network.</p>
                         <div id="sponsor-code-form" class="space-y-3">
@@ -184,8 +185,8 @@
                             <p class="text-xs text-gray-400">Codes are case-insensitive.</p>
                         </div>
                     </div>
-                    <h3 class="font-semibold text-gray-700 mt-6 mb-3">Google Meet classes</h3>
-                    <div id="meet-classes" class="space-y-3"></div>
+                    <h3 class="hidden font-semibold text-gray-700 mt-6 mb-3">Google Meet classes</h3>
+                    <div id="meet-classes" class="hidden space-y-3"></div>
                     <h3 id="library" class="font-semibold text-gray-700 mt-6 mb-3">Technique video uploads</h3>
                     <div id="video-upload-card" class="rounded-2xl border border-gray-200 p-5 bg-gray-50 space-y-4">
                         <p class="text-sm text-gray-500">Upload a short technique clip or paste a link for a course you teach.</p>
@@ -246,7 +247,7 @@
             try {
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 // determine route: /tutor (self), /tutor/:slug (public by slug), /tutors/:id (public by id)
-                if (parts.length === 1 && parts[0] === 'tutor') {
+                if ((parts.length === 1 && parts[0] === 'tutor') || (parts.length === 1 && parts[0] === 'org-tutor')) {
                     pageMode = 'self';
                     publicViewType = null;
                 }
@@ -259,7 +260,7 @@
                     const sessionData = await sessionRes.json();
                     const profileData = await profileRes.json();
                     if (!sessionData.user || !profileData.success) {
-                        window.location.href = '/login?redirect=/tutor';
+                        window.location.href = `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
                         return;
                     }
                     userProfile = profileData.profile || null;
@@ -324,9 +325,12 @@
             if (userSponsorship && userSponsorship.orgName) {
                 document.getElementById('org-redeemed').classList.remove('hidden');
                 document.getElementById('org-name-display').textContent = userSponsorship.orgName;
-                document.getElementById('sponsor-code-form').classList.add('hidden');
-                document.getElementById('sponsor-status-text').classList.add('hidden');
+                document.getElementById('org-tutor-open-link').href = `/org-tutor?orgId=${encodeURIComponent(userSponsorship.orgId || '')}`;
+                document.getElementById('sponsor-code-form').classList.remove('hidden');
+                document.getElementById('sponsor-status-text').classList.remove('hidden');
+                document.getElementById('sponsor-code-input').placeholder = 'Enter another organization code';
             }
+            document.getElementById('add-organization-btn')?.addEventListener('click', () => document.getElementById('sponsor-code-input')?.focus());
         }
 
         function renderPublicProfile() {

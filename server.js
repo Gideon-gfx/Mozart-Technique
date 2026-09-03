@@ -266,7 +266,8 @@ function publicUser(user) {
   const tutorProfile = tutors.findByUserId(user.id);
   const org = organizations.findByUserId(user.id);
   const hasSponsorOrg = Boolean(org && org.status === 'approved');
-  const hasSponsorAccess = Boolean(user.sponsor || hasSponsorOrg);
+  const memberships = user.organizationMemberships || (user.sponsor ? [user.sponsor] : []);
+  const hasSponsorAccess = Boolean(memberships.length || hasSponsorOrg);
   return {
     id: user.id,
     name: user.name,
@@ -279,9 +280,15 @@ function publicUser(user) {
     tutorProfileId: tutorProfile ? tutorProfile.id : null,
     tutorStatus: tutorProfile ? tutorProfile.status : null,
     sponsor: user.sponsor || null,
+    organizationMemberships: memberships,
     hasSponsorOrg,
     hasSponsorAccess,
   };
+}
+
+function organizationMembershipsForUser(user) {
+  const memberships = user.organizationMemberships || (user.sponsor ? [user.sponsor] : []);
+  return memberships.map((membership) => organizations.findById(membership.orgId)).filter((org) => org && org.status === 'approved');
 }
 
 // Notifies every admin of a new tutor/org/student request - both in-app
@@ -495,8 +502,8 @@ app.get('/tutor', requireTutorProfilePage, (req, res) => {
 
 app.get('/org-tutor', requireTutorProfilePage, (req, res) => {
   const user = currentUser(req);
-  if (!user.sponsor) return res.redirect('/tutor');
-  res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+  if (!organizationMembershipsForUser(user).length) return res.redirect('/tutor');
+  res.sendFile(path.join(PUBLIC_DIR, 'org-tutor.html'));
 });
 
 app.get('/tutor-dashboard.html', requireTutorProfilePage, (req, res) => {
@@ -1705,7 +1712,7 @@ app.post('/api/redeem-code', requireAuthApi, (req, res) => {
   if (result.error === 'already-redeemed') return res.status(409).json({ success: false, error: 'That code has already been used.' });
   if (result.error === 'wrong-role') return res.status(403).json({ success: false, error: 'This code is for a different organization role.' });
   store.setSponsor(user.id, { orgId: result.org.id, orgName: result.org.name });
-  res.json({ success: true, orgName: result.org.name });
+  res.json({ success: true, orgId: result.org.id, orgName: result.org.name, organizationMemberships: store.findById(user.id).organizationMemberships });
 });
 
 app.get('/api/organizations/me', requireAuthApi, (req, res) => {
@@ -2103,6 +2110,26 @@ app.get('/api/organizations/:orgId/private-content', requireAuthApi, (req, res) 
     isOrgAdmin || isApprovedTutor || (item.visibility !== 'shared' && (!item.category || allowedCategories.has(item.category)))
   ));
   res.json({ success: true, content, isOrgAdmin });
+});
+
+app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutor = tutors.findByUserId(user.id);
+  const orgs = organizationMembershipsForUser(user);
+  const requestedOrgId = req.query.orgId ? Number(req.query.orgId) : null;
+  const org = (requestedOrgId && orgs.find((item) => item.id === requestedOrgId)) || orgs[0];
+  if (!tutor || !org) return res.status(403).json({ success: false, error: 'Organization tutor access required.' });
+  const students = organizations.getStudentsForOrganization(org.id);
+  const studentIds = new Set(students.map((member) => Number(member.studentId)));
+  const assignmentsForOrg = assignments.listForTutor(tutor.id).filter((record) => studentIds.has(Number(record.studentId)));
+  const requests = assignments.listAll().filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(tutor.id) && studentIds.has(Number(record.studentId)));
+  const content = orgContent.listForOrg(org.id).filter((item) => item.visibility !== 'shared' || item.createdByUserId === user.id);
+  const notifications = [
+    ...(user.notifications || []).map((item) => ({ ...item })),
+    ...content.map((item) => ({ id: `content-${item.id}`, type: item.type, message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, href: `/org-tutor?orgId=${org.id}#feeds` })),
+    ...(org.events || []).map((item) => ({ id: `event-${item.id}`, type: 'event', message: `Event scheduled: ${item.title}`, createdAt: item.createdAt || item.scheduledAt, href: `/org-tutor?orgId=${org.id}#classes` })),
+  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  res.json({ success: true, organization: { id: org.id, name: org.name || org.contactName, logoUrl: org.logoUrl || null }, organizations: orgs.map((item) => ({ id: item.id, name: item.name || item.contactName, logoUrl: item.logoUrl || null })), students, assignments: assignmentsForOrg, requests, content, events: org.events || [], notifications });
 });
 
 app.get('/api/organizations/library', requireAuthApi, (req, res) => {

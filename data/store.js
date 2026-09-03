@@ -279,7 +279,10 @@ function setSponsor(userId, { orgId, orgName }) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
-  user.sponsor = { orgId, orgName, activatedAt: new Date().toISOString() };
+  if (!Array.isArray(user.organizationMemberships)) user.organizationMemberships = user.sponsor ? [user.sponsor] : [];
+  const membership = { orgId, orgName, activatedAt: new Date().toISOString() };
+  user.organizationMemberships = [membership, ...user.organizationMemberships.filter((entry) => Number(entry.orgId) !== Number(orgId))];
+  user.sponsor = membership;
   persist(db);
   return user;
 }
@@ -287,9 +290,10 @@ function setSponsor(userId, { orgId, orgName }) {
 function clearSponsor(userId, orgId = null) {
   const db = load();
   const user = db.users.find((entry) => entry.id === userId);
-  if (!user || !user.sponsor) return user;
-  if (orgId != null && Number(user.sponsor.orgId) !== Number(orgId)) return user;
-  user.sponsor = null;
+  if (!user) return user;
+  const memberships = Array.isArray(user.organizationMemberships) ? user.organizationMemberships : (user.sponsor ? [user.sponsor] : []);
+  user.organizationMemberships = orgId == null ? [] : memberships.filter((entry) => Number(entry.orgId) !== Number(orgId));
+  user.sponsor = user.organizationMemberships[0] || null;
   persist(db);
   return user;
 }

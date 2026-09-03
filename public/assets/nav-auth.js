@@ -183,7 +183,7 @@
     const editProfileLink = `<a href="/edit-profile"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>`;
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
-    const sponsorLink = user.hasSponsorAccess ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>` : '';
+    const sponsorLink = user.hasSponsorAccess ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>` : '';
 
     target.innerHTML = `
       <div class="mt-auth-wrap">
