@@ -35,7 +35,7 @@ function findById(id) {
 }
 
 function findByUserId(userId) {
-  return listAll().find((t) => t.userId === userId) || null;
+  return listAll().find((t) => Number(t.userId) === Number(userId)) || null;
 }
 
 function slugify(text) {
