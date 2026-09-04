@@ -34,6 +34,7 @@ function normalizeConversation(conv) {
     participants: participantList,
     messages: Array.isArray(conv.messages) ? conv.messages : [],
     title: conv.title || conv.groupName || conv.tutorName || conv.studentName || 'Conversation',
+    groupImageUrl: conv.groupImageUrl || conv.imageUrl || conv.photoUrl || null,
   };
 }
 
@@ -63,6 +64,7 @@ function getOrCreateConversation(orgId, options = {}) {
         orgId,
         type: 'group',
         title,
+        groupImageUrl: options.groupImageUrl || null,
         participants: members.map((member) => ({ id: member.id, type: member.type, name: member.name || member.type })),
         messages: [],
         createdAt: new Date().toISOString(),
@@ -105,7 +107,7 @@ function getOrCreateConversation(orgId, options = {}) {
   return null;
 }
 
-function getOrCreateTutorGroupConversation(tutorId, { course, groupName, studentIds = [] } = {}) {
+function getOrCreateTutorGroupConversation(tutorId, { course, groupName, studentIds = [], groupImageUrl } = {}) {
   const db = load();
   const normalizedCourse = String(course || '').trim();
   const normalizedStudentIds = [...new Set(studentIds.map((id) => String(id)))];
@@ -121,6 +123,7 @@ function getOrCreateTutorGroupConversation(tutorId, { course, groupName, student
       tutorId: Number(tutorId),
       course: normalizedCourse,
       title,
+      groupImageUrl: groupImageUrl || null,
       participants: [
         { id: Number(tutorId), type: 'tutor', name: 'Tutor' },
         ...normalizedStudentIds.map((id) => ({ id, type: 'student', name: 'Student' })),

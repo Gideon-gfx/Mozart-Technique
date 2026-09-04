@@ -308,7 +308,7 @@
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
 
-        const assignmentId = window.location.pathname.split('/').filter(Boolean).pop();
+        let assignmentId = new URLSearchParams(window.location.search).get('assignment') || window.location.pathname.split('/').filter(Boolean).pop();
         let myRole = null;
         let myName = '';
         let lastMessageId = 0;
@@ -852,6 +852,13 @@
         });
 
         async function init() {
+            const requestedName = new URLSearchParams(window.location.search).get('name');
+            if (requestedName) {
+                const conversations = await fetch('/api/conversations').then((response) => response.json());
+                const match = (conversations.conversations || []).find((conversation) => String(conversation.name || '').toLowerCase() === requestedName.toLowerCase());
+                if (!match) { window.location.href = '/messages'; return; }
+                assignmentId = String(match.assignmentId);
+            }
             await loadCounterpart();
             await loadMessages();
             loadLessonStrip();

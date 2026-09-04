@@ -592,6 +592,7 @@ function serveChatPage(req, res) {
 }
 
 app.get('/messages/chat/:id', requireAuthPage, serveChatPage);
+app.get('/messages/chat', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'chat.html')));
 app.get('/messages/group/:id', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'group-chat.html')));
 // Kept so older links (notifications, emails already sent) still work.
 app.get('/chat/:id', requireAuthPage, serveChatPage);
@@ -1503,12 +1504,13 @@ app.get('/api/tutors/me/group-chats', requireApprovedTutorApi, (req, res) => {
 
 app.post('/api/tutors/me/group-chats', requireApprovedTutorApi, (req, res) => {
   const profile = req.tutorProfile;
-  const { course, groupName, studentIds } = req.body || {};
+  const { course, groupName, studentIds, groupImageUrl } = req.body || {};
   if (!course) return res.status(400).json({ success: false, error: 'Choose a course.' });
   if (!Array.isArray(studentIds) || !studentIds.length) return res.status(400).json({ success: false, error: 'At least one student is required.' });
   const validStudents = studentIds.filter(id => assignments.listAll().some(a => a.tutorId === profile.id && a.studentId === id && a.category === course));
   if (!validStudents.length) return res.status(400).json({ success: false, error: 'Those students are not registered for this course.' });
-  const conversation = orgChat.getOrCreateTutorGroupConversation(profile.id, { course, groupName, studentIds: validStudents });
+  const normalizedImage = typeof groupImageUrl === 'string' ? groupImageUrl.trim() : '';
+  const conversation = orgChat.getOrCreateTutorGroupConversation(profile.id, { course, groupName, studentIds: validStudents, groupImageUrl: normalizedImage || null });
   res.json({ success: true, conversation });
 });
 
@@ -1540,7 +1542,7 @@ app.get('/api/group-chats', requireAuthApi, (req, res) => {
     .concat((!tutor ? [] : []));
   const studentChats = orgChat.listAll ? orgChat.listAll() : [];
   const visible = tutor ? chats : studentChats.filter((item) => item.type === 'tutor-group' && (item.participants || []).some((entry) => entry.type === 'student' && Number(entry.id) === Number(user.id)));
-  res.json({ success: true, chats: visible.map((item) => ({ id: item.id, name: item.title, course: item.course, studentCount: (item.participants || []).filter((entry) => entry.type === 'student').length, lastAt: (item.messages || []).slice(-1)[0]?.createdAt || item.createdAt, lastMessage: (item.messages || []).slice(-1)[0]?.text || '' })) });
+  res.json({ success: true, chats: visible.map((item) => ({ id: item.id, name: item.title, course: item.course, studentCount: (item.participants || []).filter((entry) => entry.type === 'student').length, lastAt: (item.messages || []).slice(-1)[0]?.createdAt || item.createdAt, lastMessage: (item.messages || []).slice(-1)[0]?.text || '', photoUrl: item.groupImageUrl || item.photoUrl || null })) });
 });
 
 app.get('/api/group-chats/:id', requireAuthApi, (req, res) => {
@@ -1549,9 +1551,9 @@ app.get('/api/group-chats/:id', requireAuthApi, (req, res) => {
 const members = (access.conversation.participants || []).map((participant) => {
     const tutor = participant.type === 'tutor' ? tutors.findById(participant.id) : null;
     const user = participant.type === 'student' ? store.findById(participant.id) : tutor && store.findById(tutor.userId);
-    return { ...participant, name: tutor?.name || user?.name || participant.name || (participant.type === 'tutor' ? 'Tutor' : 'Student'), photoUrl: tutor?.photoUrl || user?.photoUrl || null, roleLabel: participant.type === 'tutor' ? 'Admin' : 'Student' };
+    return { ...participant, name: tutor?.name || user?.name || participant.name || (participant.type === 'tutor' ? 'Tutor' : 'Student'), photoUrl: participant.photoUrl || tutor?.photoUrl || user?.photoUrl || null, roleLabel: participant.type === 'tutor' ? 'Admin' : 'Student' };
   });
-  res.json({ success: true, group: access.conversation, members, role: access.role, messages: orgChat.getMessages(access.conversation.id) });
+  res.json({ success: true, group: { ...access.conversation, photoUrl: access.conversation.groupImageUrl || access.conversation.photoUrl || null }, members, role: access.role, messages: orgChat.getMessages(access.conversation.id) });
 });
 
 app.post('/api/group-chats/:id/meeting', requireAuthApi, (req, res) => {
@@ -1682,7 +1684,20 @@ app.post('/api/organizations/me/generate-code', requireAuthApi, (req, res) => {
 app.get('/api/organizations/me/codes', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(currentUser(req).id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  res.json({ success: true, ...organizations.listCodes(org.id) });
+  const codes = organizations.listCodes(org.id);
+  const refreshNames = (items) => items.map((entry) => {
+    const user = entry.redeemedBy ? store.findById(entry.redeemedBy) : null;
+    return user ? { ...entry, redeemedName: user.name } : entry;
+  });
+  res.json({ success: true, students: refreshNames(codes.students), tutors: refreshNames(codes.tutors) });
+});
+
+app.delete('/api/organizations/me/codes/:code', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const removed = organizations.deleteCode(org.id, req.params.code);
+  if (!removed) return res.status(404).json({ success: false, error: 'Access code not found.' });
+  res.json({ success: true, entry: removed });
 });
 
 app.post('/api/organizations/me/profile', requireAuthApi, (req, res) => {
@@ -1872,6 +1887,13 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
 
   // Find all tutors assigned to these students
   const orgTutors = new Map();
+  for (const entry of org.tutorCodes || []) {
+    if (!entry.redeemedBy) continue;
+    const tutor = tutors.findByUserId(entry.redeemedBy);
+    if (tutor && tutor.status === 'approved') {
+      orgTutors.set(tutor.id, { id: tutor.id, userId: tutor.userId, name: tutor.name, categories: tutor.categories || [], phone: tutor.phone || null, email: tutor.email || null, profileUrl: tutor.photoUrl || null, studentCount: 0 });
+    }
+  }
   const allAssignments = assignments.listAll();
   
   for (const assignment of allAssignments) {
@@ -1911,7 +1933,7 @@ app.get('/api/organizations/members', requireAuthApi, (req, res) => {
     const student = store.findById(member.studentId);
     return {
       id: member.studentId,
-      name: member.studentName || (student && student.name) || 'Student',
+      name: (student && student.name) || member.studentName || 'Student',
       email: student ? student.email : '',
       role: 'Student',
       photoUrl: student && student.studentProfile ? student.studentProfile.photoUrl || student.photoUrl || null : null,
@@ -1919,6 +1941,18 @@ app.get('/api/organizations/members', requireAuthApi, (req, res) => {
     };
   });
   const tutorsById = new Map();
+  for (const entry of org.tutorCodes || []) {
+    if (!entry.redeemedBy) continue;
+    const tutor = tutors.findByUserId(entry.redeemedBy);
+    if (tutor && tutor.status === 'approved') tutorsById.set(tutor.id, {
+      id: tutor.id,
+      name: tutor.name,
+      email: tutor.email || '',
+      role: 'Tutor',
+      photoUrl: tutor.photoUrl || null,
+      profile: { categories: tutor.categories || [], bio: tutor.bio || '', city: tutor.city || null, experienceYears: tutor.experienceYears || 0 },
+    });
+  }
   assignments.listAll().forEach((assignment) => {
     if (!students.some((student) => student.id === assignment.studentId) || !assignment.tutorId) return;
     const tutor = tutors.findById(assignment.tutorId);
@@ -2027,7 +2061,7 @@ app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const { groupName, members } = req.body || {};
+  const { groupName, members, groupImageUrl } = req.body || {};
   if (!groupName || !groupName.trim()) {
     return res.status(400).json({ success: false, error: 'Group name is required.' });
   }
@@ -2045,6 +2079,7 @@ app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
   const conversation = orgChat.getOrCreateConversation(org.id, {
     groupName: groupName.trim(),
     members: normalizedMembers,
+    groupImageUrl: typeof groupImageUrl === 'string' ? groupImageUrl.trim() || null : null,
   });
 
   res.json({ success: true, conversation });
@@ -2132,7 +2167,10 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   const requestedOrgId = req.query.orgId ? Number(req.query.orgId) : null;
   const org = (requestedOrgId && orgs.find((item) => item.id === requestedOrgId)) || orgs[0];
   if (!tutor || !org) return res.status(403).json({ success: false, error: 'Organization tutor access required.' });
-  const students = organizations.getStudentsForOrganization(org.id);
+  const students = organizations.getStudentsForOrganization(org.id).map((member) => {
+    const student = store.findById(member.studentId);
+    return { ...member, studentName: student?.name || member.studentName || 'Student', email: student?.email || '' };
+  });
   const studentIds = new Set(students.map((member) => Number(member.studentId)));
   const assignmentsForOrg = assignments.listForTutor(tutor.id).filter((record) => studentIds.has(Number(record.studentId)));
   const requests = assignments.listAll().filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(tutor.id) && studentIds.has(Number(record.studentId)));
@@ -3816,7 +3854,7 @@ app.get('/api/admin/orientation', requireAdminApi, (req, res) => {
   res.json({
     success: true,
     content: curriculum.getForCategory(key), audience,
-    questions: audience === 'tutor' ? assessments.getQuestionsForAdmin('orientation', null) : [],
+    questions: assessments.getQuestionsForAdmin('orientation', audience === 'tutor' ? null : audience),
   });
 });
 
@@ -3825,15 +3863,26 @@ app.post('/api/admin/orientation', requireAdminApi, (req, res) => {
   if (!['tutor', 'student', 'admin', 'sponsor', 'organization', 'support_agent'].includes(audience)) return res.status(400).json({ success: false, error: 'Invalid orientation audience.' });
   const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
   const content = curriculum.setForCategory(key, { title, notes, videoUrl, rewardType });
-  const saved = audience === 'tutor' && Array.isArray(questions) ? assessments.setQuestions('orientation', null, questions) : [];
+  const saved = Array.isArray(questions) ? assessments.setQuestions('orientation', audience === 'tutor' ? null : audience, questions) : assessments.getQuestionsForAdmin('orientation', audience === 'tutor' ? null : audience);
   res.json({ success: true, content, questions: saved });
+});
+
+app.post('/api/admin/orientation/upload', requireAdminApi, (req, res) => {
+  videoUpload.single('video')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
+    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+  });
 });
 
 app.get('/api/orientation', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const audience = user.role === 'admin' ? 'admin' : user.role === 'support_agent' ? 'support_agent' : organizations.findByUserId(user.id) ? 'organization' : user.sponsor ? 'sponsor' : tutors.findByUserId(user.id) ? 'tutor' : 'student';
   const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
-  res.json({ success: true, audience, content: curriculum.getForCategory(key), questions: audience === 'tutor' ? assessments.getQuestionsForTaker('orientation', null) : [] });
+  res.json({ success: true, audience, content: curriculum.getForCategory(key), questions: assessments.getQuestionsForTaker('orientation', audience === 'tutor' ? null : audience) });
 });
 
 app.get('/api/admin/curriculum/:category', requireAdminApi, (req, res) => {

@@ -146,23 +146,94 @@
           alert('You need at least one student assigned before creating a group chat.');
           return;
         }
-        const course = window.prompt('Course / subject for this group chat', 'Piano');
-        if (!course) return;
-        const groupName = window.prompt('Group chat name', course + ' students');
-        if (!groupName) return;
-        const selectedStudentIds = students.slice(0, 100).map((student) => student.id).filter(Boolean);
-        const res = await fetch('/api/tutors/me/group-chats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupName, course, studentIds: selectedStudentIds })
+
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4';
+        modal.innerHTML = `
+          <div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <h3 class="text-xl font-bold text-gray-900">Create group chat</h3>
+              <button type="button" data-close-group-modal class="rounded-full p-2 text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Course</label>
+                <input id="group-course-input" type="text" value="Piano" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" maxlength="60">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Group name</label>
+                <input id="group-name-input" type="text" value="Piano students" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" maxlength="80">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Students</label>
+                <div class="max-h-52 space-y-2 overflow-y-auto rounded-lg border border-gray-200 p-2">
+                  ${students.map((student) => `
+                    <label class="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-gray-50">
+                      <span class="flex items-center gap-2">
+                        <input type="checkbox" value="${student.id}" checked>
+                        <span class="text-sm text-gray-700">${escapeHtml(student.name || 'Student')}</span>
+                      </span>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Group image (optional)</label>
+                <input id="group-image-input" type="file" accept="image/*" class="w-full text-sm text-gray-600">
+              </div>
+            </div>
+            <div class="mt-5 flex justify-end gap-2">
+              <button type="button" data-close-group-modal class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
+              <button type="button" id="confirm-group-create" class="rounded-lg bg-primary-red px-4 py-2 text-sm font-semibold text-white">Create group</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        const close = () => modal.remove();
+        modal.querySelectorAll('[data-close-group-modal]').forEach((node) => node.addEventListener('click', close));
+
+        modal.querySelector('#confirm-group-create').addEventListener('click', async () => {
+          const course = modal.querySelector('#group-course-input').value.trim();
+          const groupName = modal.querySelector('#group-name-input').value.trim();
+          const selectedStudentIds = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map((checkbox) => Number(checkbox.value)).filter(Boolean);
+
+          if (!course || !groupName) {
+            return alert('Course and group name are required.');
+          }
+          if (!selectedStudentIds.length) {
+            return alert('Choose at least one student.');
+          }
+
+          let groupImageUrl = null;
+          const file = modal.querySelector('#group-image-input').files[0];
+          if (file) {
+            const formData = new FormData();
+            formData.append('media', file);
+            const uploadResponse = await fetch('/api/organizations/upload-media?type=photo', { method: 'POST', body: formData });
+            const uploadData = await uploadResponse.json();
+            if (!uploadData.success) {
+              return alert(uploadData.error || 'Could not upload the group image.');
+            }
+            groupImageUrl = uploadData.url;
+          }
+
+          const res = await fetch('/api/tutors/me/group-chats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupName, course, studentIds: selectedStudentIds, groupImageUrl })
+          });
+          const result = await res.json();
+          if (!result.success) {
+            alert(result.error || 'Could not create group chat.');
+            return;
+          }
+          modal.remove();
+          window.location.href = `/messages/group/${result.conversation.id}`;
         });
-        const result = await res.json();
-        if (!result.success) {
-          alert(result.error || 'Could not create group chat.');
-          return;
-        }
-        alert('Group chat created.');
-        loadTutorDashboard();
       } catch (error) {
         console.error(error);
         alert('Could not create group chat.');

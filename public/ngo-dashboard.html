@@ -700,7 +700,7 @@
       if (profileEmail) profileEmail.textContent = org.email || '';
       if (profileButton) profileButton.textContent = '';
       if (profileButton) {
-        profileButton.style.backgroundImage = "url('/mozartLogo.jpg')";
+        profileButton.style.backgroundImage = `url('${org.logoUrl || '/mozartLogo.jpg'}')`;
         profileButton.style.backgroundSize = 'cover';
         profileButton.style.backgroundPosition = 'center';
         profileButton.style.color = 'transparent';
@@ -752,7 +752,15 @@
       const response = await fetch('/api/organizations/me/codes');
       const data = await response.json();
       const codes = [...(data.students || []).map((item) => ({ ...item, label: 'Student' })), ...(data.tutors || []).map((item) => ({ ...item, label: 'Tutor' }))];
-      list.innerHTML = codes.length ? codes.map((item) => `<div class="grid grid-cols-3 gap-2 items-center border-b border-gray-100 py-2"><code class="font-bold tracking-wide">${escapeHtml(item.code)}</code><span class="text-xs text-gray-600">${escapeHtml(item.redeemedName || item.issuedToName || 'Not used')}</span><span><strong class="block text-xs">${item.role === 'tutor' ? 'Tutor' : 'Student'}</strong><span class="badge ${item.redeemedAt ? 'approved' : 'pending'}">${item.redeemedAt ? 'Used' : 'Unused'}</span></span></div>`).join('') : '<p class="text-gray-400">No codes generated yet.</p>';
+      list.innerHTML = codes.length ? codes.map((item) => `<div class="grid grid-cols-[1fr_1.2fr_1fr_auto] gap-2 items-center border-b border-gray-100 py-2"><code class="font-bold tracking-wide">${escapeHtml(item.code)}</code><span class="text-xs text-gray-600">${escapeHtml(item.redeemedName || item.issuedToName || 'Not used')}</span><span><strong class="block text-xs">${item.role === 'tutor' ? 'Tutor' : 'Student'}</strong><span class="badge ${item.redeemedAt ? 'approved' : 'pending'}">${item.redeemedAt ? 'Used' : 'Unused'}</span></span><button type="button" class="delete-access-code text-xs font-bold text-red-600 hover:text-red-800" data-code="${escapeHtml(item.code)}" title="Delete access code"><i class="fa-solid fa-trash"></i></button></div>`).join('') : '<p class="text-gray-400">No codes generated yet.</p>';
+      list.querySelectorAll('.delete-access-code').forEach((button) => button.addEventListener('click', async () => {
+        if (!window.confirm('Delete this access code?')) return;
+        const response = await fetch(`/api/organizations/me/codes/${encodeURIComponent(button.dataset.code)}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!data.success) return showAlert(data.error || 'Could not delete code.', 'error');
+        showAlert('Access code deleted.', 'success');
+        loadIssuedCodes();
+      }));
     }
 
     async function loadOrganizationLibrary(view = 'general') {

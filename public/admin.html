@@ -297,6 +297,8 @@
                 <input id="orientation-title" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
                 <label class="block text-sm font-medium text-gray-600 mb-1">Video URL (optional)</label>
                 <input id="orientation-video" type="text" placeholder="https://..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Upload local video</label>
+                <input id="orientation-video-upload" type="file" accept="video/*" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
                 <label class="block text-sm font-medium text-gray-600 mb-1">Notes</label>
                 <textarea id="orientation-notes" rows="3" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg"></textarea>
 
@@ -1123,6 +1125,18 @@
             document.getElementById('orientation-notes').value = content ? content.notes : '';
             orientationQuiz.set(data.questions || []);
         }
+
+        document.getElementById('orientation-video-upload')?.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('video', file);
+            const response = await fetch('/api/admin/orientation/upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) return showAlert(data.error || 'Upload failed.', 'error');
+            document.getElementById('orientation-video').value = data.url;
+            showAlert('Orientation video uploaded.', 'success');
+        });
 
         document.getElementById('save-orientation-btn').addEventListener('click', async () => {
             const res = await fetch('/api/admin/orientation', {
