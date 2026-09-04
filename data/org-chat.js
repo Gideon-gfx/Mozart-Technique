@@ -175,6 +175,15 @@ function findById(conversationId) {
   const conv = load().conversations.find((item) => Number(item.id) === Number(conversationId));
   return conv ? normalizeConversation(conv) : null;
 }
+function setMeetingLink(conversationId, meetingLink) {
+  const db = load();
+  const conv = db.conversations.find((entry) => entry.id === Number(conversationId));
+  if (!conv) return null;
+  conv.meetingLink = meetingLink || null;
+  conv.meetingUpdatedAt = new Date().toISOString();
+  persist(db);
+  return normalizeConversation(conv);
+}
 function getMessages(conversationId) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
@@ -204,7 +213,7 @@ module.exports = {
   listForTutor,
   getOrCreateTutorGroupConversation,
   sendMessage,
-  getMessages,
+  getMessages,`r`n  setMeetingLink,
   findById,
   listAll,
   markRead,

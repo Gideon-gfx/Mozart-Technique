@@ -83,7 +83,7 @@
         </div>
     </main>
 
-    <button id="create-tutor-group-btn" type="button" aria-label="Create a student group" class="hidden fixed bottom-6 right-6 z-40 grid h-14 w-14 place-items-center rounded-full bg-primary-red text-xl text-white shadow-xl transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-200">
+    <button id="create-tutor-group-btn" type="button" aria-label="Create a student group" class="fixed bottom-40 right-6 z-40 grid h-14 w-14 place-items-center rounded-full bg-primary-red text-xl text-white shadow-xl transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-200">
         <i class="fa-solid fa-plus"></i>
     </button>
     <script>
@@ -168,7 +168,8 @@
 
         async function setupTutorGroupButton() {
             // The server verifies tutor access when a group is created. Do not
-            // depend on an extra profile request here, which can fail on some roles.            const button = document.getElementById('create-tutor-group-btn');
+            // depend on an extra profile request here, which can fail on some roles.
+            const button = document.getElementById('create-tutor-group-btn');
             button.classList.remove('hidden');
             button.addEventListener('click', async () => {
                 const assignmentData = await fetch('/api/my-assignments').then((r) => r.json());

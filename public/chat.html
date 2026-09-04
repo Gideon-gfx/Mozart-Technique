@@ -354,7 +354,16 @@
             const meetingButton = document.getElementById('chat-meeting-btn');
             const meetingHasPassed = record.scheduledAt && new Date(record.scheduledAt).getTime() < Date.now();
             meetingButton.classList.toggle('hidden', Boolean(meetingHasPassed));
-            meetingButton.onclick = () => { if (record.meetingLink && !meetingHasPassed) window.location.href = record.meetingLink; else if (tutorRecord && !meetingHasPassed) window.location.href = `/schedule?assignment=${assignmentId}`; else showAlert('This scheduled meeting has ended.', 'info'); };
+            meetingButton.onclick = async () => {
+                if (meetingHasPassed) return showAlert('This scheduled meeting has ended.', 'info');
+                if (record.meetingLink) { window.location.href = record.meetingLink; return; }
+                if (!tutorRecord) return showAlert('Your tutor has not shared a meeting link yet.', 'info');
+                const meetingLink = window.prompt('Paste the Google Meet link to share with this student');
+                if (!meetingLink) return;
+                const result = await fetch(`/api/assignments/${assignmentId}/meeting-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetingLink }) }).then((r) => r.json());
+                if (!result.success) return showAlert(result.error || 'Could not save meeting link.', 'error');
+                window.location.href = meetingLink;
+            };
             const parts = [];
             if (record.scheduledAt) {
                 const when = new Date(record.scheduledAt);

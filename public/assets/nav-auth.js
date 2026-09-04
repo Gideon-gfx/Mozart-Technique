@@ -184,7 +184,7 @@
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
     const sponsorLink = user.hasSponsorAccess ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>` : '';
-
+    const supportLink = (user.supportAgent || user.role === 'support_agent') ? `<a href="/support-agent"><i class="fa-solid fa-headset"></i> Support Agent</a>` : '';
     target.innerHTML = `
       <div class="mt-auth-wrap">
         <button type="button" class="mt-auth-avatar-btn" data-mt-toggle aria-label="Account menu">${avatarInner}<span class="mt-unread-dot" data-mt-unread hidden></span></button>
@@ -193,11 +193,12 @@
           <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
           <a href="/orientation"><i class="fa-solid fa-compass"></i> Orientation</a>
           <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
-          <a href="/messages" target="_blank" rel="noopener" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
+          <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
           ${sponsorLink}
           ${adminLink}
           ${tutorLink}
+          ${supportLink}
           <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
         </div>
       </div>

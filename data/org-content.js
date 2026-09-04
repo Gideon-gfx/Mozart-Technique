@@ -46,6 +46,23 @@ function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, vi
   return item;
 }
 
+function updateById(contentId, changes) {
+  const db = load();
+  const item = db.items.find((entry) => entry.id === Number(contentId));
+  if (!item) return null;
+  const allowed = ['title', 'category', 'url', 'type', 'visibility', 'folderId'];
+  allowed.forEach((key) => {
+    if (!Object.prototype.hasOwnProperty.call(changes, key)) return;
+    if (key === 'folderId') item.folderId = changes.folderId ? Number(changes.folderId) : null;
+    else if (key === 'title') item.title = String(changes.title || '').trim() || item.title;
+    else if (key === 'category' || key === 'url') item[key] = changes[key] ? String(changes[key]).trim() : null;
+    else if (key === 'type') item.type = ['info', 'photo', 'video', 'document'].includes(changes.type) ? changes.type : item.type;
+    else if (key === 'visibility') item.visibility = changes.visibility === 'shared' ? 'shared' : 'general';
+  });
+  item.updatedAt = new Date().toISOString();
+  persist(db);
+  return item;
+}
 function removeById(contentId) {
   const db = load();
   const index = db.items.findIndex((item) => item.id === Number(contentId));
@@ -55,4 +72,4 @@ function removeById(contentId) {
   return true;
 }
 
-module.exports = { listForOrg, create, removeById, load, persist };
+module.exports = { listForOrg, create, updateById, removeById, load, persist };
