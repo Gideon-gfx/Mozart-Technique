@@ -1484,10 +1484,7 @@
       const events = state.events || [];
       const event = events.find((item) => item.meetLink);
       if (event) return window.open(event.meetLink, '_blank', 'noopener');
-      const link = window.prompt('Paste the Google Meet link to join');
-      if (!link || !link.trim()) return;
-      if (!/^https?:\/\//i.test(link.trim())) return showAlert('Paste the full meeting link beginning with https://', 'error');
-      window.open(link.trim(), '_blank', 'noopener');
+      activateDashboardTab('meeting');
     });
     document.getElementById('create-meeting-btn')?.addEventListener('click', () => {
       const list = document.getElementById('meeting-member-list');
@@ -1836,8 +1833,8 @@
         modal.querySelectorAll('[data-close-group]').forEach((button) => button.addEventListener('click', () => modal.remove()));
         const groupName = await new Promise((resolve) => { modal.querySelector('#save-org-group').addEventListener('click', () => { const value = modal.querySelector('#org-group-name').value.trim(); modal.remove(); resolve(value); }); });
         if (!groupName) return;
-        const students = (window.currentOrg && window.currentOrg.students) || [];
-        const tutors = (window.currentOrg && window.currentOrg.tutors) || [];
+        const students = state.classroomStudents || [];
+        const tutors = state.classroomTutors || [];
         const membersList = [...students.slice(0, 2), ...tutors.slice(0, 2)].map((member) => ({
           id: member.id,
           type: member.role === 'Tutor' ? 'tutor' : 'student',

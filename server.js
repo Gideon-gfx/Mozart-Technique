@@ -1681,7 +1681,10 @@ app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certific
 app.get('/api/organizations/me', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
-  res.json({ success: true, organization: org, subscriptionActive: org ? organizations.isSubscriptionActive(org) : false });
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+  const students = organizations.getStudentsForOrganization(org.id).map((member) => { const student = store.findById(member.studentId); return { id: member.studentId, name: student?.name || member.studentName || 'Student', email: student?.email || '', role: 'Student' }; });
+  const tutorsForOrg = organizations.getTutorsForOrganization(org.id).map((userId) => tutors.findByUserId(userId)).filter(Boolean).map((tutor) => ({ id: tutor.id, userId: tutor.userId, name: tutor.name, email: tutor.email || '', role: 'Tutor', photoUrl: tutor.photoUrl || null }));
+  res.json({ success: true, organization: { ...org, students, tutors: tutorsForOrg, members: students }, subscriptionActive: organizations.isSubscriptionActive(org) });
 });
 
 app.post('/api/organizations/me/generate-code', requireAuthApi, (req, res) => {
