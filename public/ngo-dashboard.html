@@ -1250,8 +1250,8 @@
         const membersData = await membersRes.json();
         const tutorsData = await tutorsRes.json();
         const conversations = conversationData.success ? (conversationData.conversations || []) : [];
-        const members = membersData.success ? (membersData.students || []) : [];
-        const tutors = tutorsData.success ? (tutorsData.tutors || []) : [];
+        const members = membersData.success ? (membersData.students || []) : (state.organization?.members || []).filter((member) => (member.role || 'student').toLowerCase() === 'student');
+        const tutors = tutorsData.success ? (tutorsData.tutors || []) : (state.organization?.tutors || []);
 
         const directContacts = [
           ...members.map((student) => ({
@@ -1297,17 +1297,19 @@
           renderClassroomsByLocalStorage();
           const membersRes = await fetch('/api/organizations/members');
           const membersData = await membersRes.json();
-          if (membersData.success) {
-            state.classroomStudents = membersData.students || [];
-            state.classroomTutors = membersData.tutors || [];
-            renderClassroomMembers(membersData.students || [], membersData.tutors || []);
-            renderStudents((membersData.students || []).map((student) => ({
+          const classroomStudents = membersData.success ? (membersData.students || []) : (org.members || []).filter((member) => (member.role || 'student').toLowerCase() === 'student');
+          const classroomTutors = membersData.success ? (membersData.tutors || []) : (org.tutors || []);
+          if (membersData.success || classroomStudents.length || classroomTutors.length) {
+            state.classroomStudents = classroomStudents;
+            state.classroomTutors = classroomTutors;
+            renderClassroomMembers(classroomStudents, classroomTutors);
+            renderStudents(classroomStudents.map((student) => ({
               ...student,
               status: 'active',
               activeSince: student.createdAt || new Date().toISOString(),
               lessonsTaken: student.lessonCount || 0,
             })));
-            renderTutors((membersData.tutors || []).map((tutor) => ({
+            renderTutors(classroomTutors.map((tutor) => ({
               ...tutor,
               status: 'approved',
               studentCount: tutor.studentCount || 0,
