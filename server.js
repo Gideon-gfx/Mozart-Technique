@@ -1682,7 +1682,7 @@ app.get('/api/organizations/me', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
   if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
-  const students = organizations.getStudentsForOrganization(org.id).map((member) => { const student = store.findById(member.studentId); return { id: member.studentId, name: student?.name || member.studentName || 'Student', email: student?.email || '', role: 'Student' }; });
+  const students = organizations.getStudentsForOrganization(org.id).map((member) => { const student = store.findById(member.studentId); return { ...member, id: member.studentId, name: student?.name || member.studentName || 'Student', studentName: student?.name || member.studentName || 'Student', email: student?.email || '', role: 'Student' }; });
   const tutorsForOrg = organizations.getTutorsForOrganization(org.id).map((userId) => tutors.findByUserId(userId)).filter(Boolean).map((tutor) => ({ id: tutor.id, userId: tutor.userId, name: tutor.name, email: tutor.email || '', role: 'Tutor', photoUrl: tutor.photoUrl || null }));
   res.json({ success: true, organization: { ...org, students, tutors: tutorsForOrg, members: students }, subscriptionActive: organizations.isSubscriptionActive(org) });
 });
@@ -2186,12 +2186,16 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   const requestedOrgId = req.query.orgId ? Number(req.query.orgId) : null;
   const org = (requestedOrgId && orgs.find((item) => item.id === requestedOrgId)) || orgs[0];
   if (!tutor || !org) return res.status(403).json({ success: false, error: 'Organization tutor access required.' });
-  const students = organizations.getStudentsForOrganization(org.id).map((member) => {
+  const orgStudents = organizations.getStudentsForOrganization(org.id).map((member) => {
     const student = store.findById(member.studentId);
     return { ...member, studentName: student?.name || member.studentName || 'Student', email: student?.email || '' };
   });
+  const tutorRecords = assignments.listForTutor(tutor.id);
+  const requestedStudentIds = new Set(tutorRecords.map((record) => Number(record.studentId)));
+  assignments.listAll().filter((record) => (record.preferredTutorIds || []).includes(tutor.id)).forEach((record) => requestedStudentIds.add(Number(record.studentId)));
+  const students = orgStudents.filter((member) => requestedStudentIds.has(Number(member.studentId)));
   const studentIds = new Set(students.map((member) => Number(member.studentId)));
-  const assignmentsForOrg = assignments.listForTutor(tutor.id).filter((record) => studentIds.has(Number(record.studentId)));
+  const assignmentsForOrg = tutorRecords.filter((record) => studentIds.has(Number(record.studentId)));
   const requests = assignments.listAll().filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(tutor.id) && studentIds.has(Number(record.studentId)));
   const content = orgContent.listForOrg(org.id).filter((item) => item.visibility !== 'shared' || item.createdByUserId === user.id);
   const notifications = [
