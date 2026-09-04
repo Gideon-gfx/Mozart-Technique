@@ -181,6 +181,7 @@
       ? `<img src="${escapeHtml(user.photoUrl)}" alt="${name}">`
       : `<span class="mt-auth-initials">${initials(user.name || user.email)}</span>`;
     const editProfileLink = `<a href="/edit-profile"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>`;
+    const paymentMethodsLink = !user.hasTutorProfile && user.role !== 'admin' ? `<a href="/payment-methods"><i class="fa-solid fa-credit-card"></i> Manage Payment Methods</a>` : '';
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
     const sponsorLink = user.hasSponsorAccess ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>` : '';
@@ -195,6 +196,7 @@
           <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
           <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
+          ${paymentMethodsLink}
           ${sponsorLink}
           ${adminLink}
           ${tutorLink}

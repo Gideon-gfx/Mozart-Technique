@@ -151,7 +151,7 @@ function listForTutor(tutorId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function sendMessage(conversationId, { senderId, senderType, senderName, text }) {
+function sendMessage(conversationId, { senderId, senderType, senderName, text, attachment }) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return null;
@@ -162,6 +162,7 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text })
     senderType,
     senderName,
     text: text || '',
+    attachment: attachment || null,
     createdAt: new Date().toISOString(),
     readByOrg: senderType === 'org',
     readByTutor: senderType === 'tutor',
@@ -184,6 +185,14 @@ function setMeetingLink(conversationId, meetingLink) {
   if (!conv) return null;
   conv.meetingLink = meetingLink || null;
   conv.meetingUpdatedAt = new Date().toISOString();
+  persist(db);
+  return normalizeConversation(conv);
+}
+function removeParticipant(conversationId, participantId, participantType) {
+  const db = load();
+  const conv = db.conversations.find((entry) => Number(entry.id) === Number(conversationId));
+  if (!conv) return null;
+  conv.participants = (conv.participants || []).filter((entry) => !(String(entry.id) === String(participantId) && entry.type === participantType));
   persist(db);
   return normalizeConversation(conv);
 }
@@ -217,7 +226,7 @@ module.exports = {
   getOrCreateTutorGroupConversation,
   sendMessage,
 getMessages,
-  setMeetingLink,  findById,
+  setMeetingLink, removeParticipant, findById,
   listAll,
   markRead,
   getUnreadCount,

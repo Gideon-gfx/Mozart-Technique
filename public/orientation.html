@@ -17,7 +17,11 @@
     <link rel="stylesheet" href="/assets/redesign.css">
     <link rel="stylesheet" href="/assets/site.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at top right, #ffe4e4 0, transparent 34%), linear-gradient(135deg, #fffaf5 0%, #f6f7fb 100%); }
+        .orientation-shell { background: rgba(255,255,255,.86); border: 1px solid #eaded8; box-shadow: 0 24px 70px rgba(54,31,23,.12); backdrop-filter: blur(14px); }
+        .orientation-kicker { color:#cc0000; font-size:.72rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+        .question-card { border:1px solid #eaded8; border-radius:1rem; padding:1rem; background:linear-gradient(135deg,#fff,#fff8f5); transition:transform .2s ease,box-shadow .2s ease; }
+        .question-card:focus-within { transform:translateY(-2px); box-shadow:0 12px 24px rgba(204,0,0,.1); border-color:#cc0000; }
         .video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: .75rem; overflow: hidden; }
         .video-wrap iframe, .video-wrap video { position: absolute; inset: 0; width: 100%; height: 100%; }
     </style>
@@ -57,8 +61,8 @@
             <p class="text-gray-500">You have completed the orientation materials.</p>
         </div>
 
-        <div id="orientation-body" class="hidden bg-white rounded-2xl shadow-lg p-6 sm:p-8">
-            <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor Orientation</h1>
+        <div id="orientation-body" class="orientation-shell hidden rounded-3xl p-6 sm:p-10">
+            <p class="orientation-kicker mb-2">Mozart Techniques · Teaching Standard</p><h1 class="text-3xl font-bold text-gray-900 mb-2">Tutor Orientation</h1>
             <p class="text-gray-500 mb-6">Read or watch the teaching guidance below. These materials are here to help you prepare for teaching on Mozart Techniques.</p>
 
             <div id="video-section" class="mb-4"></div>
@@ -123,7 +127,7 @@
                 return;
             }
             document.getElementById('quiz-editor').innerHTML = questions.map((q, qi) => `
-                <div class="border border-gray-200 rounded-lg p-4">
+                <div class="question-card">
                     <p class="font-semibold text-gray-800 mb-2">${qi + 1}. ${escapeHtml(q.question)}</p>
                     ${q.options.map((opt, oi) => `
                         <label class="flex items-center gap-2 mb-1 text-sm text-gray-600">

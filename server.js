@@ -484,6 +484,10 @@ app.get('/edit-profile', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'edit-profile.html'));
 });
 
+app.get('/payment-methods', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'payment-methods.html'));
+});
+
 app.get('/admin', requireAdminPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'admin.html'));
 });
@@ -593,6 +597,7 @@ function serveChatPage(req, res) {
 
 app.get('/messages/chat/:id', requireAuthPage, serveChatPage);
 app.get('/messages/chat', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'chat.html')));
+app.get('/messages/group', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'group-chat.html')));
 app.get('/messages/group/:id', requireAuthPage, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'group-chat.html')));
 // Kept so older links (notifications, emails already sent) still work.
 app.get('/chat/:id', requireAuthPage, serveChatPage);
@@ -1564,12 +1569,21 @@ app.post('/api/group-chats/:id/meeting', requireAuthApi, (req, res) => {
   const group = orgChat.setMeetingLink(access.conversation.id, meetingLink);
   res.json({ success: true, group });
 });
+app.delete('/api/group-chats/:id/members/:type/:memberId', requireAuthApi, (req, res) => {
+  const access = tutorGroupAccess(currentUser(req), req.params.id);
+  if (!access || access.role !== 'tutor') return res.status(403).json({ success: false, error: 'Only the tutor can remove members.' });
+  if (req.params.type === 'tutor' && Number(req.params.memberId) === Number(access.conversation.tutorId)) return res.status(400).json({ success: false, error: 'The tutor cannot be removed.' });
+  const updated = orgChat.removeParticipant(req.params.id, req.params.memberId, req.params.type);
+  res.json({ success: Boolean(updated), group: updated });
+});
 app.post('/api/group-chats/:id/messages', requireAuthApi, (req, res) => {
   const access = tutorGroupAccess(currentUser(req), req.params.id);
   const text = String(req.body && req.body.text || '').trim();
+  const attachment = req.body && req.body.attachment;
   if (!access) return res.status(404).json({ success: false, error: 'Group chat not found.' });
-  if (!text) return res.status(400).json({ success: false, error: 'Write a message first.' });
-  const message = orgChat.sendMessage(access.conversation.id, { senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text });
+  if (!text && !attachment) return res.status(400).json({ success: false, error: 'Write a message or attach a file.' });
+  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const message = orgChat.sendMessage(access.conversation.id, { senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text, attachment });
   res.json({ success: true, message });
 });
 app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
@@ -1887,9 +1901,8 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
 
   // Find all tutors assigned to these students
   const orgTutors = new Map();
-  for (const entry of org.tutorCodes || []) {
-    if (!entry.redeemedBy) continue;
-    const tutor = tutors.findByUserId(entry.redeemedBy);
+  for (const tutorUserId of organizations.getTutorsForOrganization(org.id)) {
+    const tutor = tutors.findByUserId(tutorUserId);
     if (tutor && tutor.status === 'approved') {
       orgTutors.set(tutor.id, { id: tutor.id, userId: tutor.userId, name: tutor.name, categories: tutor.categories || [], phone: tutor.phone || null, email: tutor.email || null, profileUrl: tutor.photoUrl || null, studentCount: 0 });
     }
@@ -1941,9 +1954,8 @@ app.get('/api/organizations/members', requireAuthApi, (req, res) => {
     };
   });
   const tutorsById = new Map();
-  for (const entry of org.tutorCodes || []) {
-    if (!entry.redeemedBy) continue;
-    const tutor = tutors.findByUserId(entry.redeemedBy);
+  for (const tutorUserId of organizations.getTutorsForOrganization(org.id)) {
+    const tutor = tutors.findByUserId(tutorUserId);
     if (tutor && tutor.status === 'approved') tutorsById.set(tutor.id, {
       id: tutor.id,
       name: tutor.name,
@@ -2029,10 +2041,11 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const { text, type, targetType, name } = req.body || {};
-  if (!text || !text.trim()) {
-    return res.status(400).json({ success: false, error: 'Message text is required.' });
+  const { text, type, targetType, name, attachment } = req.body || {};
+  if ((!text || !text.trim()) && !attachment) {
+    return res.status(400).json({ success: false, error: 'Message text or an attachment is required.' });
   }
+  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
 
   const targetId = Number(req.params.targetId);
   const resolvedType = targetType || type || 'tutor';
@@ -2048,7 +2061,8 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
     senderId: user.id,
     senderType: 'org',
     senderName: org.name || org.contactName,
-    text: text.trim(),
+    text: String(text || '').trim(),
+    attachment: attachment || null,
   });
 
   res.json({ success: true, message, conversation });
@@ -2092,10 +2106,11 @@ app.post('/api/organizations/conversations/:id/send', requireAuthApi, (req, res)
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const { text } = req.body || {};
-  if (!text || !text.trim()) {
-    return res.status(400).json({ success: false, error: 'Message text is required.' });
+  const { text, attachment } = req.body || {};
+  if ((!text || !text.trim()) && !attachment) {
+    return res.status(400).json({ success: false, error: 'Message text or an attachment is required.' });
   }
+  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
 
   const conversationId = Number(req.params.id);
   const conversation = orgChat.listForOrganization(org.id).find((item) => item.id === conversationId);
@@ -2107,7 +2122,8 @@ app.post('/api/organizations/conversations/:id/send', requireAuthApi, (req, res)
     senderId: user.id,
     senderType: 'org',
     senderName: org.name || org.contactName,
-    text: text.trim(),
+    text: String(text || '').trim(),
+    attachment: attachment || null,
   });
 
   res.json({ success: true, message, conversation });
@@ -3011,10 +3027,36 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
 app.post('/api/assignments/:id/lesson-start', requireApprovedTutorApi, (req, res) => {
   const record = assignments.findById(req.params.id);
   if (!record || record.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  if (record.lessonType === 'physical' && !record.studentSawTutor) return res.status(400).json({ success: false, error: 'The student must confirm seeing you before the lesson starts.' });
+  if (record.lessonType === 'studio' && !record.tutorSawStudent) return res.status(400).json({ success: false, error: 'Confirm that the student has arrived before starting the lesson.' });
   const started = assignments.startLesson(record.id, req.tutorProfile.id);
   if (!started) return res.status(400).json({ success: false, error: 'Only active assignments can start a lesson.' });
   chat.send(record.id, { senderId: currentUser(req).id, senderRole: 'tutor', text: `🔔 ${req.tutorProfile.name} started your ${record.category} class. The lesson clock is now running.` });
   res.json({ success: true, lessonStartedAt: started.lessonStartedAt });
+});
+
+app.post('/api/assignments/:id/reach-destination', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.markTutorReached(req.params.id, req.tutorProfile.id);
+  if (!record) return res.status(400).json({ success: false, error: 'This is not an active in-person lesson.' });
+  res.json({ success: true, record });
+});
+
+app.post('/api/assignments/:id/confirm-tutor-seen', requireAuthApi, (req, res) => {
+  const record = assignments.confirmStudentSawTutor(req.params.id, currentUser(req).id);
+  if (!record) return res.status(400).json({ success: false, error: 'The tutor has not marked arrival yet.' });
+  res.json({ success: true, record });
+});
+
+app.post('/api/assignments/:id/reach-studio', requireAuthApi, (req, res) => {
+  const record = assignments.markStudentReachedStudio(req.params.id, currentUser(req).id);
+  if (!record) return res.status(400).json({ success: false, error: 'This is not an active studio lesson.' });
+  res.json({ success: true, record });
+});
+
+app.post('/api/assignments/:id/confirm-student-seen', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.confirmTutorSawStudent(req.params.id, req.tutorProfile.id);
+  if (!record) return res.status(400).json({ success: false, error: 'The student has not marked arrival yet.' });
+  res.json({ success: true, record });
 });
 
 app.post('/api/assignments/:id/tutor-acknowledgements', requireApprovedTutorApi, (req, res) => {
@@ -3042,6 +3084,23 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   const client = stripeClient.getClient();
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
 
+  if (user.stripeCustomerId && user.stripePaymentMethodId) {
+    try {
+      const paymentIntent = await client.paymentIntents.create({
+        amount: Math.round(Number(pending.totalUsd || 0) * 100),
+        currency: 'usd', customer: user.stripeCustomerId,
+        payment_method: user.stripePaymentMethodId, off_session: true, confirm: true,
+        metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
+      });
+      const result = assignments.confirmSession(record.id, pending.id);
+      if (!result) return res.status(400).json({ success: false, error: 'Session was already confirmed.' });
+      await releaseTutorEarnings(record, result.session, { paymentIntentId: paymentIntent.id });
+      return res.json({ success: true, paidAutomatically: true, session: result.session });
+    } catch (error) {
+      return res.status(402).json({ success: false, error: error.code === 'card_declined' ? 'Your saved card was declined. Update your payment method and try again.' : error.message || 'The saved card could not be charged.' });
+    }
+  }
+
   // Always send the student to a real Stripe Checkout page for the lesson bill.
   // We do not permit an automatic capture path here, even when a prior
   // payment intent exists, because the user must explicitly approve the
@@ -3056,12 +3115,12 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   });
 
   return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
-  if (!result) return res.status(400).json({ success: false, error: 'Session not found or already confirmed.' });
+});
 
-  const { session } = result;
-  const settlement = await releaseTutorEarnings(record, session, { paymentIntentId: pending.paymentIntentId });
-
-  res.json({ success: true, session, automaticTransfer: Boolean(settlement.transfer) });
+app.post('/api/assignments/:id/sessions/:sessionId/cancel', requireApprovedTutorApi, (req, res) => {
+  const session = assignments.cancelSession(req.params.id, req.params.sessionId, req.tutorProfile.id);
+  if (!session) return res.status(400).json({ success: false, error: 'Only a pending held bill can be cancelled.' });
+  res.json({ success: true, session });
 });
 
 app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req, res) => {

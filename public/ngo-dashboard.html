@@ -424,6 +424,7 @@
                 </div>
                 <div id="message-messages" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
                 <div class="border-t border-red-100 pt-3 flex gap-2">
+                  <button id="org-message-attach-btn" type="button" class="btn-secondary" title="Attach file"><i class="fa-solid fa-paperclip"></i></button><input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" />
                   <input id="message-text-input" type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200" />
                   <button id="send-message-to-contact-btn" class="btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
@@ -1006,7 +1007,7 @@
       const members = [
         ...students.map((student) => ({ ...student, role: 'Student', joinedAt: student.createdAt })),
         ...tutors.map((tutor) => ({ ...tutor, role: 'Tutor', joinedAt: null })),
-      ];
+      ].filter((member, index, list) => list.findIndex((candidate) => `${candidate.role}:${candidate.id}` === `${member.role}:${member.id}`) === index);
       if (!members.length) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">No members yet</td></tr>';
         return;
@@ -1092,6 +1093,7 @@
           <div class="max-w-md px-3 py-2 rounded-xl ${msg.senderType === 'org' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-800'}">
             <p class="text-xs font-semibold mb-1">${escapeHtml(msg.senderName || 'User')}</p>
             <p class="text-sm whitespace-pre-wrap">${escapeHtml(msg.text || '')}</p>
+            ${msg.attachment ? `<a href="${escapeHtml(msg.attachment.url)}" target="_blank" rel="noopener" class="mt-2 block text-sm underline"><i class="fa-solid fa-paperclip mr-1"></i>${escapeHtml(msg.attachment.name || 'Attachment')}</a>` : ''}
             <p class="text-[10px] mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
         </div>
@@ -1774,12 +1776,20 @@
 
       try {
         let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
-        let payload = { text };
+        let attachment = null;
+        const file = document.getElementById('org-message-file-input')?.files[0];
+        if (file) {
+          const form = new FormData(); form.append('file', file);
+          const upload = await fetch('/api/chat/upload', { method: 'POST', body: form }).then((response) => response.json());
+          if (!upload.success) return showAlert(upload.error || 'Attachment upload failed.', 'error');
+          attachment = upload.attachment;
+        }
+        let payload = { text, attachment };
 
         if (!state.currentChatConversationId && state.currentContact && state.currentContact.type !== 'group') {
           endpoint = `/api/organizations/conversations/${state.currentContact.id}/message`;
           payload = {
-            text,
+            text, attachment,
             type: state.currentContact.type,
             targetType: state.currentContact.type,
             name: state.currentContact.name,
@@ -1796,6 +1806,7 @@
           const convoId = data.conversation && data.conversation.id ? data.conversation.id : state.currentChatConversationId;
           state.currentChatConversationId = convoId;
           input.value = '';
+          if (document.getElementById('org-message-file-input')) document.getElementById('org-message-file-input').value = '';
           const msgRes = await fetch(`/api/organizations/conversations/${convoId}/messages`);
           const msgData = await msgRes.json();
           renderMessages(msgData.messages || []);
@@ -1807,6 +1818,7 @@
         console.warn('Error sending message', error);
       }
     });
+    document.getElementById('org-message-attach-btn')?.addEventListener('click', () => document.getElementById('org-message-file-input')?.click());
 
     document.getElementById('create-group-chat-btn')?.addEventListener('click', async () => {
       try {
@@ -1817,7 +1829,12 @@
           const label = button.dataset.contactName || 'Contact';
           participantNames.push(label);
         });
-        const groupName = window.prompt('Group chat name', participantNames.slice(0, 2).join(', ') || 'Org Group Chat');
+        const modal = document.createElement('div');
+        modal.className = 'modal-backdrop';
+        modal.innerHTML = `<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create group chat</h3><button type="button" data-close-group class="btn-secondary"><i class="fa-solid fa-xmark"></i></button></div><label class="block text-sm font-semibold mb-2">Group name</label><input id="org-group-name" class="w-full border border-gray-300 rounded-lg px-3 py-2" maxlength="80" value="${escapeHtml(participantNames.slice(0, 2).join(', ') || 'Org Group Chat')}"><div class="mt-5 flex justify-end gap-2"><button type="button" data-close-group class="btn-secondary">Cancel</button><button type="button" id="save-org-group" class="btn-primary">Create group</button></div></div>`;
+        document.body.appendChild(modal);
+        modal.querySelectorAll('[data-close-group]').forEach((button) => button.addEventListener('click', () => modal.remove()));
+        const groupName = await new Promise((resolve) => { modal.querySelector('#save-org-group').addEventListener('click', () => { const value = modal.querySelector('#org-group-name').value.trim(); modal.remove(); resolve(value); }); });
         if (!groupName) return;
         const students = (window.currentOrg && window.currentOrg.students) || [];
         const tutors = (window.currentOrg && window.currentOrg.tutors) || [];

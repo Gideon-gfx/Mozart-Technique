@@ -232,7 +232,7 @@
             return;
           }
           modal.remove();
-          window.location.href = `/messages/group/${result.conversation.id}`;
+          window.location.href = `/messages/group?name=${encodeURIComponent(result.conversation.title || groupName)}`;
         });
       } catch (error) {
         console.error(error);

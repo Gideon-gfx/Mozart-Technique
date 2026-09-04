@@ -169,6 +169,9 @@ function createRequest({
     calendarEventId: null,
     lessonStartedAt: null,
     lessonStartedBy: null,
+    tutorReachedAt: null,
+    studentSawTutorAt: null,
+    studentSawTutor: false,
     status: 'pending', // pending -> active -> ended
     sessions: [],
     createdAt: new Date().toISOString(),
@@ -341,6 +344,56 @@ function startLesson(requestId, tutorId) {
   return record;
 }
 
+function markTutorReached(requestId, tutorId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId) || record.lessonType !== 'physical') return null;
+  record.tutorReachedAt = new Date().toISOString();
+  persist(db);
+  return record;
+}
+
+function confirmStudentSawTutor(requestId, studentId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.studentId !== Number(studentId) || record.lessonType !== 'physical' || !record.tutorReachedAt) return null;
+  record.studentSawTutor = true;
+  record.studentSawTutorAt = new Date().toISOString();
+  persist(db);
+  return record;
+}
+
+function markStudentReachedStudio(requestId, studentId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.studentId !== Number(studentId) || record.lessonType !== 'studio') return null;
+  record.studentReachedAt = new Date().toISOString();
+  persist(db);
+  return record;
+}
+
+function confirmTutorSawStudent(requestId, tutorId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId) || record.lessonType !== 'studio' || !record.studentReachedAt) return null;
+  record.tutorSawStudent = true;
+  record.tutorSawStudentAt = new Date().toISOString();
+  persist(db);
+  return record;
+}
+
+function cancelSession(requestId, sessionId, tutorId) {
+  const db = load();
+  const record = db.records.find((r) => r.id === Number(requestId));
+  if (!record || record.tutorId !== Number(tutorId)) return null;
+  const session = (record.sessions || []).find((item) => item.id === Number(sessionId));
+  if (!session || session.paymentStatus !== 'held') return null;
+  session.paymentStatus = 'cancelled';
+  session.cancelledAt = new Date().toISOString();
+  persist(db);
+  return session;
+}
+
 // Returns the elapsed, billable time and clears the active timer. A minimum
 // minute avoids a zero-value bill when a tutor starts then immediately ends a
 // test lesson.
@@ -427,7 +480,7 @@ function rateSession(requestId, sessionId, role, { score, professionalism, comme
 
 module.exports = {
   listAll, listForStudent, listForTutor, findById, createRequest, assignTutor, endAssignment,
-  generateCandidates, addSession, startLesson, consumeLessonTimer, confirmSession, setSessionPaymentIntent, setSessionStripeTransfer, rateSession, setMeetingLink, scheduleSession, addRecording, listReviewsForTutor, setTutorAcknowledgements,
+  generateCandidates, addSession, startLesson, markTutorReached, confirmStudentSawTutor, markStudentReachedStudio, confirmTutorSawStudent, cancelSession, consumeLessonTimer, confirmSession, setSessionPaymentIntent, setSessionStripeTransfer, rateSession, setMeetingLink, scheduleSession, addRecording, listReviewsForTutor, setTutorAcknowledgements,
   setIntakeResponses,
   LEVEL_ORDER, LESSON_TYPES, TRAVEL_FEE_USD, PLATFORM_COMMISSION_RATE, COUNTRY_ADMIN_TUTOR_COMMISSION_RATE,
 };

@@ -271,6 +271,14 @@ function getStudentsForOrganization(orgId) {
   return [...individualStudents, ...(org.members || []).filter((member) => (member.role || 'student') === 'student')];
 }
 
+function getTutorsForOrganization(orgId) {
+  const org = findById(orgId);
+  if (!org) return [];
+  const ids = new Set((org.tutorCodes || []).filter((code) => code.redeemedBy).map((code) => String(code.redeemedBy)));
+  (org.members || []).filter((member) => member.role === 'tutor').forEach((member) => ids.add(String(member.studentId)));
+  return [...ids];
+}
+
 function removeMember(orgId, studentId) {
   const db = load();
   const org = db.organizations.find((entry) => entry.id === Number(orgId));
@@ -329,5 +337,5 @@ function addFolder(orgId, name) {
 module.exports = {
   listAll, findById, findByUserId, removeByUserId, removeById, apply, setStatus,
   activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
-  getStudentsForOrganization, removeMember, addEvent, updateEvent, addClassroom, addFolder, listCodes, deleteCode, updateProfile, markCodeSent, markCodeInvited, generateOrganizationCode,
+  getStudentsForOrganization, getTutorsForOrganization, removeMember, addEvent, updateEvent, addClassroom, addFolder, listCodes, deleteCode, updateProfile, markCodeSent, markCodeInvited, generateOrganizationCode,
 };

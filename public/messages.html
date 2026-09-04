@@ -18,6 +18,7 @@
 	</header>
 	<main class="mx-auto max-w-3xl px-4 py-6">
 		<div class="mb-4 flex items-center justify-between"><h1 class="text-2xl font-extrabold text-gray-900">Messages</h1><span id="thread-count" class="text-xs text-gray-500"></span></div>
+		<button id="create-tutor-group-btn" type="button" class="mb-4 grid h-10 w-10 place-items-center rounded-full bg-red-700 text-white shadow" aria-label="Create group chat" title="Create group chat"><i class="fa-solid fa-plus"></i></button>
 		<section class="overflow-hidden rounded-2xl bg-white shadow-lg">
 			<div id="thread-list"><p class="p-10 text-center text-sm text-gray-400">Loading conversations...</p></div>
 		</section>
@@ -28,7 +29,7 @@
 		const timeLabel = (value) => value ? new Date(value).toLocaleDateString([], { day: '2-digit', month: 'short' }) : '';
 		function renderThread(item, isGroup = false) {
 			const id = isGroup ? item.id : item.assignmentId;
-			const href = isGroup ? `/messages/group/${encodeURIComponent(id)}` : `/messages/chat?name=${encodeURIComponent(item.name || '')}`;
+			const href = isGroup ? `/messages/group?name=${encodeURIComponent(item.name || '')}` : `/messages/chat?name=${encodeURIComponent(item.name || '')}`;
 			const title = item.name || item.title || 'Conversation';
 			const avatar = item.photoUrl ? `<img src="${escapeHtml(item.photoUrl)}" alt="" class="h-11 w-11 rounded-full object-cover">` : `<div class="grid h-11 w-11 place-items-center rounded-full bg-red-700 font-bold text-white">${isGroup ? '<i class="fa-solid fa-users"></i>' : initials(title)}</div>`;
 			return `<a href="${href}" class="flex items-center gap-3 border-b border-gray-100 p-4 transition hover:bg-red-50"><div class="shrink-0">${avatar}</div><div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-3"><strong class="truncate text-gray-900">${escapeHtml(title)}</strong><span class="shrink-0 text-xs text-gray-400">${timeLabel(item.lastAt)}</span></div><p class="mt-1 truncate text-sm text-gray-500">${escapeHtml(item.lastMessage || (isGroup ? `${item.studentCount || 0} students` : 'No messages yet'))}</p></div></a>`;
@@ -41,13 +42,25 @@
 				const groupData = await groupResponse.json();
 				const direct = directData.success ? (directData.conversations || []) : [];
 				const groups = groupData.success ? (groupData.chats || []) : [];
-				document.getElementById('thread-count').textContent = `${direct.length + groups.length} conversation${direct.length + groups.length === 1 ? '' : 's'}`;
-				if (!direct.length && !groups.length) { list.innerHTML = '<p class="p-10 text-center text-sm text-gray-400">No conversations yet.</p>'; return; }
-				list.innerHTML = (groups.length ? `<div class="border-b bg-gray-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">Groups</div>${groups.map((item) => renderThread(item, true)).join('')}` : '') + direct.map((item) => renderThread(item)).join('');
+				const uniqueDirect = direct.filter((item, index, list) => list.findIndex((candidate) => String(candidate.name || '').toLowerCase() === String(item.name || '').toLowerCase()) === index);
+				document.getElementById('thread-count').textContent = `${uniqueDirect.length + groups.length} conversation${uniqueDirect.length + groups.length === 1 ? '' : 's'}`;
+				if (!uniqueDirect.length && !groups.length) { list.innerHTML = '<p class="p-10 text-center text-sm text-gray-400">No conversations yet.</p>'; return; }
+				list.innerHTML = (groups.length ? `<div class="border-b bg-gray-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">Groups</div>${groups.map((item) => renderThread(item, true)).join('')}` : '') + uniqueDirect.map((item) => renderThread(item)).join('');
 				const name = new URLSearchParams(location.search).get('name');
-				if (name) { const target = direct.find((item) => String(item.name || '').toLowerCase() === name.toLowerCase()); if (target) location.href = `/messages/chat/${target.assignmentId}`; }
+				if (name) { const target = uniqueDirect.find((item) => String(item.name || '').toLowerCase() === name.toLowerCase()); if (target && location.pathname === '/messages') location.href = `/messages/chat?name=${encodeURIComponent(target.name || '')}`; }
 			} catch (error) { list.innerHTML = '<p class="p-10 text-center text-sm text-red-600">Could not load messages. Please refresh.</p>'; }
 		}
+		document.getElementById('create-tutor-group-btn').addEventListener('click', async () => {
+			const data = await fetch('/api/my-assignments').then((response) => response.json());
+			const records = (data.asTutor || []).filter((item) => item.status === 'active');
+			if (!records.length) return window.alert('You need at least one active student before creating a group.');
+			const modal = document.createElement('div');
+			modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+			modal.innerHTML = `<div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"><div class="mb-4 flex items-center justify-between"><h2 class="text-xl font-bold">Create group chat</h2><button type="button" data-close class="p-2 text-gray-500"><i class="fa-solid fa-xmark"></i></button></div><label class="mb-1 block text-sm font-semibold">Course</label><select id="group-course" class="mb-3 w-full rounded-lg border px-3 py-2">${[...new Set(records.map((item) => item.category).filter(Boolean))].map((course) => `<option>${escapeHtml(course)}</option>`).join('')}</select><label class="mb-1 block text-sm font-semibold">Group name</label><input id="group-name" maxlength="80" class="mb-3 w-full rounded-lg border px-3 py-2" value="Course students"><label class="mb-1 block text-sm font-semibold">Students</label><div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2">${records.map((item) => `<label class="block p-2"><input type="checkbox" value="${item.studentId}" checked> ${escapeHtml(item.studentName || 'Student')}</label>`).join('')}</div><div class="mt-5 flex justify-end gap-2"><button type="button" data-close class="rounded-lg border px-4 py-2">Cancel</button><button type="button" id="save-group" class="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">Create group</button></div></div>`;
+			document.body.appendChild(modal);
+			modal.querySelectorAll('[data-close]').forEach((button) => button.onclick = () => modal.remove());
+			modal.querySelector('#save-group').onclick = async () => { const course = modal.querySelector('#group-course').value; const groupName = modal.querySelector('#group-name').value.trim(); const studentIds = [...modal.querySelectorAll('input[type=checkbox]:checked')].map((input) => Number(input.value)); if (!groupName || !studentIds.length) return window.alert('Enter a group name and choose at least one student.'); const result = await fetch('/api/tutors/me/group-chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course, groupName, studentIds }) }).then((response) => response.json()); if (!result.success) return window.alert(result.error || 'Could not create group chat.'); window.location.href = `/messages/group?name=${encodeURIComponent(result.conversation.title || groupName)}`; };
+		});
 		load();
 	</script>
 	<script src="/assets/nav-auth.js"></script>
