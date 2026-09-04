@@ -1465,20 +1465,18 @@
       } catch (error) { showAlert(error.message || 'Could not create post.', 'error'); } finally { button.disabled = false; }
     });
 
-    document.getElementById('create-announcement-btn')?.addEventListener('click', async () => {
-      const title = window.prompt('Learning announcement title');
-      if (!title) return;
-      const text = window.prompt('Learning announcement details');
-      if (!text) return;
-      const response = await fetch('/api/organizations/private-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'announcement', title, text, visibility: 'general' }) });
-      const data = await response.json();
-      if (data.success) { showAlert('Learning announcement created.', 'success'); loadClassroomLiveData(); } else showAlert(data.error || 'Could not create announcement.', 'error');
+    document.getElementById('create-announcement-btn')?.addEventListener('click', () => {
+      const modal = document.createElement('div'); modal.className = 'modal-backdrop'; modal.innerHTML = '<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create announcement</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="announcement-title-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Announcement title"><textarea id="announcement-text-input" rows="4" class="mt-3 w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Announcement details"></textarea><button type="button" id="save-announcement-btn" class="btn-primary mt-4 w-full">Create announcement</button></div>'; document.body.appendChild(modal);
+      modal.querySelector('[data-close]').onclick = () => modal.remove();
+      modal.querySelector('#save-announcement-btn').onclick = async () => { const title = modal.querySelector('#announcement-title-input').value.trim(); const text = modal.querySelector('#announcement-text-input').value.trim(); if (!title || !text) return; const response = await fetch('/api/organizations/private-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'announcement', title, text, visibility: 'general' }) }); const data = await response.json(); if (!data.success) return showAlert(data.error || 'Could not create announcement.', 'error'); modal.remove(); loadClassroomLiveData(); };
     });
 
     document.getElementById('create-event-btn')?.addEventListener('click', () => {
       document.getElementById('meeting-title').value = '';
       document.getElementById('meeting-start').value = '';
       document.getElementById('meeting-link').value = '';
+      document.querySelector('#meeting-modal h3').textContent = 'Create event';
+      document.querySelector('#schedule-meeting-btn').innerHTML = '<i class="fa-solid fa-calendar-check"></i> Create event';
       document.getElementById('create-meeting-btn')?.click();
     });
     document.getElementById('join-meeting-btn')?.addEventListener('click', () => {

@@ -1683,7 +1683,18 @@ app.get('/api/organizations/me', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(user.id);
   if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
   const students = organizations.getStudentsForOrganization(org.id).map((member) => { const student = store.findById(member.studentId); return { ...member, id: member.studentId, name: student?.name || member.studentName || 'Student', studentName: student?.name || member.studentName || 'Student', email: student?.email || '', role: 'Student' }; });
-  const tutorsForOrg = organizations.getTutorsForOrganization(org.id).map((userId) => tutors.findByUserId(userId)).filter(Boolean).map((tutor) => ({ id: tutor.id, userId: tutor.userId, name: tutor.name, email: tutor.email || '', role: 'Tutor', photoUrl: tutor.photoUrl || null }));
+  const studentIds = new Set(students.map((student) => Number(student.id)));
+  const tutorProfiles = new Map();
+  organizations.getTutorsForOrganization(org.id).forEach((userId) => {
+    const tutor = tutors.findByUserId(userId);
+    if (tutor) tutorProfiles.set(tutor.id, tutor);
+  });
+  assignments.listAll().forEach((assignment) => {
+    if (!studentIds.has(Number(assignment.studentId)) || !assignment.tutorId) return;
+    const tutor = tutors.findById(assignment.tutorId);
+    if (tutor) tutorProfiles.set(tutor.id, tutor);
+  });
+  const tutorsForOrg = Array.from(tutorProfiles.values()).map((tutor) => ({ id: tutor.id, userId: tutor.userId, name: tutor.name, email: tutor.email || '', role: 'Tutor', photoUrl: tutor.photoUrl || null }));
   res.json({ success: true, organization: { ...org, students, tutors: tutorsForOrg, members: students }, subscriptionActive: organizations.isSubscriptionActive(org) });
 });
 
