@@ -1970,11 +1970,12 @@ app.get('/api/organizations/members', requireAuthApi, (req, res) => {
   const tutorsById = new Map();
   for (const tutorUserId of organizations.getTutorsForOrganization(org.id)) {
     const tutor = tutors.findByUserId(tutorUserId);
-    if (tutor && tutor.status === 'approved') tutorsById.set(tutor.id, {
+    if (tutor && !tutor.expelled) tutorsById.set(tutor.id, {
       id: tutor.id,
       name: tutor.name,
       email: tutor.email || '',
       role: 'Tutor',
+      status: tutor.status || 'pending',
       photoUrl: tutor.photoUrl || null,
       profile: { categories: tutor.categories || [], bio: tutor.bio || '', city: tutor.city || null, experienceYears: tutor.experienceYears || 0 },
     });
@@ -1982,11 +1983,12 @@ app.get('/api/organizations/members', requireAuthApi, (req, res) => {
   assignments.listAll().forEach((assignment) => {
     if (!students.some((student) => student.id === assignment.studentId) || !assignment.tutorId) return;
     const tutor = tutors.findById(assignment.tutorId);
-    if (tutor && tutor.status === 'approved') tutorsById.set(tutor.id, {
+    if (tutor && !tutor.expelled) tutorsById.set(tutor.id, {
       id: tutor.id,
       name: tutor.name,
       email: tutor.email || '',
       role: 'Tutor',
+      status: tutor.status || 'pending',
       photoUrl: tutor.photoUrl || null,
       profile: { categories: tutor.categories || [], bio: tutor.bio || '', city: tutor.city || null, experienceYears: tutor.experienceYears || 0 },
     });

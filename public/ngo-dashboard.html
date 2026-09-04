@@ -424,7 +424,7 @@
                 </div>
                 <div id="message-messages" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
                 <div class="border-t border-red-100 pt-3 flex gap-2">
-                  <button id="org-message-attach-btn" type="button" class="btn-secondary" title="Attach file"><i class="fa-solid fa-paperclip"></i></button><input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" />
+                  <button id="org-message-call-btn" type="button" class="btn-secondary" title="Start call"><i class="fa-solid fa-phone"></i></button><button id="org-message-attach-btn" type="button" class="btn-secondary" title="Attach file"><i class="fa-solid fa-paperclip"></i></button><input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" />
                   <input id="message-text-input" type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200" />
                   <button id="send-message-to-contact-btn" class="btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
@@ -1139,6 +1139,7 @@
         convMap.set(key, conversation);
         contacts.push({
           id: conversation.id,
+          targetId: (conversation.participants || []).find((participant) => participant.type !== 'org')?.id || conversation.id,
           name: conversation.title || 'Conversation',
           type: conversation.type || 'direct',
           lastMessage: conversation.lastMessage || 'No messages yet',
@@ -1152,7 +1153,7 @@
       }
 
       list.innerHTML = contacts.map((contact) => `
-        <button type="button" class="message-roster-item w-full rounded-xl border border-red-100 bg-white p-3 text-left hover:bg-red-50 transition" data-contact-id="${contact.id}" data-contact-type="${contact.type}" data-contact-name="${escapeHtml(contact.name)}">
+        <button type="button" class="message-roster-item w-full rounded-xl border border-red-100 bg-white p-3 text-left hover:bg-red-50 transition" data-contact-id="${contact.id}" data-contact-target-id="${contact.targetId || contact.id}" data-contact-type="${contact.type}" data-contact-name="${escapeHtml(contact.name)}">
           <div class="flex items-center justify-between gap-2">
             <strong>${escapeHtml(contact.name)}</strong>
             <span class="text-[10px] uppercase tracking-wide text-red-600">${contact.type === 'group' ? 'Group' : contact.type === 'tutor' ? 'Tutor' : 'Student'}</span>
@@ -1164,6 +1165,7 @@
       list.querySelectorAll('.message-roster-item').forEach((button) => {
         button.addEventListener('click', async () => {
           const conversationId = Number(button.dataset.contactId);
+          const targetId = Number(button.dataset.contactTargetId || conversationId);
           const messageType = button.dataset.contactType;
           const rawName = button.dataset.contactName || 'Conversation';
           if (messageType === 'group') {
@@ -1177,7 +1179,7 @@
             }
             return;
           }
-          const directContact = { id: conversationId, name: rawName, type: messageType };
+          const directContact = { id: targetId, name: rawName, type: messageType };
           state.currentContact = directContact;
           state.currentChatConversationId = null;
           if (convMap.has(`direct-${conversationId}`)) {
@@ -1276,7 +1278,8 @@
           }))
         ];
 
-        const merged = [...conversations, ...directContacts.map((contact) => ({
+        const knownTargets = new Set(conversations.flatMap((conversation) => (conversation.participants || []).filter((participant) => participant.type !== 'org').map((participant) => `${participant.type}:${participant.id}`)));
+        const merged = [...conversations, ...directContacts.filter((contact) => !knownTargets.has(`${contact.type}:${contact.id}`)).map((contact) => ({
           id: contact.id,
           title: contact.name,
           type: contact.type,
@@ -1494,9 +1497,14 @@
       const data = await response.json();
       const event = (data.events || []).find((item) => item.meetLink);
       if (event) return window.location.assign(event.meetLink);
-      activateDashboardTab('classroom');
-      setClassroomPage('events');
-      showAlert('No meeting link has been added yet.', 'error');
+      const upcoming = (data.events || [])[0];
+      if (!upcoming) return showAlert('Create an event first.', 'error');
+      const link = window.prompt('Enter the Google Meet or Zoom link for this event');
+      if (!link) return;
+      const save = await fetch(`/api/organizations/events/${upcoming.id}/link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetLink: link }) });
+      const result = await save.json();
+      if (!result.success) return showAlert(result.error || 'Could not save meeting link.', 'error');
+      window.location.assign(link);
     });
     document.getElementById('create-meeting-btn')?.addEventListener('click', () => {
       const list = document.getElementById('meeting-member-list');
@@ -1781,12 +1789,12 @@
     document.getElementById('send-message-to-contact-btn')?.addEventListener('click', async () => {
       const input = document.getElementById('message-text-input');
       const text = input.value.trim();
-      if (!text) return;
+      const file = document.getElementById('org-message-file-input')?.files[0];
+      if (!text && !file) return;
 
       try {
         let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
         let attachment = null;
-        const file = document.getElementById('org-message-file-input')?.files[0];
         if (file) {
           const form = new FormData(); form.append('file', file);
           const upload = await fetch('/api/chat/upload', { method: 'POST', body: form }).then((response) => response.json());
@@ -1828,6 +1836,23 @@
       }
     });
     document.getElementById('org-message-attach-btn')?.addEventListener('click', () => document.getElementById('org-message-file-input')?.click());
+    document.getElementById('org-message-call-btn')?.addEventListener('click', async () => {
+      const contact = state.currentContact;
+      if (!contact) return showAlert('Select a tutor or student first.', 'error');
+      const link = window.prompt('Paste the Google Meet or Zoom link');
+      if (!link) return;
+      let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
+      let payload = { text: `Join our call: ${link}` };
+      if (!state.currentChatConversationId && contact.type !== 'group') {
+        endpoint = `/api/organizations/conversations/${contact.id}/message`;
+        payload = { ...payload, type: contact.type, targetType: contact.type, name: contact.name };
+      }
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      if (!result.success) return showAlert(result.error || 'Could not send call link.', 'error');
+      state.currentChatConversationId = result.conversation?.id || state.currentChatConversationId;
+      loadMessageRoster();
+    });
 
     document.getElementById('create-group-chat-btn')?.addEventListener('click', async () => {
       try {
