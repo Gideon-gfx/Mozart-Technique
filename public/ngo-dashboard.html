@@ -310,9 +310,9 @@
 
               <div class="classroom-page" data-page-panel="members">
                 <div class="classroom-card">
-                  <h3 class="text-2xl font-bold mb-2">Classroom members</h3>
-                  <p class="muted mb-4">Students and tutors connected to this organization.</p>
-                  <div class="table-card overflow-x-auto"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active Since</th><th>Remove</th></tr></thead><tbody id="classroom-member-list"><tr><td colspan="5" class="text-center text-gray-400 py-8">No members yet</td></tr></tbody></table></div>
+                  <h3 class="text-2xl font-bold mb-2">Students</h3>
+                  <p class="muted mb-4">Students connected to this organization.</p>
+                  <div class="table-card overflow-x-auto"><table><thead><tr><th>Name</th><th>Email</th><th>Active Since</th><th>Remove</th></tr></thead><tbody id="classroom-member-list"><tr><td colspan="4" class="text-center text-gray-400 py-8">No students yet</td></tr></tbody></table></div>
                 </div>
               </div>
 
@@ -320,7 +320,7 @@
                 <div class="classroom-card">
                   <h3 class="text-2xl font-bold mb-2">Tutor directory</h3>
                   <p class="muted mb-4">All active tutors assigned to your organization.</p>
-                  <div id="classroom-tutor-list" class="space-y-3"></div>
+                  <div id="classroom-tutor-list" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
                 </div>
               </div>
 
@@ -1009,24 +1009,20 @@
       });
     }
 
-    function renderClassroomMembers(students = [], tutors = []) {
+    function renderClassroomMembers(students = []) {
       const tbody = document.getElementById('classroom-member-list');
       if (!tbody) return;
-      const members = [
-        ...students.map((student) => ({ ...student, role: 'Student', joinedAt: student.createdAt })),
-        ...tutors.map((tutor) => ({ ...tutor, role: 'Tutor', joinedAt: null })),
-      ].filter((member, index, list) => list.findIndex((candidate) => `${candidate.role}:${candidate.id}` === `${member.role}:${member.id}`) === index);
+      const members = students.map((student) => ({ ...student, joinedAt: student.redeemedAt || student.createdAt }));
       if (!members.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">No members yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-8">No students yet</td></tr>';
         return;
       }
       tbody.innerHTML = members.map((member) => `
         <tr>
           <td>${escapeHtml(member.name || member.studentName || member.role)}</td>
           <td>${escapeHtml(member.email || '—')}</td>
-          <td>${escapeHtml(member.role)}</td>
           <td>${member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '—'}</td>
-          <td>${member.role === 'Student' ? `<button type="button" class="remove-classroom-member btn-secondary text-xs px-3 py-2" data-student-id="${member.id}"><i class="fa-solid fa-user-slash"></i> Remove</button>` : '<span class="text-gray-400">—</span>'}</td>
+          <td><button type="button" class="remove-classroom-member btn-secondary text-xs px-3 py-2" data-student-id="${member.id}"><i class="fa-solid fa-user-slash"></i> Remove</button></td>
         </tr>
       `).join('');
       tbody.querySelectorAll('.remove-classroom-member').forEach((button) => button.addEventListener('click', async () => {
@@ -1039,7 +1035,7 @@
     }
 
     function renderTutors(tutors = []) {
-      const list = document.getElementById('tutors-list');
+      const list = document.getElementById('classroom-tutor-list');
       if (!list) return;
       if (!tutors.length) {
         list.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">No tutors yet</p>';
@@ -1313,7 +1309,7 @@
           if (membersData.success || classroomStudents.length || classroomTutors.length) {
             state.classroomStudents = classroomStudents;
             state.classroomTutors = classroomTutors;
-            renderClassroomMembers(classroomStudents, classroomTutors);
+            renderClassroomMembers(classroomStudents);
             renderStudents(classroomStudents.map((student) => ({
               ...student,
               status: 'active',
@@ -1326,6 +1322,7 @@
               studentCount: tutor.studentCount || 0,
             })));
           }
+          loadMessageRoster();
           loadClassroomLiveData();
           loadOrganizationLibrary();
 
@@ -1941,7 +1938,6 @@
     loadOrganizationData();
     loadIssuedCodes();
     loadOrganizationLibrary();
-    loadMessageRoster();
     refreshOrganizationNotifications();
   </script>
 </body>
