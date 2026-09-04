@@ -35,7 +35,7 @@ function findById(id) {
 }
 
 function findByUserId(userId) {
-  return listAll().find((o) => o.userId === userId) || null;
+  return listAll().find((o) => Number(o.userId) === Number(userId)) || null;
 }
 
 function removeByUserId(userId) {
@@ -274,8 +274,8 @@ function getStudentsForOrganization(orgId) {
 function getTutorsForOrganization(orgId) {
   const org = findById(orgId);
   if (!org) return [];
-  const ids = new Set((org.tutorCodes || []).filter((code) => code.redeemedBy).map((code) => String(code.redeemedBy)));
-  (org.members || []).filter((member) => member.role === 'tutor').forEach((member) => ids.add(String(member.studentId)));
+  const ids = new Set((org.tutorCodes || []).filter((code) => code.redeemedBy).map((code) => Number(code.redeemedBy)));
+  (org.members || []).filter((member) => member.role === 'tutor').forEach((member) => ids.add(Number(member.studentId)));
   return [...ids];
 }
 
