@@ -726,9 +726,17 @@
       renderPaymentHistory(org.paymentHistory || []);
       const activityList = document.getElementById('activity-list');
       const members = Array.isArray(org.members) ? org.members : [];
-      if (members.length) {
-        activityList.innerHTML = members.slice(0, 3).map((member) => `
-          <div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>${escapeHtml(member.studentName || 'Student')} joined</span><strong>${new Date(member.createdAt || Date.now()).toLocaleDateString()}</strong></div>
+      const codes = [
+        ...(Array.isArray(org.studentCodes) ? org.studentCodes : []).map((code) => ({ ...code, label: 'Student code' })),
+        ...(Array.isArray(org.tutorCodes) ? org.tutorCodes : []).map((code) => ({ ...code, label: 'Tutor code' })),
+      ];
+      const activities = [
+        ...members.map((member) => ({ text: `${member.studentName || 'Member'} joined the organization`, date: member.redeemedAt || member.createdAt })),
+        ...codes.map((code) => ({ text: `${code.label} ${code.redeemedAt ? 'redeemed by ' + (code.redeemedName || code.studentName || 'a member') : 'created'}`, date: code.redeemedAt || code.createdAt })),
+      ].filter((item) => item.date).sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (activities.length) {
+        activityList.innerHTML = activities.slice(0, 5).map((activity) => `
+          <div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>${escapeHtml(activity.text)}</span><strong>${new Date(activity.date).toLocaleDateString()}</strong></div>
         `).join('');
       } else {
         activityList.innerHTML = '<div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>No student activity yet</span><strong>Awaiting first code redemption</strong></div>';
@@ -1481,11 +1489,14 @@
       document.querySelector('#schedule-meeting-btn').innerHTML = '<i class="fa-solid fa-calendar-check"></i> Create event';
       document.getElementById('create-meeting-btn')?.click();
     });
-    document.getElementById('join-meeting-btn')?.addEventListener('click', () => {
-      const events = state.events || [];
-      const event = events.find((item) => item.meetLink);
-      if (event) return window.open(event.meetLink, '_blank', 'noopener');
-      activateDashboardTab('meeting');
+    document.getElementById('join-meeting-btn')?.addEventListener('click', async () => {
+      const response = await fetch('/api/organizations/events');
+      const data = await response.json();
+      const event = (data.events || []).find((item) => item.meetLink);
+      if (event) return window.location.assign(event.meetLink);
+      activateDashboardTab('classroom');
+      setClassroomPage('events');
+      showAlert('No meeting link has been added yet.', 'error');
     });
     document.getElementById('create-meeting-btn')?.addEventListener('click', () => {
       const list = document.getElementById('meeting-member-list');
