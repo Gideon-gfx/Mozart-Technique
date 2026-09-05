@@ -51,6 +51,13 @@
     await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription }) });
   }
 
+  async function ensureSubscription() {
+    if (!supported() || Notification.permission !== 'granted' || localStorage.getItem(STORAGE_KEY) !== 'true') return;
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    const subscription = registration && await registration.pushManager.getSubscription();
+    if (!subscription) await subscribe();
+  }
+
   async function disable(button, statusNode) {
     const registration = await navigator.serviceWorker.getRegistration('/');
     const subscription = registration && await registration.pushManager.getSubscription();
@@ -104,6 +111,7 @@
     initHomePrompt();
     const menuButton = document.querySelector('[data-device-notifications]');
     if (menuButton) { menuButton.addEventListener('click', () => { window.location.href = '/edit-profile#device-notifications'; }); }
+    ensureSubscription().catch(() => {});
     poll();
     window.setInterval(poll, 30000);
   }
