@@ -106,8 +106,41 @@ function addNotification(userId, { type, message, href = null }) {
     href,
     read: false,
     createdAt: new Date().toISOString(),
+    pushPending: true,
   });
   user.notifications = user.notifications.slice(0, 50); // cap history
+  persist(db);
+  return user;
+}
+
+function clearPushPending(userId, notificationId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  const notification = (user.notifications || []).find((item) => item.id === Number(notificationId));
+  if (notification) notification.pushPending = false;
+  persist(db);
+  return user;
+}
+
+function setPushSubscription(userId, subscription) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.pushSubscriptions) user.pushSubscriptions = [];
+  const key = subscription && subscription.endpoint;
+  if (!key) return user;
+  user.pushSubscriptions = user.pushSubscriptions.filter((item) => item.endpoint !== key);
+  user.pushSubscriptions.push(subscription);
+  persist(db);
+  return user;
+}
+
+function removePushSubscription(userId, endpoint) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.pushSubscriptions = (user.pushSubscriptions || []).filter((item) => item.endpoint !== endpoint);
   persist(db);
   return user;
 }
@@ -489,7 +522,7 @@ function clearCalendarTokens(userId) {
 module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, getBadges, addNotification, markNotificationsRead, markNotificationRead, setRole, setCountryAdmin, setPayoutDetails, listUsers,
+  markActive, getBadges, addNotification, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,

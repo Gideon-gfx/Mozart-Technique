@@ -7,6 +7,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const cookieSession = require('cookie-session');
 const { OAuth2Client } = require('google-auth-library');
+const webpush = require('web-push');
 
 const store = require('./data/store');
 const geo = require('./data/geo');
@@ -55,6 +56,9 @@ const app = express();
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:mozarttechniques@gmail.com', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 if (!process.env.SESSION_SECRET) {
   console.warn('SESSION_SECRET is not set - using an insecure development default. Set it in a .env file for production.');
@@ -394,6 +398,26 @@ function isPrimaryAdmin(user) {
   const ownerEmail = String(process.env.PRIMARY_ADMIN_EMAIL || 'mozarttechniques@gmail.com').trim().toLowerCase();
   return Boolean(user && user.role === 'admin' && (!user.adminCountryCode || String(user.email || '').trim().toLowerCase() === ownerEmail));
 }
+
+async function sendPushNotifications(user) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !user || !(user.pushSubscriptions || []).length) return;
+  const pending = (user.notifications || []).filter((item) => item.pushPending).slice(0, 10);
+  const active = [];
+  for (const subscription of user.pushSubscriptions) {
+    try {
+      for (const notification of pending) await webpush.sendNotification(subscription, JSON.stringify({ title: 'Mozart Techniques', body: notification.message, icon: '/mozartLogo.jpg', data: { href: notification.href } }));
+      active.push(subscription);
+    }
+    catch (error) { if (error.statusCode !== 404 && error.statusCode !== 410) active.push(subscription); }
+  }
+  if (active.length !== (user.pushSubscriptions || []).length) {
+    const refreshed = store.findById(user.id);
+    if (refreshed) refreshed.pushSubscriptions = active;
+  }
+  pending.forEach((notification) => store.clearPushPending(user.id, notification.id));
+}
+
+setInterval(() => store.listUsers().filter((user) => (user.pushSubscriptions || []).length && (user.notifications || []).some((item) => item.pushPending)).forEach((user) => sendPushNotifications(user).catch(() => {})), 5000);
 
 function countryForUser(user) {
   return user && (user.countryCode || (user.studentProfile && user.studentProfile.locality && user.studentProfile.locality.countryCode)) || null;
@@ -1079,6 +1103,21 @@ app.get('/api/certificate/:code', (req, res) => {
 app.get('/api/notifications', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   res.json({ success: true, notifications: user.notifications || [] });
+});
+
+app.get('/api/push/public-key', (req, res) => res.json({ success: Boolean(VAPID_PUBLIC_KEY), publicKey: VAPID_PUBLIC_KEY || null }));
+
+app.post('/api/push/subscribe', requireAuthApi, (req, res) => {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return res.status(503).json({ success: false, error: 'Push notifications are not configured.' });
+  const subscription = req.body && req.body.subscription;
+  if (!subscription || !subscription.endpoint || !subscription.keys) return res.status(400).json({ success: false, error: 'Invalid push subscription.' });
+  store.setPushSubscription(currentUser(req).id, subscription);
+  res.json({ success: true });
+});
+
+app.delete('/api/push/subscribe', requireAuthApi, (req, res) => {
+  store.removePushSubscription(currentUser(req).id, String(req.body && req.body.endpoint || ''));
+  res.json({ success: true });
 });
 
 app.post('/api/notifications/read-all', requireAuthApi, (req, res) => {

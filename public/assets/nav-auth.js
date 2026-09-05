@@ -15,6 +15,11 @@
     const script = document.createElement('script'); script.src = '/assets/mozart-ai.js?v=20260830a'; script.defer = true;
     document.head.appendChild(script);
   }
+  if (!document.getElementById('browser-notifications-loader')) {
+    const notificationScript = document.createElement('script');
+    notificationScript.id = 'browser-notifications-loader'; notificationScript.src = '/assets/browser-notifications.js'; notificationScript.defer = true;
+    document.head.appendChild(notificationScript);
+  }
   const STYLE_ID = 'mt-auth-style';
 
   function injectStyle() {
@@ -196,6 +201,7 @@
           <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
           <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
+          <button type="button" id="nav-device-notifications" data-device-notifications><i class="fa-solid fa-mobile-screen-button"></i> Device Notifications</button>
           ${paymentMethodsLink}
           ${sponsorLink}
           ${adminLink}

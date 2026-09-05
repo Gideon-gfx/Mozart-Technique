@@ -121,6 +121,12 @@
                     <select id="country-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-red"></select>
                 </div>
 
+                <div id="device-notifications" class="border-t border-gray-200 pt-6">
+                    <h2 class="text-lg font-bold text-gray-900">Device notifications</h2>
+                    <p id="device-notifications-status" class="mt-1 text-sm text-gray-600">Checking notification permission...</p>
+                    <button type="button" id="device-notifications-btn" class="mt-3 rounded-lg bg-primary-red px-4 py-2 font-semibold text-white hover:bg-red-700">Allow device notifications</button>
+                </div>
+
                 <!-- Action Buttons -->
                 <div class="flex gap-3 pt-6 border-t border-gray-200">
                     <a href="/dashboard" class="flex-1 px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition text-center">
@@ -135,6 +141,7 @@
     </main>
 
     <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/browser-notifications.js"></script>
     <script>
         const alertBox = document.getElementById('alert-box');
         const alertMessage = document.getElementById('alert-message');
