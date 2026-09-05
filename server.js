@@ -1956,8 +1956,8 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
   const orgTutors = new Map();
   for (const tutorUserId of organizations.getTutorsForOrganization(org.id)) {
     const tutor = tutors.findByUserId(tutorUserId);
-    if (tutor && tutor.status === 'approved') {
-      orgTutors.set(tutor.id, { id: tutor.id, userId: tutor.userId, name: tutor.name, categories: tutor.categories || [], phone: tutor.phone || null, email: tutor.email || null, profileUrl: tutor.photoUrl || null, studentCount: 0 });
+    if (tutor && !tutor.expelled) {
+      orgTutors.set(tutor.id, { id: tutor.id, userId: tutor.userId, name: tutor.name, status: tutor.status || 'pending', categories: tutor.categories || [], phone: tutor.phone || null, email: tutor.email || null, profileUrl: tutor.photoUrl || null, studentCount: 0 });
     }
   }
   const allAssignments = assignments.listAll();
@@ -1965,12 +1965,13 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
   for (const assignment of allAssignments) {
     if (studentIds.includes(assignment.studentId) && assignment.tutorId) {
       const tutor = tutors.findById(assignment.tutorId);
-      if (tutor && tutor.status === 'approved') {
+      if (tutor && !tutor.expelled) {
         if (!orgTutors.has(tutor.id)) {
           orgTutors.set(tutor.id, {
             id: tutor.id,
             userId: tutor.userId,
             name: tutor.name,
+            status: tutor.status || 'pending',
             categories: tutor.categories || [],
             phone: tutor.phone || null,
             email: tutor.email || null,
@@ -2736,13 +2737,14 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   requestTutorIds.forEach((id) => {
     const preferredTutor = tutors.findById(id);
     if (preferredTutor && preferredTutor.status === 'approved') {
-      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}. Open your Tutor Profile to review and accept the requests.` });
+      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}. Open your Tutor Profile to review and accept the requests.`, href: '/tutor' });
     }
   });
 
   store.addNotification(user.id, {
     type: 'tutor-request',
     message: `Your requests for ${requestedCategories.join(', ')} have been sent to your chosen tutor. You will be notified when they accept.`,
+    href: '/dashboard',
   });
 
   res.json({ success: true, request: requests[0], requests });

@@ -10,5 +10,10 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = event.notification.data && event.notification.data.href;
-  event.waitUntil(clients.openWindow(target || '/notifications'));
+  const destination = new URL(target || '/notifications', self.location.origin).href;
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => client.url.startsWith(self.location.origin));
+    if (existing) return existing.focus().then(() => existing.navigate(destination));
+    return clients.openWindow(destination);
+  }));
 });
