@@ -425,12 +425,24 @@
             strip.querySelectorAll('.confirm-chat-bill').forEach((button) => {
                 button.addEventListener('click', async () => {
                     button.disabled = true;
-                    const response = await fetch(`/api/assignments/${assignmentId}/sessions/${button.dataset.sessionId}/confirm`, { method: 'POST' });
-                    const result = await response.json();
-                    if (!result.success) { button.disabled = false; showAlert(result.error || 'Could not confirm payment.', 'error'); return; }
-                    if (result.redirectToCheckout && result.checkoutUrl) { window.location.href = result.checkoutUrl; return; }
-                    showAlert('Class confirmed and payment released.', 'success');
-                    loadLessonStrip();
+                    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Opening payment…';
+                    try {
+                        const response = await fetch(`/api/assignments/${assignmentId}/sessions/${button.dataset.sessionId}/confirm`, { method: 'POST' });
+                        const result = await response.json().catch(() => ({ success: false, error: `Payment request failed (${response.status}).` }));
+                        if (!response.ok || !result.success) {
+                            button.disabled = false;
+                            button.textContent = 'Confirm class & pay';
+                            showAlert(result.error || 'Could not confirm payment.', 'error');
+                            return;
+                        }
+                        if (result.redirectToCheckout && result.checkoutUrl) { window.location.assign(result.checkoutUrl); return; }
+                        showAlert('Class confirmed and payment released.', 'success');
+                        loadLessonStrip();
+                    } catch (error) {
+                        button.disabled = false;
+                        button.textContent = 'Confirm class & pay';
+                        showAlert(error.message || 'Could not confirm payment.', 'error');
+                    }
                 });
             });
             document.getElementById('start-chat-lesson')?.addEventListener('click', async (event) => {
