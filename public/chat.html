@@ -189,7 +189,7 @@
         .library-clip-link { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
         #alert-box { width: min(520px, calc(100vw - 32px)); max-width: none; max-height: min(30vh, 180px); overflow-y: auto; line-height: 1.45; overflow-wrap: anywhere; white-space: normal; padding: 12px 14px; }
         #alert-message { display: block; overflow-wrap: anywhere; word-break: break-word; }
-        @media (max-width: 640px) { #alert-box { top: 12px; right: 12px; left: 12px; width: auto; } }
+        @media (max-width: 640px) { #alert-box { top: 60px; right: 12px; left: 12px; width: auto; } }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
@@ -435,7 +435,7 @@
                         if (!response.ok || !result.success) {
                             button.disabled = false;
                             button.textContent = 'Confirm class & pay';
-                            showAlert(result.error || `Payment request failed (${response.status}).`, 'error');
+                            showAlert('We could not open Checkout. Please check your saved card and try again.', 'error');
                             return;
                         }
                         if (result.redirectToCheckout && result.checkoutUrl) { window.location.assign(result.checkoutUrl); return; }

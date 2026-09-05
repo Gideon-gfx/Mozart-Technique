@@ -3145,12 +3145,17 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   const client = stripeClient.getClient();
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
 
+  // First payment: explicit Checkout saves/authorizes the card. Later
+  // payments: charge the saved card automatically off-session.
   if (user.stripeCustomerId && user.stripePaymentMethodId) {
     try {
       const paymentIntent = await client.paymentIntents.create({
         amount: Math.round(Number(pending.totalUsd || 0) * 100),
-        currency: 'usd', customer: user.stripeCustomerId,
-        payment_method: user.stripePaymentMethodId, off_session: true, confirm: true,
+        currency: 'usd',
+        customer: user.stripeCustomerId,
+        payment_method: user.stripePaymentMethodId,
+        off_session: true,
+        confirm: true,
         metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
       });
       const result = assignments.confirmSession(record.id, pending.id);
@@ -3162,20 +3167,19 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
     }
   }
 
-  // Always send the student to a real Stripe Checkout page for the lesson bill.
-  // We do not permit an automatic capture path here, even when a prior
-  // payment intent exists, because the user must explicitly approve the
-  // checkout before the platform releases funds to the tutor.
-  const checkout = await client.checkout.sessions.create({
-    payment_method_types: ['card'], mode: 'payment',
-    line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
-    customer_email: user.email,
-    success_url: `${publicAppUrl(req)}/api/assignments/${record.id}/sessions/${pending.id}/checkout-success?sessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${publicAppUrl(req)}/chat?assignment=${record.id}`,
-    metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
-  });
-
-  return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
+  try {
+    const checkout = await client.checkout.sessions.create({
+      payment_method_types: ['card'], mode: 'payment',
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
+      customer_email: user.email,
+      success_url: `${publicAppUrl(req)}/api/assignments/${record.id}/sessions/${pending.id}/checkout-success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/chat?assignment=${record.id}`,
+      metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
+    });
+    return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
+  } catch (error) {
+    return res.status(502).json({ success: false, error: error.message || 'Stripe Checkout could not be opened.' });
+  }
 });
 
 app.post('/api/assignments/:id/sessions/:sessionId/cancel', requireApprovedTutorApi, (req, res) => {
