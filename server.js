@@ -3163,17 +3163,47 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
       await releaseTutorEarnings(record, result.session, { paymentIntentId: paymentIntent.id });
       return res.json({ success: true, paidAutomatically: true, session: result.session });
     } catch (error) {
-      return res.status(402).json({ success: false, error: error.code === 'card_declined' ? 'Your saved card was declined. Update your payment method and try again.' : error.message || 'The saved card could not be charged.' });
+      const code = error && error.code;
+      const messageByCode = {
+        card_declined: 'Your saved card was declined. Please use another card or contact your bank.',
+        insufficient_funds: 'Your saved card has insufficient funds for this lesson payment.',
+        expired_card: 'Your saved card has expired. Please update it before trying again.',
+        incorrect_cvc: 'Your card security code could not be verified. Please update the saved card.',
+        authentication_required: 'Your bank needs an extra security check before this card can be charged.',
+      };
+      return res.status(402).json({
+        success: false,
+        error: messageByCode[code] || (error && error.message) || 'The saved card could not be charged.',
+        code: code || 'payment_failed',
+      });
     }
   }
 
   try {
+    // Use a Stripe Customer for Checkout as well.  `setup_future_usage`
+    // tells Stripe to retain the card for the later, student-approved
+    // off-session lesson payments above; no card details ever enter our DB.
+    let checkoutCustomerId = user.stripeCustomerId;
+    if (!checkoutCustomerId) {
+      const customer = await client.customers.create({ email: user.email, name: user.name });
+      checkoutCustomerId = customer.id;
+      store.setStripePaymentMethod(user.id, {
+        customerId: checkoutCustomerId,
+        paymentMethodId: null,
+        brand: user.cardBrand,
+        last4: user.cardLast4,
+      });
+    }
     const checkout = await client.checkout.sessions.create({
       payment_method_types: ['card'], mode: 'payment',
       line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
-      customer_email: user.email,
+      customer: checkoutCustomerId,
+      payment_intent_data: {
+        setup_future_usage: 'off_session',
+        metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
+      },
       success_url: `${publicAppUrl(req)}/api/assignments/${record.id}/sessions/${pending.id}/checkout-success?sessionId={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicAppUrl(req)}/chat?assignment=${record.id}`,
+      cancel_url: `${publicAppUrl(req)}/messages/chat/${record.id}?payment=cancel`,
       metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
     });
     return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
@@ -3193,10 +3223,27 @@ app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req,
   const session = client && req.query.sessionId ? await client.checkout.sessions.retrieve(req.query.sessionId) : null;
   const record = assignments.findById(req.params.id);
   const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId));
-  if (!session || session.payment_status !== 'paid' || !record || !lesson || lesson.paymentStatus !== 'held' || session.metadata.studentId !== String(record.studentId)) return res.redirect(`/chat?assignment=${record ? record.id : ''}&payment=error`);
+  if (!session || session.payment_status !== 'paid' || !record || !lesson || lesson.paymentStatus !== 'held' || session.metadata.studentId !== String(record.studentId)) return res.redirect(`/messages/chat/${record ? record.id : ''}?payment=error`);
+  // Checkout can save the card for future student-approved automatic
+  // payments. Store only Stripe IDs and masked display information.
+  try {
+    const paymentIntent = session.payment_intent ? await client.paymentIntents.retrieve(session.payment_intent) : null;
+    const paymentMethod = paymentIntent && paymentIntent.payment_method ? await client.paymentMethods.retrieve(paymentIntent.payment_method) : null;
+    if (paymentMethod && paymentMethod.id) {
+      const student = store.findById(record.studentId);
+      store.setStripePaymentMethod(record.studentId, {
+        customerId: session.customer || (student && student.stripeCustomerId),
+        paymentMethodId: paymentMethod.id,
+        brand: paymentMethod.card ? paymentMethod.card.brand : null,
+        last4: paymentMethod.card ? paymentMethod.card.last4 : null,
+      });
+    }
+  } catch (error) {
+    console.warn('Checkout payment succeeded but its reusable card could not be saved:', error.message);
+  }
   const result = assignments.confirmSession(record.id, lesson.id);
   if (result) await releaseTutorEarnings(record, result.session, { paymentIntentId: session.payment_intent });
-  res.redirect(`/chat?assignment=${record.id}&payment=${result ? 'success' : 'error'}`);
+  res.redirect(`/messages/chat/${record.id}?payment=${result ? 'success' : 'error'}`);
 });
 
 // Tutor sets/updates their own externally-created meeting link (Google

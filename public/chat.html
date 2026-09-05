@@ -187,16 +187,29 @@
         }
         .library-clip { display: block; width: min(100%, 320px); margin-top: 7px; border-radius: 10px; background: #111; }
         .library-clip-link { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
-        #alert-box { top:60px; width: min(520px, calc(100vw - 32px)); max-width: none; max-height: min(30vh, 180px); overflow-y: auto; line-height: 1.45; overflow-wrap: anywhere; white-space: normal; padding: 12px 14px; }
-        #alert-message { display: block; overflow-wrap: anywhere; word-break: break-word; }
-        @media (max-width: 640px) { #alert-box { top: 60px; right: 12px; left: 12px; width: auto; } }
+        #alert-box { top:auto; bottom:20px; width:min(520px,calc(100vw - 32px)); max-width:none; max-height:min(30vh,180px); overflow-y:auto; line-height:1.45; overflow-wrap:anywhere; white-space:normal; padding:12px 14px; }
+        #alert-message { display:block; overflow-wrap:anywhere; word-break:break-word; }
+        .payment-result-backdrop { position:fixed; inset:0; z-index:90; display:grid; place-items:center; padding:20px; background:rgba(17,24,39,.54); }
+        .payment-result-card { width:min(100%,390px); border-radius:24px; background:#fff; padding:30px 24px 24px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.25); }
+        .payment-result-icon { width:82px; height:82px; margin:0 auto 18px; display:grid; place-items:center; border-radius:999px; font-size:38px; }
+        .payment-result-success .payment-result-icon { color:#fff; background:#059669; box-shadow:0 0 0 9px #d1fae5; }
+        .payment-result-error .payment-result-icon { color:#fff; background:#dc2626; box-shadow:0 0 0 9px #fee2e2; }
+        @media (max-width:640px) { #alert-box { right:12px; left:12px; bottom:14px; width:auto; } .payment-result-card { padding:26px 20px 20px; } }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+    <div id="alert-box" class="fixed right-5 z-50 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;" role="status" aria-live="polite">
         <span id="alert-message"></span>
+    </div>
+    <div id="payment-result" class="payment-result-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="payment-result-title">
+        <section id="payment-result-card" class="payment-result-card">
+            <div id="payment-result-icon" class="payment-result-icon"><i class="fa-solid fa-check"></i></div>
+            <h2 id="payment-result-title" class="text-xl font-extrabold text-gray-900">Payment successful</h2>
+            <p id="payment-result-message" class="mt-2 text-sm leading-6 text-gray-600">Your lesson payment has been received.</p>
+            <button id="payment-result-close" type="button" class="mt-6 w-full rounded-xl bg-primary-red px-4 py-3 text-sm font-bold text-white">Done</button>
+        </section>
     </div>
 
     <header class="sticky top-0 z-50 bg-white shadow-sm">
@@ -289,12 +302,38 @@
     <script>
         const alertBox = document.getElementById('alert-box');
         const alertMessage = document.getElementById('alert-message');
-        function showAlert(message, type = 'info') {
+        let alertTimer;
+        function showAlert(message, type = 'info', anchor = null) {
             alertMessage.textContent = message;
             alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
             alertBox.style.opacity = '1';
-            setTimeout(() => { alertBox.style.opacity = '0'; }, 8000);
+            if (anchor) {
+                const rect = anchor.getBoundingClientRect();
+                alertBox.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - Math.min(520, window.innerWidth - 32) - 12))}px`;
+                alertBox.style.right = 'auto';
+                alertBox.style.top = `${Math.min(window.innerHeight - 100, rect.bottom + 10)}px`;
+                alertBox.style.bottom = 'auto';
+            } else {
+                alertBox.style.left = 'auto'; alertBox.style.right = '20px'; alertBox.style.top = 'auto'; alertBox.style.bottom = '20px';
+            }
+            clearTimeout(alertTimer);
+            alertTimer = setTimeout(() => { alertBox.style.opacity = '0'; }, 8000);
         }
+        const paymentResult = document.getElementById('payment-result');
+        const paymentResultCard = document.getElementById('payment-result-card');
+        const paymentResultIcon = document.getElementById('payment-result-icon');
+        function showPaymentResult(success, message) {
+            paymentResultCard.classList.toggle('payment-result-success', success);
+            paymentResultCard.classList.toggle('payment-result-error', !success);
+            paymentResultIcon.innerHTML = `<i class="fa-solid ${success ? 'fa-check' : 'fa-xmark'}"></i>`;
+            document.getElementById('payment-result-title').textContent = success ? 'Payment successful' : 'Payment not successful';
+            document.getElementById('payment-result-message').textContent = message || (success ? 'Your lesson payment has been received.' : 'Your payment could not be completed.');
+            document.getElementById('payment-result-close').textContent = success ? 'Done' : 'Try again';
+            paymentResult.classList.remove('hidden');
+        }
+        function closePaymentResult() { paymentResult.classList.add('hidden'); }
+        document.getElementById('payment-result-close').addEventListener('click', closePaymentResult);
+        paymentResult.addEventListener('click', (event) => { if (event.target === paymentResult) closePaymentResult(); });
         
         // Set back button based on user role
         fetch('/api/session')
@@ -310,6 +349,11 @@
         function escapeHtml(text) {
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
         }
+
+        const paymentNotice = new URLSearchParams(window.location.search).get('payment');
+        if (paymentNotice === 'success') setTimeout(() => showPaymentResult(true, 'Your Stripe payment was successful and the lesson has been paid.'), 120);
+        if (paymentNotice === 'error') setTimeout(() => showPaymentResult(false, 'Stripe could not confirm this payment. No lesson payment was released.'), 120);
+        if (paymentNotice === 'cancel') setTimeout(() => showAlert('Payment was cancelled. You can try again whenever you are ready.', 'info'), 120);
 
         let assignmentId = new URLSearchParams(window.location.search).get('assignment') || window.location.pathname.split('/').filter(Boolean).pop();
         let myRole = null;
@@ -435,16 +479,16 @@
                         if (!response.ok || !result.success) {
                             button.disabled = false;
                             button.textContent = 'Confirm class & pay';
-                            showAlert('We could not open Checkout. Please check your saved card and try again.', 'error');
+                            showPaymentResult(false, result.error || `Payment request failed (${response.status}).`);
                             return;
                         }
                         if (result.redirectToCheckout && result.checkoutUrl) { window.location.assign(result.checkoutUrl); return; }
-                        showAlert('Class confirmed and payment released.', 'success');
+                        showPaymentResult(true, 'Your saved card was charged and this lesson payment has been released.');
                         loadLessonStrip();
                     } catch (error) {
                         button.disabled = false;
                         button.textContent = 'Confirm class & pay';
-                        showAlert(error.message || 'Could not confirm payment.', 'error');
+                        showPaymentResult(false, error.message || 'A network error prevented this payment. Please try again.');
                     }
                 });
             });
