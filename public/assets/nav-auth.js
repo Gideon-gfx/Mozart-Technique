@@ -201,7 +201,6 @@
           <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
           <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
           ${editProfileLink}
-          <button type="button" id="nav-device-notifications" data-device-notifications><i class="fa-solid fa-mobile-screen-button"></i> Device Notifications</button>
           ${paymentMethodsLink}
           ${sponsorLink}
           ${adminLink}

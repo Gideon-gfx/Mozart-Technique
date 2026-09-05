@@ -432,9 +432,10 @@
                 </div>
                 <div id="message-messages" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
                 <div class="border-t border-red-100 pt-3 flex gap-2">
-                  <button id="org-message-call-btn" type="button" class="btn-secondary" title="Start call"><i class="fa-solid fa-phone"></i></button><button id="org-message-attach-btn" type="button" class="btn-secondary" title="Attach file"><i class="fa-solid fa-paperclip"></i></button><input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" />
+                  <button id="org-message-doc-btn" type="button" class="btn-secondary" title="Attach a document"><i class="fa-regular fa-file-lines"></i></button><input id="org-message-doc-input" type="file" class="hidden" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip" />
                   <input id="message-text-input" type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200" />
-                  <button id="send-message-to-contact-btn" class="btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
+                  <button id="org-message-emoji-btn" type="button" class="btn-secondary" title="Emoji"><i class="fa-regular fa-face-smile"></i></button><button id="org-message-attach-btn" type="button" class="btn-secondary" title="Photo or video"><i class="fa-solid fa-paperclip"></i></button><button id="org-message-camera-btn" type="button" class="btn-secondary" title="Take a photo"><i class="fa-solid fa-camera"></i></button><button id="org-message-call-btn" type="button" class="btn-secondary" title="Start call"><i class="fa-solid fa-phone"></i></button><button id="send-message-to-contact-btn" class="btn-primary" title="Hold to record a voice note"><i id="org-message-send-icon" class="fa-solid fa-microphone"></i></button>
+                  <input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*" /><input id="org-message-camera-input" type="file" class="hidden" accept="image/*" capture="environment" /><div id="org-message-emoji-panel" class="hidden absolute bottom-16 right-2 z-10 rounded-xl border bg-white p-2 shadow-lg"></div>
                 </div>
               </div>
               <div id="message-empty-state" class="h-[30rem] flex items-center justify-center text-center text-gray-400">
@@ -1125,8 +1126,10 @@
       state.currentContact = contact;
       const title = document.getElementById('message-chat-title');
       const meta = document.getElementById('message-chat-meta');
+      const callButton = document.getElementById('org-message-call-btn');
       if (title) title.textContent = contact.name || 'Conversation';
       if (meta) meta.textContent = contact.type === 'group' ? `Group chat • ${contact.members?.length || 0} members` : contact.type === 'tutor' ? 'Tutor message' : 'Student message';
+      if (callButton) { callButton.title = `Call ${contact.name || 'contact'}`; callButton.setAttribute('aria-label', `Call ${contact.name || 'contact'}`); }
       panel.classList.remove('hidden');
       empty.classList.add('hidden');
       renderMessages(messages);
@@ -1145,7 +1148,7 @@
           id: conversation.id,
           targetId: (conversation.participants || []).find((participant) => participant.type !== 'org')?.id || conversation.id,
           name: conversation.title || 'Conversation',
-          type: conversation.type || 'direct',
+          type: conversation.type === 'group' ? 'group' : ((conversation.participants || []).find((participant) => participant.type !== 'org')?.type || 'direct'),
           lastMessage: conversation.lastMessage || 'No messages yet',
           isConversation: true,
         });
@@ -1800,8 +1803,9 @@
       try {
         let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
         let attachment = null;
-        if (file) {
-          const form = new FormData(); form.append('file', file);
+        const selectedFile = file || document.getElementById('org-message-doc-input')?.files[0] || document.getElementById('org-message-camera-input')?.files[0];
+        if (selectedFile) {
+          const form = new FormData(); form.append('file', selectedFile);
           const upload = await fetch('/api/chat/upload', { method: 'POST', body: form }).then((response) => response.json());
           if (!upload.success) return showAlert(upload.error || 'Attachment upload failed.', 'error');
           attachment = upload.attachment;
@@ -1841,6 +1845,16 @@
       }
     });
     document.getElementById('org-message-attach-btn')?.addEventListener('click', () => document.getElementById('org-message-file-input')?.click());
+    document.getElementById('org-message-doc-btn')?.addEventListener('click', () => document.getElementById('org-message-doc-input')?.click());
+    document.getElementById('org-message-camera-btn')?.addEventListener('click', () => document.getElementById('org-message-camera-input')?.click());
+    document.getElementById('org-message-emoji-btn')?.addEventListener('click', () => {
+      const panel = document.getElementById('org-message-emoji-panel');
+      panel.innerHTML = ['😀','😂','😍','👍','🙏','❤️','🎵','🎉','✅','❗'].map((emoji) => `<button type="button" class="p-1 text-lg">${emoji}</button>`).join('');
+      panel.classList.toggle('hidden');
+      panel.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => { document.getElementById('message-text-input').value += button.textContent; panel.classList.add('hidden'); document.getElementById('message-text-input').dispatchEvent(new Event('input')); }));
+    });
+    ['org-message-file-input','org-message-doc-input','org-message-camera-input'].forEach((id) => document.getElementById(id)?.addEventListener('change', () => { if (document.getElementById(id).files[0]) document.getElementById('message-text-input').dispatchEvent(new Event('input')); }));
+    document.getElementById('message-text-input')?.addEventListener('input', (event) => { document.getElementById('org-message-send-icon').className = event.target.value.trim() ? 'fa-solid fa-paper-plane' : 'fa-solid fa-microphone'; });
     document.getElementById('org-message-call-btn')?.addEventListener('click', async () => {
       const contact = state.currentContact;
       if (!contact) return showAlert('Select a tutor or student first.', 'error');

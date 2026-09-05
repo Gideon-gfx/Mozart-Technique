@@ -1,4 +1,6 @@
 (function () {
+  if (window.mozartBrowserNotificationsLoaded) return;
+  window.mozartBrowserNotificationsLoaded = true;
   const STORAGE_KEY = 'mozart-browser-notifications-enabled';
   const SEEN_KEY = 'mozart-browser-notification-seen';
 

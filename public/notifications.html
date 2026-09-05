@@ -19,7 +19,7 @@
   <main class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div><h1 class="text-3xl font-extrabold text-gray-900">Notifications</h1><p class="mt-1 text-sm text-gray-500">Updates about your lessons, messages, and account.</p></div>
-      <button id="mark-all" type="button" class="rounded-lg bg-primary-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700">Mark all as read</button>
+      <div class="flex flex-wrap items-center gap-2"><button id="device-notifications-btn" type="button" class="rounded-lg border border-primary-red px-4 py-2 text-sm font-bold text-primary-red hover:bg-red-50">Allow device notifications</button><button id="mark-all" type="button" class="rounded-lg bg-primary-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700">Mark all as read</button></div>
     </div>
     <section id="notification-list" class="grid gap-3"></section>
     <p id="empty-state" class="hidden rounded-xl bg-white p-10 text-center text-gray-500 shadow">No notifications yet.</p>
@@ -27,7 +27,7 @@
   <div id="notification-modal" class="fixed inset-0 z-30 hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
     <article class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-start justify-between gap-4"><h2 id="modal-title" class="text-xl font-bold">Notification</h2><button id="close-modal" type="button" class="text-2xl text-gray-400 hover:text-gray-800" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><p id="modal-message" class="mt-4 whitespace-pre-wrap text-gray-600"></p><a id="modal-link" class="mt-5 hidden inline-flex rounded-lg bg-primary-red px-4 py-2 font-semibold text-white" href="#">Open related page</a></article>
   </div>
-  <script>
+  <p id="device-notifications-status" class="mx-auto mt-3 max-w-5xl px-4 text-sm text-gray-500 sm:px-6"></p><script src="/assets/browser-notifications.js"></script><script>
     document.getElementById('back-button').addEventListener('click', () => { if (history.length > 1) history.back(); else window.location.href = '/dashboard'; });
     const list = document.getElementById('notification-list');
     const empty = document.getElementById('empty-state');
