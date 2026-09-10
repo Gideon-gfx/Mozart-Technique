@@ -6,13 +6,17 @@
 (function () {
   const STYLE_ID = 'mt-mobile-nav-style';
   // Was 768px, which only covers phones - anything from a tablet up to a
-  // fairly wide laptop (769-1024px) fell into a dead zone where neither the
-  // hamburger nor Tailwind's own `md:` (768px) utility collapsed the nav,
-  // so the full-width link row and the "Mozart Techniques" wordmark
-  // squeezed/overlapped instead of fitting. 1024px (Tailwind's own `lg:`
-  // breakpoint) closes that gap - only genuinely wide desktop viewports
-  // still get the horizontal nav.
-  const MOBILE_BREAKPOINT = 1024;
+  // fairly wide laptop fell into a dead zone where neither the hamburger
+  // nor Tailwind's own `md:` (768px) utility collapsed the nav, so the
+  // full-width link row and the "Mozart Techniques" wordmark
+  // squeezed/overlapped instead of fitting. Raised again from 1024 to 1240
+  // once the Store link and Performance dropdown pushed .nav-links' natural
+  // width past what even a 1024-1180px laptop screen has room for - a
+  // common laptop resolution (1024-1279px) was still visibly breaking.
+  // public/assets/nav-performance.js's own mobile media query must be kept
+  // at this same value - it has no way to read this constant, since these
+  // two files are deliberately independent drop-ins.
+  const MOBILE_BREAKPOINT = 1240;
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -125,7 +129,14 @@
         box-shadow: none !important;
       }
       .mt-mobile-nav-open button i { color: #A3121A; width: 20px; text-align: center; }
-      .mt-mobile-nav-open > div:not(.hidden) {
+      /* :not(.mt-perf-dropdown) - the Performance dropdown (injected by
+         nav-performance.js) is itself a direct-child <div> wrapping its own
+         toggle button + submenu, so this generic rule was giving it a
+         border-bottom AND letting each submenu <a> get its own via the
+         ".mt-mobile-nav-open a" rule below - two divider lines stacked
+         right next to each other. nav-performance.js styles that row
+         itself now. */
+      .mt-mobile-nav-open > div:not(.hidden):not(.mt-perf-dropdown) {
         padding: 10px 4px;
         border-bottom: 1px solid #F1EBDF;
       }

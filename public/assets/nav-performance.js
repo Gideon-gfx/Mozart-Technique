@@ -46,14 +46,39 @@
       }
       .mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-toggle i { transform: rotate(180deg); }
 
-      /* Inside an open mobile slide-down nav, stack full-width like sibling links. */
-      @media (max-width: 768px) {
+      /* Inside an open mobile slide-down nav, stack full-width like sibling
+         links. This breakpoint (1240px) must match mobile-nav.js's own
+         MOBILE_BREAKPOINT constant - they're independent drop-in scripts
+         with no way to share a value, so it's a manually-kept-in-sync
+         number in both places. It was previously 768px while mobile-nav.js
+         used 1024/1240px, so on any viewport in between, the hamburger nav
+         was open but this dropdown still used its desktop (position:
+         absolute, hidden-until-hover) styles - which is why the submenu
+         rendered empty/invisible instead of stacking under its toggle. */
+      @media (max-width: 1240px) {
         .mt-mobile-nav-open .mt-perf-dropdown { display: block; width: 100%; }
+        /* Matches mobile-nav.js's own ".mt-mobile-nav-open a/button" row
+           styling exactly (full width, same padding/border/colors) so this
+           toggle reads as just another nav row, and its divider line is the
+           same length as every sibling link's - not a real <hr>, but a
+           border-bottom, which is what "the hr line" refers to here. */
+        .mt-mobile-nav-open .mt-perf-dropdown-toggle {
+          display: flex !important; align-items: center !important; justify-content: space-between !important;
+          gap: 12px; width: 100%; box-sizing: border-box;
+          padding: 15px 4px !important; margin: 0 !important;
+          border-bottom: 1px solid #F1EBDF;
+          color: #17130F !important; font-size: 1rem !important; font-weight: 600 !important;
+        }
+        .mt-mobile-nav-open .mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-toggle i { transform: rotate(180deg); }
         .mt-mobile-nav-open .mt-perf-dropdown-menu {
           position: static; transform: none; box-shadow: none; border: none; opacity: 1;
-          visibility: visible; display: none; padding: 0 0 0 16px; margin-top: 4px;
+          visibility: visible; display: none; padding: 0; margin: 0;
         }
         .mt-mobile-nav-open .mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-menu { display: block; }
+        /* No left-indent here (unlike the old 16px) - the border-bottom
+           these inherit from mobile-nav.js's ".mt-mobile-nav-open a" rule
+           now spans the exact same width as every other nav row's. */
+        .mt-mobile-nav-open .mt-perf-dropdown-menu a { padding-left: 24px !important; }
       }
     `;
     document.head.appendChild(style);

@@ -247,6 +247,7 @@
     });
 
     startUnreadPolling(target);
+    startNotificationSoundPolling();
   }
 
   // Keeps the unread badge honest across pages. Polled rather than pushed:
@@ -279,6 +280,64 @@
 
     refresh();
     setInterval(refresh, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  }
+
+  // Plays a short chime the instant a new notification (any type - a
+  // tutor-request response, a payment, an accepted offer, not just chat)
+  // shows up while this tab is open. Browser push (service-worker.js)
+  // covers the case where the tab isn't focused/open at all, but does
+  // nothing for someone actively using the app right now, which is what
+  // was actually missing.
+  let audioCtx = null;
+  function playNotificationChime() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      const now = audioCtx.currentTime;
+      // Two quick sine notes (a rising fifth) rather than one flat tone -
+      // reads as a deliberate "ding" instead of a beep.
+      [[880, 0], [1318.51, 0.09]].forEach(([freq, delay]) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, now + delay);
+        gain.gain.linearRampToValueAtTime(0.18, now + delay + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.5);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.55);
+      });
+    } catch (e) { /* Web Audio unavailable in this browser/context - no chime, not fatal */ }
+  }
+
+  // Polls the same list the notification bell links to, tracking the
+  // newest id already heard in sessionStorage - a fresh session baselines
+  // silently (no chime replay for a visitor's whole notification history
+  // on login), and every poll after that only chimes for ids newer than
+  // whatever was last heard, including across page navigations within the
+  // same tab session.
+  function startNotificationSoundPolling() {
+    const STORAGE_KEY = 'mt-last-notification-id';
+    let lastSeenId = Number(sessionStorage.getItem(STORAGE_KEY) || 0);
+
+    async function refresh() {
+      if (document.hidden) return;
+      try {
+        const data = await fetch('/api/notifications').then((r) => r.json());
+        if (!data.success) return;
+        const maxId = (data.notifications || []).reduce((max, n) => Math.max(max, n.id || 0), 0);
+        if (maxId > lastSeenId && lastSeenId > 0) playNotificationChime();
+        if (maxId !== lastSeenId) {
+          lastSeenId = maxId;
+          sessionStorage.setItem(STORAGE_KEY, String(lastSeenId));
+        }
+      } catch (e) { /* offline - try again next tick */ }
+    }
+
+    refresh();
+    setInterval(refresh, 20000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   }
 
