@@ -30,16 +30,30 @@
       return setStatus(statusNode, button, 'Device notifications are disabled for Mozart Techniques.', false);
     }
     const permission = await Notification.requestPermission();
-    const enabled = permission === 'granted';
-    localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false');
-    if (enabled) {
+    // granted = the device-level permission the user just answered.
+    // subscribed = whether registering the push subscription with our
+    // server also succeeded - a separate, later step that can fail on its
+    // own (offline, no VAPID key configured, etc.) without the user having
+    // said anything but yes. The home-page consent banner dismisses on
+    // `granted`, not `subscribed` - it was staying on screen after someone
+    // clicked Allow because it waited on this second step instead.
+    const granted = permission === 'granted';
+    localStorage.setItem(STORAGE_KEY, granted ? 'true' : 'false');
+    let subscribed = granted;
+    if (granted) {
       try { await subscribe(); } catch (_) {
-        localStorage.setItem(STORAGE_KEY, 'false');
-        return setStatus(statusNode, button, 'Notifications could not be enabled on this device.', false);
+        subscribed = false;
       }
     }
-    setStatus(statusNode, button, enabled ? 'Device notifications are enabled.' : 'Permission was not granted. You can try again from browser settings.', enabled);
-    if (enabled) document.getElementById('mt-notification-consent')?.remove();
+    setStatus(
+      statusNode, button,
+      granted
+        ? (subscribed ? 'Device notifications are enabled.' : 'Permission granted, but notifications could not be fully set up on this device.')
+        : 'Permission was not granted. You can try again from browser settings.',
+      subscribed,
+    );
+    if (granted) document.getElementById('mt-notification-consent')?.remove();
+    return granted;
   }
 
   async function subscribe() {
@@ -86,7 +100,7 @@
     const banner = document.createElement('aside');
     banner.id = 'mt-notification-consent'; banner.className = 'mt-notification-consent'; banner.setAttribute('role', 'dialog'); banner.setAttribute('aria-label', 'Notification permission');
     banner.innerHTML = '<p>Get Mozart Techniques updates on your device.</p><button type="button" class="allow">Allow notification</button><button type="button" class="cancel">Cancel</button>';
-    banner.querySelector('.allow').addEventListener('click', async () => { await request(null, null); if (currentEnabled()) banner.remove(); });
+    banner.querySelector('.allow').addEventListener('click', async () => { const granted = await request(null, null); if (granted) banner.remove(); });
     banner.querySelector('.cancel').addEventListener('click', () => { sessionStorage.setItem(DISMISSED_KEY, 'true'); banner.remove(); });
     document.body.appendChild(banner);
   }

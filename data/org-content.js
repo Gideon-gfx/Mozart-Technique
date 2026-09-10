@@ -23,7 +23,7 @@ function listForOrg(orgId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, visibility, folderId, createdByUserId, createdByName }) {
+function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, visibility, folderId, createdByUserId, createdByName, libraryItem }) {
   const db = load();
   const item = {
     id: db.nextId++,
@@ -37,6 +37,14 @@ function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, vi
     category: category || null,
     visibility: visibility || 'general',
     folderId: folderId ? Number(folderId) : null,
+    // Distinguishes a library upload (document/video/photo meant to be
+    // browsed in the General/Shared/Mine library tabs) from a feed post or
+    // announcement (which uses this same create() but was never meant to
+    // show up there). Was previously dropped here entirely - the caller
+    // always passed it, but this destructuring never picked it up, so
+    // GET /api/organizations/library's `item.libraryItem === true` filter
+    // matched nothing at all, for anyone, ever.
+    libraryItem: Boolean(libraryItem),
     createdByUserId: Number(createdByUserId),
     createdByName: String(createdByName || '').trim() || 'Organization',
     createdAt: new Date().toISOString(),

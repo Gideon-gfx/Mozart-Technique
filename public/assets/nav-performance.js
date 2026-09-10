@@ -6,6 +6,9 @@
 // Tailwind, matching the /assets/nav-auth.js drop-in pattern.
 (function () {
   const STYLE_ID = 'mt-perf-nav-style';
+  // Must match mobile-nav.js's own MOBILE_BREAKPOINT - these are
+  // independent drop-in scripts with no way to share a value.
+  const MOBILE_BREAKPOINT = 1240;
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -55,7 +58,7 @@
          was open but this dropdown still used its desktop (position:
          absolute, hidden-until-hover) styles - which is why the submenu
          rendered empty/invisible instead of stacking under its toggle. */
-      @media (max-width: 1240px) {
+      @media (max-width: ${MOBILE_BREAKPOINT}px) {
         .mt-mobile-nav-open .mt-perf-dropdown { display: block; width: 100%; }
         /* Matches mobile-nav.js's own ".mt-mobile-nav-open a/button" row
            styling exactly (full width, same padding/border/colors) so this
@@ -104,6 +107,12 @@
           toggle.style[prop] = computed[prop];
         });
       }
+      const closeMenu = (d) => {
+        d.classList.remove('mt-perf-open');
+        const menu = d.querySelector('[data-mt-perf-menu]');
+        if (menu) menu.style.display = '';
+      };
+
       toggle.addEventListener('click', (e) => {
         // Touch devices (no real :hover) rely on this click-toggle; devices
         // with real hover already opened the menu on hover, so a click
@@ -111,14 +120,38 @@
         e.preventDefault();
         e.stopPropagation();
         const isOpen = dropdown.classList.contains('mt-perf-open');
-        document.querySelectorAll('.mt-perf-dropdown.mt-perf-open').forEach((d) => d.classList.remove('mt-perf-open'));
-        if (!isOpen) dropdown.classList.add('mt-perf-open');
+        document.querySelectorAll('.mt-perf-dropdown.mt-perf-open').forEach(closeMenu);
+        if (isOpen) return;
+        dropdown.classList.add('mt-perf-open');
+        // Below the mobile-nav collapse breakpoint this menu stacks inline
+        // under its toggle instead of floating. That stacked state relied
+        // purely on CSS class selectors matching mobile-nav.js's own broad
+        // ".mt-mobile-nav-open a/button/div" rules, which kept getting
+        // reported as still not showing - rather than keep chasing a
+        // specificity/cascade issue blind, force it directly here: the
+        // single thing that actually determines whether it's visible.
+        const menu = dropdown.querySelector('[data-mt-perf-menu]');
+        if (menu && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches) {
+          menu.style.display = 'block';
+        }
       });
     });
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.mt-perf-dropdown')) {
-        document.querySelectorAll('.mt-perf-dropdown.mt-perf-open').forEach((d) => d.classList.remove('mt-perf-open'));
+        document.querySelectorAll('.mt-perf-dropdown.mt-perf-open').forEach((d) => {
+          d.classList.remove('mt-perf-open');
+          const menu = d.querySelector('[data-mt-perf-menu]');
+          if (menu) menu.style.display = '';
+        });
       }
+    });
+    // Crossing the breakpoint while a menu is open (rotating a tablet, or
+    // resizing a browser window) would otherwise leave a stale inline
+    // display:block behind on the now-desktop layout, or vice versa.
+    window.addEventListener('resize', () => {
+      document.querySelectorAll('.mt-perf-dropdown.mt-perf-open [data-mt-perf-menu]').forEach((menu) => {
+        menu.style.display = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches ? 'block' : '';
+      });
     });
   }
 
