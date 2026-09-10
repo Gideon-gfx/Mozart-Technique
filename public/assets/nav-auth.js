@@ -236,6 +236,20 @@
     const toggle = target.querySelector('[data-mt-toggle]');
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
+      const opening = !menu.classList.contains('open');
+      // .mt-auth-menu's CSS anchors its right edge to this avatar wrapper
+      // (right:0, relative to .mt-auth-wrap), not the actual screen edge -
+      // on a small screen, wherever the header happens to leave a gap
+      // between the avatar and the true viewport edge, that same gap
+      // showed up as empty space to the dropdown's right instead of the
+      // menu reaching the edge. Recomputed on every open (not just once)
+      // since a resize/rotation changes it.
+      if (opening && window.matchMedia('(max-width: 768px)').matches) {
+        const gapFromViewportEdge = window.innerWidth - target.getBoundingClientRect().right;
+        menu.style.right = `${-(gapFromViewportEdge - 8)}px`;
+      } else {
+        menu.style.right = '';
+      }
       menu.classList.toggle('open');
     });
     document.addEventListener('click', (e) => {

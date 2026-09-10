@@ -103,7 +103,59 @@
     async function load(){const params=new URLSearchParams(location.search);const [r,sessionRes]=await Promise.all([fetch('/api/organizations/tutor-workspace?orgId='+encodeURIComponent(params.get('orgId')||'')),fetch('/api/session')]);const d=await r.json();const session=await sessionRes.json();if(session.user)myUserId=session.user.id;if(!d.success){location.href='/tutor';return}state.data=d;render();const unread=(d.notifications||[]).filter((n)=>!n.read).length;const badge=document.getElementById('org-tutor-badge');badge.textContent=unread;badge.classList.toggle('hidden',!unread);}
     document.querySelectorAll('.org-tutor-nav button').forEach((b)=>b.addEventListener('click',()=>activate(b.dataset.panel)));
     document.querySelectorAll('.library-view-tab').forEach((btn)=>btn.addEventListener('click',()=>{document.querySelectorAll('.library-view-tab').forEach((b)=>b.classList.remove('active','border-b-2','border-red-700','text-red-700'));btn.classList.add('active','border-b-2','border-red-700','text-red-700');loadOrgLibrary(btn.dataset.libraryView);}));
-    async function loadOrgLibrary(view){const res=await fetch(`/api/organizations/library?view=${view}`);const d=await res.json();if(!d.success)return;const grouped={};(d[view]||[]).forEach((item)=>{const folder=item.folderId||'Uncategorized';if(!grouped[folder])grouped[folder]=[];grouped[folder].push(item);});const grid=document.getElementById('org-library-grid');grid.innerHTML=Object.keys(grouped).length?Object.entries(grouped).map(([folder,items])=>`<details class="rounded-lg border border-gray-200 bg-white p-4"><summary class="cursor-pointer font-bold flex items-center gap-2"><i class="fa-solid fa-folder"></i>${esc(folder)} <span class="text-xs text-gray-500 ml-auto">${items.length} item${items.length!==1?'s':''}</span></summary><div class="mt-3 grid gap-2">${items.map((item)=>`<div class="flex items-center justify-between gap-2 p-2 bg-gray-50 rounded"><div><strong class="text-sm">${esc(item.title)}</strong><p class="text-xs text-gray-500">${esc(item.category||'')}</p></div><div class="flex gap-2"><button data-item-id="${item.id}" class="edit-library-btn text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"><i class="fa-solid fa-edit mr-1"></i>Edit</button><button data-item-id="${item.id}" class="delete-library-btn text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"><i class="fa-solid fa-trash mr-1"></i>Delete</button></div></div>`).join('')}</div></details>`).join(''):'<p class="text-gray-500">No uploads in this view yet.</p>';}
+    function libraryItemLinkHtml(item){
+      if (item.fileUrl) return `<a href="${esc(item.fileUrl)}" target="_blank" rel="noreferrer" class="text-xs font-semibold text-red-700 underline"><i class="fa-solid fa-file-arrow-down mr-1"></i>Open</a>`;
+      if (item.url) return `<a href="${esc(item.url)}" target="_blank" rel="noreferrer" class="text-xs font-semibold text-red-700 underline"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Open</a>`;
+      return '';
+    }
+    async function loadOrgLibrary(view){const res=await fetch(`/api/organizations/library?view=${view}`);const d=await res.json();if(!d.success)return;const grouped={};(d[view]||[]).forEach((item)=>{const folder=item.folderId||'Uncategorized';if(!grouped[folder])grouped[folder]=[];grouped[folder].push(item);});const grid=document.getElementById('org-library-grid');grid.innerHTML=Object.keys(grouped).length?Object.entries(grouped).map(([folder,items])=>`<details class="rounded-lg border border-gray-200 bg-white p-4"><summary class="cursor-pointer font-bold flex items-center gap-2"><i class="fa-solid fa-folder"></i>${esc(folder)} <span class="text-xs text-gray-500 ml-auto">${items.length} item${items.length!==1?'s':''}</span></summary><div class="mt-3 grid gap-2">${items.map((item)=>`<div class="p-3 bg-gray-50 rounded-lg"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><strong class="text-sm">${esc(item.title)}</strong>${item.category?`<p class="text-xs text-gray-500">${esc(item.category)}</p>`:''}</div>${libraryItemLinkHtml(item)}</div>${item.requiresSubmission?`<span class="mt-1 inline-block text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Every tutor must send this back</span>`:''}${item.text?`<p class="mt-1 text-xs text-gray-600">${esc(item.text)}</p>`:''}${item.requiresSubmission?(item.mySubmission?`<p class="mt-2 text-xs font-semibold text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>You sent this back ${new Date(item.mySubmission.createdAt).toLocaleDateString()}</p>`:`<button type="button" class="submit-library-response-btn mt-2 text-xs font-semibold px-2 py-1 bg-red-700 text-white rounded hover:bg-red-800" data-item-id="${item.id}" data-item-title="${esc(item.title)}"><i class="fa-solid fa-upload mr-1"></i>Upload response</button>`):''}</div>`).join('')}</div></details>`).join(''):'<p class="text-gray-500">No uploads in this view yet.</p>';
+      grid.querySelectorAll('.submit-library-response-btn').forEach((btn)=>btn.addEventListener('click',()=>openSubmitResponseModal(btn.dataset.itemId, btn.dataset.itemTitle, view)));
+    }
+    function openSubmitResponseModal(itemId, itemTitle, view){
+      const orgId = state.data?.organization?.id;
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop';
+      modal.innerHTML = `<div class="modal-panel"><div class="row mb-4"><h3 class="text-xl font-bold">Send back "${esc(itemTitle)}"</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div>
+        <label class="block text-sm font-semibold mb-1">Attach a file</label>
+        <input id="submit-response-file" type="file" class="w-full rounded-lg border border-gray-300 px-3 py-2 mb-3">
+        <label class="block text-sm font-semibold mb-1">Or paste a link instead</label>
+        <input id="submit-response-url" type="url" placeholder="https://..." class="w-full rounded-lg border border-gray-300 px-3 py-2 mb-3">
+        <label class="block text-sm font-semibold mb-1">Note (optional)</label>
+        <textarea id="submit-response-note" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 mb-4"></textarea>
+        <button type="button" id="submit-response-send" class="btn-primary w-full"><i class="fa-solid fa-paper-plane mr-2"></i>Send to organization</button>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('[data-close]').onclick = () => modal.remove();
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+      modal.querySelector('#submit-response-send').onclick = async () => {
+        const file = modal.querySelector('#submit-response-file').files[0];
+        const url = modal.querySelector('#submit-response-url').value.trim();
+        const text = modal.querySelector('#submit-response-note').value.trim();
+        if (!file && !url) return alert('Attach a file or paste a link.');
+        const btn = modal.querySelector('#submit-response-send');
+        btn.disabled = true; btn.textContent = 'Sending...';
+        try {
+          let fileUrl = null;
+          if (file) {
+            const type = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'document';
+            const body = new FormData(); body.append('media', file);
+            const upload = await fetch(`/api/organizations/upload-media?type=${type}`, { method: 'POST', body });
+            const uploadData = await upload.json();
+            if (!uploadData.success) throw new Error(uploadData.error || 'File upload failed.');
+            fileUrl = uploadData.url;
+          }
+          const res = await fetch(`/api/organizations/${orgId}/library/${itemId}/submissions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url || null, fileUrl, text }) });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Could not send this back.');
+          modal.remove();
+          alert('Sent to your organization.');
+          loadOrgLibrary(view);
+        } catch (error) {
+          alert(error.message || 'Could not send this back.');
+          btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-2"></i>Send to organization';
+        }
+      };
+    }
     document.getElementById('org-tutor-mobile').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.toggle('open'));document.getElementById('org-tutor-sidebar-toggle').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.remove('open'));document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{await fetch('/api/notifications/read-all',{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})});});document.getElementById('schedule-class').addEventListener('click',()=>activate('classes'));document.getElementById('create-group-chat').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();activate('students');};});load().catch(()=>location.href='/tutor');
   </script>
 </body>

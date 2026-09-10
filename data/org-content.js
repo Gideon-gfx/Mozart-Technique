@@ -23,13 +23,17 @@ function listForOrg(orgId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, visibility, folderId, createdByUserId, createdByName, libraryItem }) {
+function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, visibility, folderId, createdByUserId, createdByName, libraryItem, requiresSubmission, replyToId }) {
   const db = load();
   const item = {
     id: db.nextId++,
     orgId: Number(orgId),
     type: type || 'info',
     title: String(title || '').trim() || 'Untitled update',
+    // Doubles as the org's note/instructions on a library upload (shown
+    // alongside the file/link wherever the item is browsed), and as a
+    // feed/announcement's body text - same field, different use depending
+    // on `libraryItem`.
     text: String(text || '').trim(),
     url: url || null,
     fileUrl: fileUrl || null,
@@ -45,6 +49,17 @@ function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, vi
     // GET /api/organizations/library's `item.libraryItem === true` filter
     // matched nothing at all, for anyone, ever.
     libraryItem: Boolean(libraryItem),
+    // Marks a library item as a form/document every tutor who can see it
+    // is expected to send back (e.g. "Every tutor must fill this form") -
+    // purely informational for the UI, doesn't gate anything server-side.
+    requiresSubmission: Boolean(requiresSubmission),
+    // Set only on a tutor's submission *back* for a library item - never
+    // set on the library item itself. Submissions are plain org-content
+    // rows too (createdByUserId is the submitting tutor's user id), just
+    // never flagged libraryItem, so they never show up as browsable
+    // library entries on their own; they're only reached via
+    // replyToId-scoped submission routes.
+    replyToId: replyToId ? Number(replyToId) : null,
     createdByUserId: Number(createdByUserId),
     createdByName: String(createdByName || '').trim() || 'Organization',
     createdAt: new Date().toISOString(),
@@ -58,7 +73,7 @@ function updateById(contentId, changes) {
   const db = load();
   const item = db.items.find((entry) => entry.id === Number(contentId));
   if (!item) return null;
-  const allowed = ['title', 'category', 'url', 'type', 'visibility', 'folderId'];
+  const allowed = ['title', 'category', 'url', 'type', 'visibility', 'folderId', 'text', 'requiresSubmission'];
   allowed.forEach((key) => {
     if (!Object.prototype.hasOwnProperty.call(changes, key)) return;
     if (key === 'folderId') item.folderId = changes.folderId ? Number(changes.folderId) : null;
@@ -66,10 +81,21 @@ function updateById(contentId, changes) {
     else if (key === 'category' || key === 'url') item[key] = changes[key] ? String(changes[key]).trim() : null;
     else if (key === 'type') item.type = ['info', 'photo', 'video', 'document'].includes(changes.type) ? changes.type : item.type;
     else if (key === 'visibility') item.visibility = changes.visibility === 'shared' ? 'shared' : 'general';
+    else if (key === 'text') item.text = String(changes.text || '').trim();
+    else if (key === 'requiresSubmission') item.requiresSubmission = Boolean(changes.requiresSubmission);
   });
   item.updatedAt = new Date().toISOString();
   persist(db);
   return item;
+}
+
+// All submissions tutors have sent back for one library item - org-owner
+// view, newest first.
+function listSubmissionsFor(itemId) {
+  const id = Number(itemId);
+  return load().items
+    .filter((item) => Number(item.replyToId) === id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 function removeById(contentId) {
   const db = load();
@@ -80,4 +106,4 @@ function removeById(contentId) {
   return true;
 }
 
-module.exports = { listForOrg, create, updateById, removeById, load, persist };
+module.exports = { listForOrg, create, updateById, removeById, listSubmissionsFor, load, persist };

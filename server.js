@@ -3805,9 +3805,21 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
 });
 
 app.get('/api/organizations/library', requireAuthApi, (req, res) => {
-  const org = resolveOrgForUser(currentUser(req));
+  const user = currentUser(req);
+  const org = resolveOrgForUser(user);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  const content = orgContent.listForOrg(org.id).filter((item) => item.libraryItem === true).map((item) => ({ ...item, source: 'organization' }));
+  const isOrgOwner = org.userId === user.id;
+  // Org-owner view gets how many tutors have sent something back for a
+  // "every tutor must fill this form" item; a tutor viewer gets whether
+  // *they* already have, so the UI can swap "Upload response" for
+  // "Submitted" instead of inviting a duplicate.
+  const decorate = (item) => ({
+    ...item,
+    source: 'organization',
+    ...(isOrgOwner ? { submissionCount: orgContent.listSubmissionsFor(item.id).length } : {}),
+    ...(!isOrgOwner ? { mySubmission: orgContent.listSubmissionsFor(item.id).find((s) => s.createdByUserId === user.id) || null } : {}),
+  });
+  const content = orgContent.listForOrg(org.id).filter((item) => item.libraryItem === true).map(decorate);
   const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart').map((item) => ({ ...item, source: 'Mozart Techniques' }));
   const studentIds = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
   const tutorUserIds = new Set(assignments.listAll().filter((record) => studentIds.has(Number(record.studentId)) && record.tutorId).map((record) => {
@@ -3819,6 +3831,52 @@ app.get('/api/organizations/library', requireAuthApi, (req, res) => {
   const sharedItems = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
   const sort = (items) => items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
   res.json({ success: true, folders: org.folders || [], general: sort(content), mine: sort(organizationItems), shared: sort(sharedItems) });
+});
+
+// A tutor sends something back for a library item the org flagged
+// requiresSubmission (e.g. a filled-out form) - stored as another
+// org-content row, keyed back to the original via replyToId, but never
+// libraryItem:true so it never shows up as a browsable entry on its own.
+app.post('/api/organizations/:orgId/library/:itemId/submissions', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const orgId = Number(req.params.orgId);
+  const org = organizations.findById(orgId);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const originalItem = orgContent.listForOrg(orgId).find((item) => item.id === Number(req.params.itemId) && item.libraryItem === true);
+  if (!originalItem) return res.status(404).json({ success: false, error: 'Library item not found.' });
+
+  const tutorProfile = tutors.findByUserId(user.id);
+  const orgStudentIds = new Set(organizations.getStudentsForOrganization(orgId).map((student) => Number(student.studentId)));
+  const isApprovedTutor = Boolean(tutorProfile && tutorProfile.status === 'approved' && (
+    assignments.listAll().some((record) => orgStudentIds.has(Number(record.studentId)) && Number(record.tutorId) === Number(tutorProfile.id))
+    || (user.sponsor && Number(user.sponsor.orgId) === orgId)
+  ));
+  if (!isApprovedTutor) return res.status(403).json({ success: false, error: 'Approved organization tutor access required.' });
+
+  const { url, fileUrl, text } = req.body || {};
+  if (!url && !fileUrl) return res.status(400).json({ success: false, error: 'Add a URL or choose a file to send back.' });
+
+  const item = orgContent.create({
+    orgId, type: originalItem.type, title: `Response: ${originalItem.title}`,
+    text: text || '', url: url || null, fileUrl: fileUrl || null,
+    visibility: 'submission', createdByUserId: user.id, createdByName: tutorProfile.name || user.name,
+    replyToId: originalItem.id,
+  });
+  store.addNotification(org.userId, {
+    type: 'organization',
+    message: `${tutorProfile.name || user.name} sent back "${originalItem.title}".`,
+    href: '/ngo-dashboard#library',
+  });
+  res.json({ success: true, item });
+});
+
+// Org-owner view of every submission sent back for one library item.
+app.get('/api/organizations/library/:itemId/submissions', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const originalItem = orgContent.listForOrg(org.id).find((item) => item.id === Number(req.params.itemId) && item.libraryItem === true);
+  if (!originalItem) return res.status(404).json({ success: false, error: 'Library item not found.' });
+  res.json({ success: true, item: originalItem, submissions: orgContent.listSubmissionsFor(originalItem.id) });
 });
 
 app.post('/api/organizations/library/folders', requireAuthApi, (req, res) => {
@@ -3851,7 +3909,7 @@ app.delete('/api/organizations/library/:contentId', requireAuthApi, (req, res) =
 app.post('/api/organizations/library', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(currentUser(req).id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  const { title, category, url, fileUrl, type, visibility, folderId } = req.body || {};
+  const { title, category, url, fileUrl, type, visibility, folderId, text, requiresSubmission } = req.body || {};
   if (!String(title || '').trim()) return res.status(400).json({ success: false, error: 'Name is required.' });
   if (!url && !fileUrl) return res.status(400).json({ success: false, error: 'Add a URL or choose a file.' });
   const selectedType = ['photo', 'video', 'document', 'info'].includes(type) ? type : 'info';
@@ -3859,12 +3917,14 @@ app.post('/api/organizations/library', requireAuthApi, (req, res) => {
     orgId: org.id,
     type: selectedType,
     title: String(title).trim(),
+    text: text || '',
     category: category ? String(category).trim() : null,
     url: url ? String(url).trim() : null,
     fileUrl: fileUrl || null,
     visibility: visibility === 'shared' ? 'shared' : 'general',
     folderId: folderId || null,
     libraryItem: true,
+    requiresSubmission: Boolean(requiresSubmission),
     createdByUserId: org.userId,
     createdByName: org.name || org.contactName,
   });
@@ -3874,7 +3934,11 @@ app.post('/api/organizations/library', requireAuthApi, (req, res) => {
 // Upload media file for organization content
 app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const org = organizations.findByUserId(user.id);
+  // resolveOrgForUser (not the stricter organizations.findByUserId) so an
+  // affiliated tutor can use this too - needed for sending a file back on
+  // a library item that requires a submission, not just the org's own
+  // library uploads.
+  const org = resolveOrgForUser(user);
   if (!org || org.status !== 'approved') {
     return res.status(403).json({ success: false, error: 'You must have an approved organization to upload.' });
   }
