@@ -533,19 +533,24 @@ main p {
      for light sweeping across/through it. Solid `color` first is the
      fallback for browsers without background-clip:text support. */
   color: var(--text, #232323);
+  /* Darker overall (was reading as nearly-white in the pastel band,
+     blending into the hero's own light background) - same idea, but the
+     glass tones sit closer to charcoal and the rainbow band is deep jewel
+     tones instead of pastels, so it stays legible and reads as tinted
+     glass rather than washing out. */
   background: linear-gradient(100deg,
-    #2c2c2c 0%, #5c6570 10%, #b9c3cc 20%,
-    #ffd7e6 27%, #fff3c4 33%, #cdf6df 39%, #cfe4ff 45%, #e6d3ff 51%,
-    #b9c3cc 60%, #5c6570 72%, #2c2c2c 86%, #2c2c2c 100%);
+    #141414 0%, #363c44 10%, #5b6470 20%,
+    #7a2f47 27%, #7c5a1f 33%, #235f42 39%, #234f78 45%, #4c3878 51%,
+    #5b6470 60%, #363c44 72%, #141414 86%, #141414 100%);
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.22);
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.14);
   text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.35),
-    0 2px 14px rgba(20, 20, 20, 0.18);
-  filter: drop-shadow(0 22px 30px rgba(20, 14, 14, 0.14));
+    0 1px 0 rgba(255, 255, 255, 0.22),
+    0 2px 14px rgba(10, 8, 8, 0.28);
+  filter: drop-shadow(0 20px 26px rgba(10, 6, 6, 0.22));
   animation: floatBounce 6s ease-in-out infinite, heroGlassSheen 9s ease-in-out infinite;
 }
 
