@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product - Mozart Techniques Store</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.pdp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; padding: 32px 0; }
+@media (max-width: 900px) { .pdp-grid { grid-template-columns: 1fr; gap: 24px; } }
+
+.pdp-gallery-main { position: relative; aspect-ratio: 1/1; border-radius: var(--mz-radius-lg); overflow: hidden; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); cursor: zoom-in; }
+.pdp-gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.pdp-gallery-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.9); display: flex; align-items: center; justify-content: center; box-shadow: var(--mz-shadow); }
+.pdp-gallery-nav.prev { left: 12px; } .pdp-gallery-nav.next { right: 12px; }
+.pdp-thumbs { display: flex; gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+.pdp-thumb { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 2px solid var(--mz-border); flex-shrink: 0; cursor: pointer; }
+.pdp-thumb.active { border-color: var(--mz-red); }
+.pdp-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.pdp-category { font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--mz-red); }
+.pdp-name { font-size: 1.6rem; font-weight: 800; margin: 6px 0 10px; line-height: 1.25; }
+.pdp-price { font-size: 1.6rem; font-weight: 800; margin: 14px 0; }
+.pdp-price small { font-size: .9rem; color: var(--mz-muted-light); font-weight: 600; }
+.pdp-desc { color: var(--mz-muted); font-size: .92rem; line-height: 1.7; max-height: 6.8em; overflow: hidden; position: relative; }
+.pdp-desc.expanded { max-height: none; }
+.pdp-desc-toggle { border: none; background: none; color: var(--mz-red); font-weight: 700; font-size: .85rem; cursor: pointer; margin-top: 8px; padding: 0; }
+.pdp-stock-line { font-size: .85rem; font-weight: 600; margin-top: 8px; }
+.pdp-qty { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
+.pdp-qty-control { display: flex; align-items: center; border: 1px solid var(--mz-border); border-radius: 999px; overflow: hidden; }
+.pdp-qty-control button { width: 36px; height: 36px; border: none; background: #fff; font-size: 1rem; cursor: pointer; }
+.pdp-qty-control input { width: 46px; text-align: center; border: none; font-weight: 700; }
+.pdp-actions { display: flex; gap: 12px; }
+
+.lightbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+.lightbox-overlay[hidden] { display: none; }
+.lightbox-overlay img { max-width: 90vw; max-height: 82vh; object-fit: contain; }
+.lightbox-close { position: absolute; top: 20px; right: 24px; color: #fff; font-size: 1.6rem; cursor: pointer; }
+.lightbox-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; font-size: .85rem; }
+
+.review-item { padding: 16px 0; border-bottom: 1px solid var(--mz-border); }
+.review-item:last-child { border-bottom: none; }
+.review-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.review-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#cc0000,#7e0e14); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .8rem; flex-shrink: 0; }
+.review-name { font-weight: 700; font-size: .88rem; }
+.review-date { font-size: .74rem; color: var(--mz-muted-light); }
+.review-text { font-size: .88rem; color: var(--mz-ink); line-height: 1.6; margin: 4px 0 6px; }
+.review-reply { margin-top: 8px; padding: 10px 12px; background: var(--mz-bg-soft); border-radius: 8px; font-size: .82rem; }
+.review-reply b { color: var(--mz-red); }
+.star-picker { display: flex; gap: 4px; font-size: 1.3rem; cursor: pointer; }
+.star-picker i { color: var(--mz-border); }
+.star-picker i.active { color: #f5a623; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/store" class="market-home-btn" aria-label="Back to store"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="market-search">
+      <input type="text" id="store-search" placeholder="Search sheet music, instruments, accessories...">
+      <i class="fa-solid fa-search"></i>
+      <div class="market-search-suggestions" id="search-suggestions"></div>
+    </div>
+    <div class="market-nav-actions">
+      <div id="auth-state"></div>
+      <a href="/cart" class="market-nav-icon" aria-label="Cart">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span class="market-cart-count" id="cart-count" hidden>0</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<div class="market-container">
+  <div id="pdp-loading" class="market-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading product...</p></div>
+  <div id="pdp-not-found" class="market-empty" hidden>
+    <i class="fa-solid fa-circle-exclamation"></i>
+    <h3>We couldn't find that product</h3>
+    <p>It may have been removed or is no longer available.</p>
+    <a href="/store" class="market-btn market-btn-outline">Back to Store</a>
+  </div>
+
+  <div id="pdp-content" class="pdp-grid" hidden>
+    <div>
+      <div class="pdp-gallery-main" id="gallery-main">
+        <img id="gallery-image" src="" alt="">
+        <button type="button" class="pdp-gallery-nav prev" id="gallery-prev" aria-label="Previous image"><i class="fa-solid fa-chevron-left"></i></button>
+        <button type="button" class="pdp-gallery-nav next" id="gallery-next" aria-label="Next image"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="pdp-thumbs" id="gallery-thumbs"></div>
+    </div>
+
+    <div>
+      <p class="pdp-category" id="pdp-category"></p>
+      <h1 class="pdp-name" id="pdp-name"></h1>
+      <div class="market-rating" id="pdp-rating"></div>
+      <div class="pdp-price" id="pdp-price"></div>
+
+      <div id="pdp-color-wrap">
+        <label class="pdp-color-label market-small">Color: <span id="pdp-color-name"></span></label>
+        <div class="market-color-row" id="pdp-colors"></div>
+        <p class="pdp-stock-line" id="pdp-stock-line"></p>
+      </div>
+
+      <div class="pdp-qty">
+        <div class="pdp-qty-control">
+          <button type="button" id="qty-minus" aria-label="Decrease quantity">&minus;</button>
+          <input type="text" id="qty-input" value="1" readonly aria-label="Quantity">
+          <button type="button" id="qty-plus" aria-label="Increase quantity">+</button>
+        </div>
+      </div>
+
+      <div class="pdp-actions">
+        <button type="button" id="add-to-cart-btn" class="market-btn market-btn-primary market-btn-block">
+          <i class="fa-solid fa-cart-shopping"></i> Add to Cart
+        </button>
+      </div>
+
+      <div class="market-card pdp-desc-card">
+        <p class="pdp-desc" id="pdp-description"></p>
+        <button type="button" class="pdp-desc-toggle" id="pdp-desc-toggle" hidden>Read more</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="market-section" id="related-section" hidden>
+    <div class="market-section-header"><h2 class="market-section-title">You may also like</h2></div>
+    <div class="market-product-grid" id="related-grid"></div>
+  </section>
+
+  <section class="market-section" id="reviews-section" hidden>
+    <div class="market-section-header"><h2 class="market-section-title">Reviews</h2></div>
+    <div class="market-card review-form-card" id="review-form-card"></div>
+    <div class="market-card" id="reviews-list"></div>
+  </section>
+</div>
+
+<div class="lightbox-overlay" id="lightbox" hidden>
+  <span class="lightbox-close" id="lightbox-close"><i class="fa-solid fa-xmark"></i></span>
+  <img id="lightbox-image" src="" alt="">
+  <span class="lightbox-counter" id="lightbox-counter"></span>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+const CART_KEY = 'musicMarketCart';
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function getCart() { try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; } }
+function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+function updateCartBadge() {
+  const count = Object.keys(getCart()).length;
+  const badge = document.getElementById('cart-count');
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.hidden = count === 0;
+}
+updateCartBadge();
+
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+}
+
+function stars(rating) {
+  const full = Math.round(rating || 0);
+  return Array.from({ length: 5 }, (_, i) => `<i class="fa-solid fa-star" style="color:${i < full ? '#f5a623' : '#e2e6e8'}"></i>`).join('');
+}
+
+let currentUser = null;
+let product = null;
+let images = [];
+let currentImageIndex = 0;
+let selectedColorId = null;
+
+const slug = new URLSearchParams(location.search).get('slug');
+
+async function loadSession() {
+  try {
+    const res = await fetch('/api/session');
+    const data = await res.json();
+    currentUser = data.user || null;
+  } catch { currentUser = null; }
+}
+
+function renderGallery() {
+  images = product.images && product.images.length ? product.images : [product.coverImage].filter(Boolean);
+  document.getElementById('gallery-thumbs').innerHTML = images.map((src, i) => `
+    <div class="pdp-thumb ${i === 0 ? 'active' : ''}" data-index="${i}"><img src="${src}" alt=""></div>
+  `).join('');
+  document.querySelectorAll('.pdp-thumb').forEach((thumb) => thumb.addEventListener('click', () => setImage(Number(thumb.dataset.index))));
+  setImage(0);
+}
+function setImage(index) {
+  currentImageIndex = (index + images.length) % images.length;
+  const mainImg = document.getElementById('gallery-image');
+  mainImg.src = images[currentImageIndex] || '';
+  mainImg.alt = product ? product.name : '';
+  document.querySelectorAll('.pdp-thumb').forEach((t, i) => t.classList.toggle('active', i === currentImageIndex));
+}
+document.getElementById('gallery-prev').addEventListener('click', () => setImage(currentImageIndex - 1));
+document.getElementById('gallery-next').addEventListener('click', () => setImage(currentImageIndex + 1));
+document.getElementById('gallery-main').addEventListener('click', (e) => { if (!e.target.closest('.pdp-gallery-nav')) openLightbox(); });
+
+function openLightbox() {
+  document.getElementById('lightbox').hidden = false;
+  updateLightbox();
+}
+function updateLightbox() {
+  document.getElementById('lightbox-image').src = images[currentImageIndex] || '';
+  document.getElementById('lightbox-counter').textContent = `${currentImageIndex + 1} / ${images.length}`;
+}
+document.getElementById('lightbox-close').addEventListener('click', () => { document.getElementById('lightbox').hidden = true; });
+document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') document.getElementById('lightbox').hidden = true; });
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('lightbox').hidden) return;
+  if (e.key === 'Escape') document.getElementById('lightbox').hidden = true;
+  if (e.key === 'ArrowLeft') { setImage(currentImageIndex - 1); updateLightbox(); }
+  if (e.key === 'ArrowRight') { setImage(currentImageIndex + 1); updateLightbox(); }
+});
+
+function renderColors() {
+  const wrap = document.getElementById('pdp-colors');
+  if (!product.colors.length) { document.getElementById('pdp-color-wrap').hidden = true; return; }
+  if (!selectedColorId) {
+    const firstInStock = product.colors.find((c) => c.stockForViewerCountry > 0);
+    selectedColorId = (firstInStock || product.colors[0]).id;
+  }
+  wrap.innerHTML = product.colors.map((c) => `
+    <div class="market-color-swatch ${c.id === selectedColorId ? 'active' : ''} ${c.stockForViewerCountry <= 0 ? 'unavailable' : ''}"
+         style="background:${c.hex}" data-id="${c.id}" title="${escapeHtml(c.name)}"></div>
+  `).join('');
+  wrap.querySelectorAll('.market-color-swatch').forEach((el) => el.addEventListener('click', () => {
+    selectedColorId = el.dataset.id;
+    renderColors();
+  }));
+  updateColorInfo();
+}
+function updateColorInfo() {
+  const color = product.colors.find((c) => c.id === selectedColorId);
+  document.getElementById('pdp-color-name').textContent = color ? color.name : '';
+  const stockLine = document.getElementById('pdp-stock-line');
+  const addBtn = document.getElementById('add-to-cart-btn');
+  const qtyInput = document.getElementById('qty-input');
+  if (!color) return;
+  if (color.stockForViewerCountry > 0) {
+    stockLine.innerHTML = `<span style="color:var(--mz-green)"><i class="fa-solid fa-check"></i> ${color.stockForViewerCountry} in stock for delivery to your country</span>`;
+    addBtn.disabled = false;
+    qtyInput.value = Math.min(Number(qtyInput.value) || 1, color.stockForViewerCountry);
+  } else {
+    stockLine.innerHTML = `<span style="color:#b91c1c"><i class="fa-solid fa-circle-exclamation"></i> Not currently available for delivery to your country</span>`;
+    addBtn.disabled = true;
+  }
+}
+
+document.getElementById('qty-minus').addEventListener('click', () => {
+  const input = document.getElementById('qty-input');
+  input.value = Math.max(1, Number(input.value) - 1);
+});
+document.getElementById('qty-plus').addEventListener('click', () => {
+  const input = document.getElementById('qty-input');
+  const color = product.colors.find((c) => c.id === selectedColorId);
+  const max = color ? color.stockForViewerCountry : 99;
+  input.value = Math.min(max, Number(input.value) + 1);
+});
+
+document.getElementById('add-to-cart-btn').addEventListener('click', () => {
+  const color = product.colors.find((c) => c.id === selectedColorId);
+  if (!color || color.stockForViewerCountry <= 0) return;
+  const quantity = Math.max(1, Number(document.getElementById('qty-input').value) || 1);
+  const cart = getCart();
+  const key = `${product.id}__${color.id}`;
+  const existingQty = cart[key] ? cart[key].quantity : 0;
+  cart[key] = {
+    productId: product.id, colorId: color.id, colorName: color.name, colorHex: color.hex,
+    name: product.name, slug: product.slug, image: product.coverImage,
+    quantity: Math.min(color.stockForViewerCountry, existingQty + quantity),
+  };
+  saveCart(cart);
+  updateCartBadge();
+  showToast('Added to cart', 'success');
+});
+
+function renderDescription() {
+  const el = document.getElementById('pdp-description');
+  el.textContent = product.description || '';
+  requestAnimationFrame(() => {
+    if (el.scrollHeight > el.clientHeight + 4) document.getElementById('pdp-desc-toggle').hidden = false;
+  });
+}
+document.getElementById('pdp-desc-toggle').addEventListener('click', () => {
+  const el = document.getElementById('pdp-description');
+  el.classList.toggle('expanded');
+  document.getElementById('pdp-desc-toggle').textContent = el.classList.contains('expanded') ? 'Read less' : 'Read more';
+});
+
+function productCardHtml(p) {
+  return `
+    <a class="market-product-card" href="/product?slug=${encodeURIComponent(p.slug)}">
+      <div class="market-product-image">
+        <img src="${p.coverImage || ''}" alt="${escapeHtml(p.name)}" loading="lazy">
+        ${!p.inStock ? '<span class="market-product-badge out">Out of stock</span>' : ''}
+      </div>
+      <div class="market-product-info">
+        <p class="market-product-name">${escapeHtml(p.name)}</p>
+        <div class="market-rating">${stars(p.avgRating)} <span>(${p.reviewCount || 0})</span></div>
+        <div class="market-price">${p.symbol}${Number(p.priceLocal).toFixed(2)} <small>${p.currency}</small></div>
+      </div>
+    </a>
+  `;
+}
+
+function renderReviewForm(myReview) {
+  const card = document.getElementById('review-form-card');
+  if (!currentUser) {
+    card.innerHTML = `<p class="market-muted">Sign in to write a review. <a href="/login?redirect=${encodeURIComponent(location.pathname + location.search)}" style="color:var(--mz-red); font-weight:700;">Sign in</a></p>`;
+    return;
+  }
+  const rating = myReview ? myReview.rating : 5;
+  const text = myReview ? myReview.text : '';
+  card.innerHTML = `
+    <p style="font-weight:700; margin-bottom:8px;">${myReview ? 'Edit your review' : 'Write a review'}</p>
+    <div class="star-picker" id="review-star-picker">
+      ${[1,2,3,4,5].map((n) => `<i class="fa-solid fa-star ${n <= rating ? 'active' : ''}" data-star="${n}"></i>`).join('')}
+    </div>
+    <textarea class="market-textarea" id="review-text-input" placeholder="Share your thoughts on this product..." style="margin-top:10px;">${escapeHtml(text)}</textarea>
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button type="button" class="market-btn market-btn-primary market-btn-sm" id="submit-review-btn">${myReview ? 'Update review' : 'Submit review'}</button>
+      ${myReview ? '<button type="button" class="market-btn market-btn-danger market-btn-sm" id="delete-review-btn">Delete</button>' : ''}
+    </div>
+  `;
+  let selectedRating = rating;
+  card.querySelectorAll('#review-star-picker i').forEach((star) => star.addEventListener('click', () => {
+    selectedRating = Number(star.dataset.star);
+    card.querySelectorAll('#review-star-picker i').forEach((s) => s.classList.toggle('active', Number(s.dataset.star) <= selectedRating));
+  }));
+  document.getElementById('submit-review-btn').addEventListener('click', async () => {
+    const reviewText = document.getElementById('review-text-input').value.trim();
+    if (!reviewText) return showToast('Please write something first.', 'error');
+    const url = myReview ? `/api/store/reviews/${myReview.id}` : `/api/store/products/${product.id}/reviews`;
+    const res = await fetch(url, {
+      method: myReview ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: selectedRating, text: reviewText }),
+    });
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'Could not save review.', 'error');
+    showToast('Review saved.', 'success');
+    loadReviews();
+  });
+  const deleteBtn = document.getElementById('delete-review-btn');
+  if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+    if (!confirm('Delete your review?')) return;
+    const res = await fetch(`/api/store/reviews/${myReview.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) { showToast('Review deleted.', 'success'); loadReviews(); }
+    else showToast(data.error || 'Failed.', 'error');
+  });
+}
+
+function reviewItemHtml(r) {
+  const initials = (r.userName || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  return `
+    <div class="review-item">
+      <div class="review-head">
+        <div class="review-avatar">${escapeHtml(initials)}</div>
+        <div>
+          <div class="review-name">${escapeHtml(r.userName)}</div>
+          <div class="review-date">${new Date(r.createdAt).toLocaleDateString()}${r.editedAt ? ' (edited)' : ''}</div>
+        </div>
+        <div class="market-rating market-rating-right">${stars(r.rating)}</div>
+      </div>
+      <p class="review-text">${escapeHtml(r.text)}</p>
+      ${r.replies.map((reply) => `<div class="review-reply"><b>${escapeHtml(reply.adminName)}:</b> ${escapeHtml(reply.text)}</div>`).join('')}
+    </div>
+  `;
+}
+
+async function loadReviews() {
+  const res = await fetch(`/api/store/products/${product.id}/reviews`);
+  const data = await res.json();
+  if (!data.success) return;
+  const myReview = currentUser ? data.reviews.find((r) => r.userId === currentUser.id) : null;
+  renderReviewForm(myReview);
+  const others = data.reviews.filter((r) => !myReview || r.id !== myReview.id);
+  const list = document.getElementById('reviews-list');
+  const items = [myReview, ...others].filter(Boolean);
+  list.innerHTML = items.length ? items.map(reviewItemHtml).join('') : '<p class="market-muted">No reviews yet - be the first.</p>';
+}
+
+async function loadRelated(related) {
+  if (!related.length) return;
+  document.getElementById('related-section').hidden = false;
+  document.getElementById('related-grid').innerHTML = related.map(productCardHtml).join('');
+}
+
+async function loadProduct() {
+  if (!slug) return showNotFound();
+  await loadSession();
+  const res = await fetch(`/api/store/products/${encodeURIComponent(slug)}`);
+  const data = await res.json();
+  if (!data.success) return showNotFound();
+  product = data.product;
+
+  document.getElementById('pdp-loading').hidden = true;
+  document.getElementById('pdp-content').hidden = false;
+  document.getElementById('reviews-section').hidden = false;
+
+  document.getElementById('pdp-category').textContent = product.category.replace(/-/g, ' ');
+  document.getElementById('pdp-name').textContent = product.name;
+  document.getElementById('pdp-rating').innerHTML = `${stars(product.avgRating)} <span>${product.avgRating || 0} (${product.reviewCount} review${product.reviewCount === 1 ? '' : 's'})</span>`;
+  document.getElementById('pdp-price').innerHTML = `${product.symbol}${Number(product.priceLocal).toFixed(2)} <small>${product.currency}</small>`;
+
+  renderGallery();
+  renderColors();
+  renderDescription();
+  loadRelated(data.related || []);
+  loadReviews();
+
+  if (currentUser) fetch('/api/store/recently-viewed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id }) }).catch(() => {});
+}
+
+function showNotFound() {
+  document.getElementById('pdp-loading').hidden = true;
+  document.getElementById('pdp-not-found').hidden = false;
+}
+
+let searchTimer;
+const searchInput = document.getElementById('store-search');
+const suggestions = document.getElementById('search-suggestions');
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (!q) { suggestions.classList.remove('open'); return; }
+  searchTimer = setTimeout(async () => {
+    const res = await fetch(`/api/store/products?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (!data.success) return;
+    suggestions.innerHTML = data.products.slice(0, 6).map((p) => `
+      <a class="market-search-result" href="/product?slug=${encodeURIComponent(p.slug)}">
+        <img src="${p.coverImage || ''}" alt="">
+        <span>${escapeHtml(p.name)}</span>
+      </a>
+    `).join('') || '<div class="market-search-result">No products found.</div>';
+    suggestions.classList.add('open');
+  }, 250);
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.market-search')) suggestions.classList.remove('open'); });
+
+loadProduct();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+.note-game-root { max-width: 420px; margin: 0 auto; text-align: center; }
+.note-game-hud { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: #6b6560; margin-bottom: 10px; }
+.note-game-timer { color: #cc0000; }
+.note-game-board { background: #fdfaf6; border: 1px solid #eee0d8; border-radius: 14px; padding: 8px 0 16px; }
+.note-game-staff { width: 100%; max-width: 320px; height: auto; display: block; margin: 0 auto; }
+.note-game-prompt { font-weight: 700; font-size: 14px; margin: 14px 0 10px; color: #241f1c; }
+.note-game-options { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.note-game-option {
+    width: 46px; height: 46px; border-radius: 12px; border: 2px solid #e6dcd0; background: #fff;
+    font-size: 18px; font-weight: 800; color: #241f1c; cursor: pointer; transition: transform .1s ease, border-color .15s ease;
+}
+.note-game-option:hover:not(:disabled) { border-color: #cc0000; transform: translateY(-2px); }
+.note-game-option:disabled { cursor: default; }
+.note-game-option.correct { background: #dcfce7; border-color: #16a34a; color: #166534; }
+.note-game-option.wrong { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+.note-game-feedback { min-height: 20px; font-weight: 700; font-size: 13px; margin-top: 10px; }
+.note-game-feedback.correct { color: #16a34a; }
+.note-game-feedback.wrong { color: #dc2626; }
+.note-game-done { padding: 30px 10px; }
+.note-game-done i { font-size: 40px; color: #d4af37; margin-bottom: 10px; display: block; }
+.note-game-done h3 { font-size: 20px; font-weight: 800; margin: 0 0 6px; }
+.note-game-done p { color: #6b6560; font-size: 14px; }
+
+.game-tier-picker { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 18px; }
+.game-tier-btn {
+    padding: 10px 16px; border-radius: 999px; border: 1px solid #e6dcd0; background: #fff;
+    font-size: 13px; font-weight: 700; color: #241f1c; cursor: pointer;
+}
+.game-tier-btn.active { background: #cc0000; border-color: #cc0000; color: #fff; }

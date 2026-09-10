@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.store-hero {
+  background: linear-gradient(135deg, #050b10 0%, #1a0505 100%);
+  color: #fff; padding: 64px 0 56px; text-align: center;
+}
+.store-hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; margin: 0 0 12px; }
+.store-hero p { color: rgba(255,255,255,.7); max-width: 560px; margin: 0 auto 24px; font-size: .95rem; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-search">
+      <input type="text" id="store-search" placeholder="Search sheet music, instruments, accessories...">
+      <i class="fa-solid fa-search"></i>
+      <div class="market-search-suggestions" id="search-suggestions"></div>
+    </div>
+    <div class="market-nav-actions">
+      <div id="auth-state"></div>
+      <a href="/cart" class="market-nav-icon" aria-label="Cart">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span class="market-cart-count" id="cart-count" hidden>0</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<section class="store-hero">
+  <div class="market-container">
+    <h1>Everything for your musical journey</h1>
+    <p>Sheet music, instruments, accessories and digital tools - uploaded by Mozart Techniques, priced in your currency, shipped to your country.</p>
+    <a href="#products" class="market-btn market-btn-primary">Shop now</a>
+  </div>
+</section>
+
+<div class="market-container">
+  <section class="market-section">
+    <div class="market-section-header">
+      <h2 class="market-section-title">Shop by category</h2>
+    </div>
+    <div class="market-category-grid" id="category-grid">
+      <div class="market-skeleton" style="height:140px"></div>
+      <div class="market-skeleton" style="height:140px"></div>
+      <div class="market-skeleton" style="height:140px"></div>
+      <div class="market-skeleton" style="height:140px"></div>
+      <div class="market-skeleton" style="height:140px"></div>
+    </div>
+  </section>
+
+  <section class="market-section" id="products">
+    <div class="market-section-header">
+      <h2 class="market-section-title">Featured products</h2>
+      <a href="/category?category=all&sort=new" class="market-section-link">New arrivals <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="market-product-grid" id="featured-grid"></div>
+    <div id="featured-empty" class="market-empty" hidden>
+      <i class="fa-solid fa-store"></i>
+      <h3>The store is being stocked</h3>
+      <p>Check back soon - new products are added regularly.</p>
+    </div>
+  </section>
+</div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+
+const CART_KEY = 'musicMarketCart';
+function getCart() { try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; } }
+function updateCartBadge() {
+  const cart = getCart();
+  const count = Object.keys(cart).length;
+  const badge = document.getElementById('cart-count');
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.hidden = count === 0;
+}
+updateCartBadge();
+window.addEventListener('storage', updateCartBadge);
+
+function stars(rating) {
+  const full = Math.round(rating || 0);
+  return Array.from({ length: 5 }, (_, i) => `<i class="fa-solid fa-star" style="color:${i < full ? '#f5a623' : '#e2e6e8'}"></i>`).join('');
+}
+
+function productCardHtml(p) {
+  return `
+    <a class="market-product-card" href="/product?slug=${encodeURIComponent(p.slug)}">
+      <div class="market-product-image">
+        <img src="${p.coverImage || ''}" alt="${escapeHtml(p.name)}" loading="lazy">
+        ${!p.inStock ? '<span class="market-product-badge out">Out of stock</span>' : ''}
+      </div>
+      <div class="market-product-info">
+        <p class="market-product-name">${escapeHtml(p.name)}</p>
+        <div class="market-rating">${stars(p.avgRating)} <span>(${p.reviewCount || 0})</span></div>
+        <div class="market-price">${p.symbol}${Number(p.priceLocal).toFixed(2)} <small>${p.currency}</small></div>
+      </div>
+    </a>
+  `;
+}
+
+function escapeHtml(text) {
+  return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function loadCategories() {
+  const res = await fetch('/api/store/categories');
+  const data = await res.json();
+  if (!data.success) return;
+  document.getElementById('category-grid').innerHTML = data.categories.map((c) => `
+    <a class="market-category-card" style="background-image:url('${c.image}')" href="/category?category=${encodeURIComponent(c.key)}">
+      <span>${escapeHtml(c.title)}${c.productCount ? ` <small style="opacity:.75;font-weight:600">(${c.productCount})</small>` : ''}</span>
+    </a>
+  `).join('');
+}
+
+async function loadFeatured() {
+  const res = await fetch('/api/store/products?sort=featured');
+  const data = await res.json();
+  if (!data.success) return;
+  const grid = document.getElementById('featured-grid');
+  if (!data.products.length) {
+    grid.innerHTML = '';
+    document.getElementById('featured-empty').hidden = false;
+    return;
+  }
+  grid.innerHTML = data.products.map(productCardHtml).join('');
+}
+
+let searchTimer;
+const searchInput = document.getElementById('store-search');
+const suggestions = document.getElementById('search-suggestions');
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (!q) { suggestions.classList.remove('open'); return; }
+  searchTimer = setTimeout(async () => {
+    const res = await fetch(`/api/store/products?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (!data.success) return;
+    suggestions.innerHTML = data.products.slice(0, 6).map((p) => `
+      <a class="market-search-result" href="/product?slug=${encodeURIComponent(p.slug)}">
+        <img src="${p.coverImage || ''}" alt="">
+        <span>${escapeHtml(p.name)}</span>
+      </a>
+    `).join('') || '<div class="market-search-result">No products found.</div>';
+    suggestions.classList.add('open');
+  }, 250);
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.market-search')) suggestions.classList.remove('open'); });
+
+loadCategories();
+loadFeatured();
+</script>
+</body>
+</html>

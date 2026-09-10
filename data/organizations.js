@@ -268,7 +268,14 @@ function getStudentsForOrganization(orgId) {
       studentName: c.redeemedName || c.studentName,
       redeemedAt: c.redeemedAt,
     }));
-  return [...individualStudents, ...(org.members || []).filter((member) => (member.role || 'student') === 'student')];
+  const combined = [...individualStudents, ...(org.members || []).filter((member) => (member.role || 'student') === 'student')];
+  const seen = new Set();
+  return combined.filter((entry) => {
+    const key = String(entry.studentId);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function getTutorsForOrganization(orgId) {

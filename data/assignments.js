@@ -140,6 +140,7 @@ function generateCandidates({ category, genre, ageGroup, level, studentCoords, s
 function createRequest({
   studentId, studentName, studentEmail, category, genre, ageGroup, desiredLevel,
   city, lessonType, phone, notes, preferredTutorIds, candidateIds, intakeResponses, studentCountry,
+  suggestedAmountUsd, studentFullAddress,
 }) {
   const db = load();
   const record = {
@@ -152,10 +153,19 @@ function createRequest({
     ageGroup: ageGroup || null,
     desiredLevel: desiredLevel || null,
     city: city || null,
+    // Only carried for negotiate (broadcast) physical/studio requests, so a
+    // candidate tutor can judge reachability before accepting - the direct
+    // "request this one tutor" flow doesn't set this and keeps its existing
+    // reveal-only-once-matched behavior for the student's exact address.
+    studentFullAddress: studentFullAddress || null,
     studentCountry: studentCountry || null,
     lessonType: LESSON_TYPES.includes(lessonType) ? lessonType : 'online',
     phone: phone || null,
     notes: notes || '',
+    // The InDrive-style "name your price" field: a student's suggested
+    // hourly rate, shown to every notified tutor alongside the tutor's own
+    // listed rate so they can decide whether to accept at that price.
+    suggestedAmountUsd: suggestedAmountUsd != null ? Math.max(0, Number(suggestedAmountUsd) || 0) : null,
     preferredTutorIds: Array.isArray(preferredTutorIds) ? preferredTutorIds.map(Number) : [],
     candidateIds: Array.isArray(candidateIds) ? candidateIds : [],
     intakeResponses: Array.isArray(intakeResponses) ? intakeResponses : [],

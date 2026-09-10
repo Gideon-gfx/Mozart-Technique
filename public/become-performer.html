@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a Performer - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.perf-hero { background: linear-gradient(135deg, #050b10 0%, #1a0505 100%); color: #fff; padding: 48px 0; text-align: center; }
+.perf-hero h1 { font-size: clamp(1.6rem, 3.6vw, 2.2rem); font-weight: 800; margin: 0 0 8px; }
+.perf-hero p { color: rgba(255,255,255,.7); max-width: 560px; margin: 0 auto; font-size: .9rem; }
+.perf-form-wrap { max-width: 760px; margin: 0 auto; padding: 32px 24px 64px; }
+.perf-section-title { font-size: 1.05rem; font-weight: 800; margin: 28px 0 14px; padding-top: 18px; border-top: 1px solid var(--mz-border); }
+.perf-section-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: .5rem 1rem; border-radius: 999px; border: 1px solid var(--mz-border); background: #fff; font-size: .82rem; font-weight: 600; cursor: pointer; }
+.chip.active { background: var(--mz-red); color: #fff; border-color: var(--mz-red); }
+.upload-row { display: flex; align-items: center; gap: 12px; }
+.upload-thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); }
+.media-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.media-thumb { position: relative; width: 76px; height: 76px; border-radius: 8px; overflow: hidden; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); }
+.media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; }
+.media-thumb button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; border: none; font-size: 10px; cursor: pointer; }
+
+/* Light main-site-matching nav + footer, in place of the dark store chrome. */
+.site-nav { background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; }
+.site-nav-inner { max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 70px; display: flex; align-items: center; justify-content: space-between; }
+.site-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em; color: #333; }
+.site-logo img { width: 38px; height: 38px; border-radius: 12px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.site-nav-links { display: flex; align-items: center; gap: 22px; }
+.site-nav-links a { color: #666; font-size: .92rem; font-weight: 600; transition: color .2s ease; }
+.site-nav-links a:hover { color: var(--mz-red); }
+.site-footer { background: #fff; border-top: 1px solid #eee; margin-top: 60px; padding: 40px 24px 24px; }
+.site-footer-inner { max-width: 1160px; margin: 0 auto; text-align: center; }
+.site-footer-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; margin-bottom: 16px; }
+.site-footer-links a { color: #666; font-size: .85rem; font-weight: 600; }
+.site-footer-links a:hover { color: var(--mz-red); }
+.site-footer-bottom { color: #999; font-size: .78rem; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="site-nav">
+  <div class="site-nav-inner">
+    <a href="/home" class="site-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques">Mozart Techniques</a>
+    <div class="site-nav-links">
+      <a href="/find-performer">Find a Performer</a>
+      <a href="/home">Home</a>
+      <div id="auth-state"></div>
+    </div>
+  </div>
+</nav>
+
+<div class="perf-hero">
+  <h1>Become a Performer</h1>
+  <p>Create a professional profile and get discovered by people hiring for weddings, parties, corporate events and more.</p>
+</div>
+
+<div class="perf-form-wrap">
+  <div class="market-card">
+    <h2 class="perf-section-title">Basic Information</h2>
+    <div class="market-form-row">
+      <div class="market-field"><label>Full name / stage name</label><input class="market-input" id="pf-name" placeholder="Your name or stage name"></div>
+      <div class="market-field"><label>Phone</label><input class="market-input" id="pf-phone" placeholder="+234..."></div>
+    </div>
+    <div class="market-field">
+      <label>I am a...</label>
+      <div class="chip-row">
+        <button type="button" class="chip active" data-performer-type="individual">Solo Performer</button>
+        <button type="button" class="chip" data-performer-type="group">Group / Band / Team</button>
+      </div>
+    </div>
+    <div class="market-field" id="pf-group-size-field" hidden><label>Group size</label><input class="market-input" type="number" id="pf-group-size" min="2" value="2"></div>
+    <div class="market-field">
+      <label>Performer categories</label>
+      <div class="chip-row" id="pf-categories"></div>
+    </div>
+    <div class="market-form-row">
+      <div class="market-field"><label>City</label><input class="market-input" id="pf-city" placeholder="e.g. Lagos"></div>
+      <div class="market-field"><label>Address (used for matching, not shown publicly)</label><input class="market-input" id="pf-address" placeholder="Street, city, country"></div>
+    </div>
+    <div class="market-field"><label>How far will you travel for a booking? (km)</label><input class="market-input" type="number" id="pf-radius" value="25" min="1"></div>
+
+    <h2 class="perf-section-title">Professional Information</h2>
+    <div class="market-field"><label>Short bio</label><textarea class="market-textarea" id="pf-bio" placeholder="A short intro shown on your profile"></textarea></div>
+    <div class="market-form-row">
+      <div class="market-field"><label>Years of experience</label><input class="market-input" type="number" id="pf-experience" min="0" value="0"></div>
+      <div class="market-field"><label>Ideal rate (USD)</label><input class="market-input" type="number" id="pf-rate" min="0" placeholder="e.g. 200"></div>
+    </div>
+    <div class="market-field">
+      <label>Rate is per...</label>
+      <div class="chip-row">
+        <button type="button" class="chip active" data-rate-unit="per_event">Event</button>
+        <button type="button" class="chip" data-rate-unit="per_hour">Hour</button>
+      </div>
+    </div>
+    <div class="market-field"><label>Qualifications, awards, previous performances</label><textarea class="market-textarea" id="pf-qualifications" placeholder="Notable events, awards, training..."></textarea></div>
+
+    <h2 class="perf-section-title">Media</h2>
+    <div class="market-field">
+      <label>Profile photo</label>
+      <div class="upload-row">
+        <img class="upload-thumb" id="pf-photo-preview" src="/mozartLogo.jpg" alt="">
+        <input type="file" id="pf-photo-input" accept="image/*">
+      </div>
+    </div>
+    <div class="market-field">
+      <label>Gallery photos</label>
+      <input type="file" id="pf-gallery-input" accept="image/*">
+      <div class="media-strip" id="pf-gallery-strip"></div>
+    </div>
+    <div class="market-field">
+      <label>Video clips</label>
+      <input type="file" id="pf-video-input" accept="video/*">
+      <div class="media-strip" id="pf-video-strip"></div>
+    </div>
+
+    <h2 class="perf-section-title">Social Links</h2>
+    <div class="market-form-row">
+      <div class="market-field"><label>Instagram</label><input class="market-input" id="pf-instagram" placeholder="https://instagram.com/..."></div>
+      <div class="market-field"><label>YouTube</label><input class="market-input" id="pf-youtube" placeholder="https://youtube.com/..."></div>
+    </div>
+    <div class="market-form-row">
+      <div class="market-field"><label>TikTok</label><input class="market-input" id="pf-tiktok" placeholder="https://tiktok.com/..."></div>
+      <div class="market-field"><label>Website</label><input class="market-input" id="pf-website" placeholder="https://..."></div>
+    </div>
+
+    <label class="market-checkbox-row" style="margin: 18px 0;">
+      <input type="checkbox" id="pf-agreement">
+      I agree to Mozart Techniques' performer terms, including the one-time $1.50 activation fee required after approval.
+    </label>
+
+    <button type="button" id="pf-submit-btn" class="market-btn market-btn-primary market-btn-block">Submit Application</button>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <div class="site-footer-links">
+      <a href="/home">Home</a>
+      <a href="/find-performer">Find a Performer</a>
+      <a href="/find-tutor">Find a Tutor</a>
+      <a href="/contact">Contact Us</a>
+      <a href="/privacy-policy">Privacy Policy</a>
+    </div>
+    <div class="site-footer-bottom">&copy; <span id="footer-year"></span> Mozart Techniques. All rights reserved.</div>
+  </div>
+</footer>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+let performerType = 'individual';
+document.querySelectorAll('[data-performer-type]').forEach((chip) => chip.addEventListener('click', () => {
+  document.querySelectorAll('[data-performer-type]').forEach((c) => c.classList.remove('active'));
+  chip.classList.add('active');
+  performerType = chip.dataset.performerType;
+  document.getElementById('pf-group-size-field').hidden = performerType !== 'group';
+}));
+
+let rateUnit = 'per_event';
+document.querySelectorAll('[data-rate-unit]').forEach((chip) => chip.addEventListener('click', () => {
+  document.querySelectorAll('[data-rate-unit]').forEach((c) => c.classList.remove('active'));
+  chip.classList.add('active');
+  rateUnit = chip.dataset.rateUnit;
+}));
+
+const selectedCategories = new Set();
+async function loadCategories() {
+  const res = await fetch('/api/performer-categories');
+  const data = await res.json();
+  if (!data.success) return;
+  document.getElementById('pf-categories').innerHTML = data.categories.map((c) => `<button type="button" class="chip" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+  document.querySelectorAll('[data-category]').forEach((chip) => chip.addEventListener('click', () => {
+    const c = chip.dataset.category;
+    if (selectedCategories.has(c)) { selectedCategories.delete(c); chip.classList.remove('active'); }
+    else { selectedCategories.add(c); chip.classList.add('active'); }
+  }));
+}
+loadCategories();
+
+async function uploadFile(file, kind) {
+  const endpoint = kind === 'video' ? '/api/uploads/performer-video' : '/api/uploads/photo';
+  const fieldName = kind === 'video' ? 'video' : 'photo';
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  const res = await fetch(endpoint, { method: 'POST', body: formData });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Upload failed.');
+  return data.url;
+}
+
+let profilePhotoUrl = null;
+document.getElementById('pf-photo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    profilePhotoUrl = await uploadFile(file, 'photo');
+    document.getElementById('pf-photo-preview').src = profilePhotoUrl;
+  } catch (err) { showToast(err.message, 'error'); }
+});
+
+const galleryPhotos = [];
+function renderGalleryStrip() {
+  document.getElementById('pf-gallery-strip').innerHTML = galleryPhotos.map((url, i) => `
+    <div class="media-thumb"><img src="${escapeHtml(url)}" alt=""><button type="button" data-remove-gallery="${i}">&times;</button></div>
+  `).join('');
+  document.querySelectorAll('[data-remove-gallery]').forEach((btn) => btn.addEventListener('click', () => { galleryPhotos.splice(Number(btn.dataset.removeGallery), 1); renderGalleryStrip(); }));
+}
+document.getElementById('pf-gallery-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try { galleryPhotos.push(await uploadFile(file, 'photo')); renderGalleryStrip(); }
+  catch (err) { showToast(err.message, 'error'); }
+  e.target.value = '';
+});
+
+const videoClips = [];
+function renderVideoStrip() {
+  document.getElementById('pf-video-strip').innerHTML = videoClips.map((url, i) => `
+    <div class="media-thumb"><video src="${escapeHtml(url)}" muted></video><button type="button" data-remove-video="${i}">&times;</button></div>
+  `).join('');
+  document.querySelectorAll('[data-remove-video]').forEach((btn) => btn.addEventListener('click', () => { videoClips.splice(Number(btn.dataset.removeVideo), 1); renderVideoStrip(); }));
+}
+document.getElementById('pf-video-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  showToast('Uploading video...', 'info');
+  try { videoClips.push(await uploadFile(file, 'video')); renderVideoStrip(); showToast('Video uploaded.', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+  e.target.value = '';
+});
+
+document.getElementById('pf-submit-btn').addEventListener('click', async () => {
+  const payload = {
+    performerType,
+    groupSize: performerType === 'group' ? Number(document.getElementById('pf-group-size').value) || 2 : null,
+    categories: [...selectedCategories],
+    city: document.getElementById('pf-city').value.trim(),
+    address: document.getElementById('pf-address').value.trim(),
+    phone: document.getElementById('pf-phone').value.trim(),
+    travelRadiusKm: Number(document.getElementById('pf-radius').value) || 25,
+    bio: document.getElementById('pf-bio').value.trim(),
+    experienceYears: Number(document.getElementById('pf-experience').value) || 0,
+    qualifications: document.getElementById('pf-qualifications').value.trim(),
+    baseRateUsd: Number(document.getElementById('pf-rate').value) || 0,
+    rateUnit,
+    photoUrl: profilePhotoUrl,
+    socialLinks: {
+      instagram: document.getElementById('pf-instagram').value.trim() || null,
+      youtube: document.getElementById('pf-youtube').value.trim() || null,
+      tiktok: document.getElementById('pf-tiktok').value.trim() || null,
+      website: document.getElementById('pf-website').value.trim() || null,
+    },
+    agreementAccepted: document.getElementById('pf-agreement').checked,
+  };
+
+  const name = document.getElementById('pf-name').value.trim();
+  if (!name) return showToast('Enter your name or stage name.', 'error');
+  if (!payload.categories.length) return showToast('Choose at least one performer category.', 'error');
+  if (!payload.city || !payload.bio) return showToast('City and bio are required.', 'error');
+  if (!profilePhotoUrl) return showToast('Upload a profile photo.', 'error');
+  if (!payload.baseRateUsd) return showToast('Set your rate.', 'error');
+  if (!payload.agreementAccepted) return showToast('Accept the performer agreement to continue.', 'error');
+
+  payload.galleryPhotos = galleryPhotos;
+  payload.videoClips = videoClips;
+
+  const btn = document.getElementById('pf-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+
+  const sessionRes = await fetch('/api/session').then((r) => r.json());
+  if (!sessionRes.user) { window.location.href = '/login?redirect=' + encodeURIComponent('/become-performer'); return; }
+
+  const res = await fetch('/api/performers/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, name }),
+  });
+  const data = await res.json();
+  if (!data.success) {
+    btn.disabled = false; btn.textContent = 'Submit Application';
+    return showToast(data.error || 'Could not submit application.', 'error');
+  }
+
+  // Gallery/video URLs collected during the form aren't part of apply()'s
+  // payload shape server-side (kept minimal there); attach them now via the
+  // dedicated endpoints so the profile has them from the start.
+  for (const url of galleryPhotos) await fetch('/api/performers/me/gallery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+  for (const url of videoClips) await fetch('/api/performers/me/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+
+  window.location.href = '/performer';
+});
+</script>
+</body>
+</html>

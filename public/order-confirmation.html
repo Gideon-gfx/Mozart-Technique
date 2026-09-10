@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Confirmed - Mozart Techniques Store</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.confirm-wrap { max-width: 620px; margin: 0 auto; padding: 60px 24px 80px; text-align: center; }
+.confirm-icon { width: 76px; height: 76px; border-radius: 50%; background: #e7f6ef; color: var(--mz-green); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 18px; }
+.confirm-order-number { font-family: monospace; font-size: 1.4rem; font-weight: 800; background: var(--mz-bg-soft); border: 1px dashed var(--mz-border); border-radius: 10px; padding: 12px 20px; display: inline-block; margin: 14px 0 24px; letter-spacing: .04em; }
+.confirm-items { text-align: left; margin: 24px 0; }
+.confirm-item { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--mz-border); }
+.confirm-item img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+.confirm-actions { display: flex; gap: 12px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-nav-actions market-nav-actions-end"><div id="auth-state"></div></div>
+  </div>
+</nav>
+
+<div class="confirm-wrap">
+  <div id="confirm-loading"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.6rem;"></i></div>
+
+  <div id="confirm-content" hidden>
+    <div class="confirm-icon"><i class="fa-solid fa-check"></i></div>
+    <h1 style="font-size:1.5rem; font-weight:800; margin:0;">Order confirmed!</h1>
+    <p class="market-muted">Thank you - your order is being processed. Use this order number for any dispatch or support questions.</p>
+    <div class="confirm-order-number" id="order-number"></div>
+
+    <div class="market-card" style="text-align:left;">
+      <h3 class="market-card-title">Order summary</h3>
+      <div class="confirm-items" id="confirm-items"></div>
+      <div class="summary-total" style="display:flex; justify-content:space-between; font-weight:800; padding-top:12px; border-top:1px solid var(--mz-border); margin-top:8px;">
+        <span>Total paid</span><span id="confirm-total"></span>
+      </div>
+      <div style="margin-top:16px;">
+        <h4 style="font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--mz-muted); margin-bottom:6px;">Delivering to</h4>
+        <p id="confirm-address" style="font-size:.88rem;"></p>
+      </div>
+    </div>
+
+    <div class="confirm-actions">
+      <a href="/store-profile?tab=orders" class="market-btn market-btn-primary">View My Orders</a>
+      <a href="/store" class="market-btn market-btn-outline">Continue Shopping</a>
+    </div>
+  </div>
+
+  <div id="confirm-error" class="market-empty" hidden>
+    <i class="fa-solid fa-circle-exclamation"></i>
+    <h3>We couldn't find that order</h3>
+    <p>Check your Store Profile for your recent orders.</p>
+    <a href="/store-profile?tab=orders" class="market-btn market-btn-outline">Go to My Orders</a>
+  </div>
+</div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+async function init() {
+  const orderNumber = new URLSearchParams(location.search).get('order');
+  if (!orderNumber) return showError();
+  const res = await fetch(`/api/store/orders/${encodeURIComponent(orderNumber)}`);
+  const data = await res.json();
+  if (!data.success) return showError();
+  const order = data.order;
+
+  document.getElementById('confirm-loading').hidden = true;
+  document.getElementById('confirm-content').hidden = false;
+  document.getElementById('order-number').textContent = order.orderNumber;
+  document.getElementById('confirm-items').innerHTML = order.items.map((item) => `
+    <div class="confirm-item">
+      <img src="${item.image || ''}" alt="">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:.88rem;">${escapeHtml(item.productName)}</div>
+        <div class="market-muted market-small">${escapeHtml(item.colorName)} &middot; Qty ${item.quantity}</div>
+      </div>
+      <div style="font-weight:700;">$${Number(item.lineTotalUsd).toFixed(2)}</div>
+    </div>
+  `).join('');
+  document.getElementById('confirm-total').textContent = `$${Number(order.totalUsd).toFixed(2)}`;
+  const a = order.addressSnapshot || {};
+  document.getElementById('confirm-address').textContent = `${a.fullName || ''}, ${a.street || ''}, ${a.city || ''}${a.state ? ', ' + a.state : ''}, ${a.countryName || ''} ${a.postalCode || ''}`;
+
+  try { localStorage.removeItem('musicMarketCart'); } catch {}
+}
+function showError() {
+  document.getElementById('confirm-loading').hidden = true;
+  document.getElementById('confirm-error').hidden = false;
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performer Profile - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.pf-header { display: flex; gap: 20px; align-items: center; padding: 32px 0; flex-wrap: wrap; }
+.pf-avatar { width: 100px; height: 100px; border-radius: 16px; object-fit: cover; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); }
+.pf-name { font-size: 1.5rem; font-weight: 800; margin: 0; }
+.pf-meta { color: var(--mz-muted); font-size: .88rem; margin: 4px 0; }
+.pf-rate { font-size: 1.2rem; font-weight: 800; margin-top: 6px; }
+.pf-gate-card { max-width: 480px; margin: 60px auto; text-align: center; }
+.pf-gate-card i.gate-icon { font-size: 2.2rem; color: var(--mz-red); margin-bottom: 12px; display: block; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.gallery-grid img, .gallery-grid video { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; }
+.social-links a { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; font-size: .85rem; font-weight: 600; color: var(--mz-red); }
+.offer-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); padding: 16px; margin-bottom: 14px; }
+.offer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.counter-form { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.counter-form input { flex: 1; min-width: 120px; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/find-performer" class="market-home-btn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></a>
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-nav-actions market-nav-actions-end"><div id="auth-state"></div></div>
+  </div>
+</nav>
+
+<div class="market-container">
+  <div id="loading-state" class="market-empty"><i class="fa-solid fa-spinner fa-spin"></i></div>
+
+  <!-- Public read-only profile -->
+  <div id="public-view" hidden>
+    <div class="pf-header">
+      <img class="pf-avatar" id="pub-photo" src="" alt="">
+      <div>
+        <h1 class="pf-name" id="pub-name"></h1>
+        <p class="pf-meta" id="pub-meta"></p>
+        <div class="pf-rate" id="pub-rate"></div>
+      </div>
+    </div>
+    <div class="market-card" style="margin-bottom:20px;">
+      <p id="pub-bio"></p>
+    </div>
+    <div class="market-card" style="margin-bottom:20px;" id="pub-gallery-card" hidden>
+      <h3 class="market-card-title">Gallery</h3>
+      <div class="gallery-grid" id="pub-gallery"></div>
+    </div>
+    <div class="market-card" style="margin-bottom:20px;" id="pub-video-card" hidden>
+      <h3 class="market-card-title">Videos</h3>
+      <div class="gallery-grid" id="pub-videos"></div>
+    </div>
+    <div class="market-card" style="margin-bottom:20px;" id="pub-social-card" hidden>
+      <h3 class="market-card-title">Find them online</h3>
+      <div class="social-links" id="pub-social"></div>
+    </div>
+    <div class="market-card" style="text-align:center;">
+      <p class="market-muted" style="margin-bottom:12px;">Want to book this kind of performer for your event?</p>
+      <a href="/find-performer" class="market-btn market-btn-primary">Post an Event Request</a>
+    </div>
+  </div>
+
+  <!-- Own dashboard: pending state -->
+  <div id="state-pending" class="market-card pf-gate-card" hidden>
+    <i class="fa-solid fa-hourglass-half gate-icon"></i>
+    <h2>Application under review</h2>
+    <p class="market-muted">We're reviewing your performer application. You'll be notified once it's approved.</p>
+  </div>
+
+  <!-- Own dashboard: rejected state -->
+  <div id="state-rejected" class="market-card pf-gate-card" hidden>
+    <i class="fa-solid fa-circle-xmark gate-icon"></i>
+    <h2>Application not approved</h2>
+    <p class="market-muted">Your performer application wasn't approved this time. Contact support if you have questions.</p>
+  </div>
+
+  <!-- Own dashboard: suspended state -->
+  <div id="state-suspended" class="market-card pf-gate-card" hidden>
+    <i class="fa-solid fa-ban gate-icon"></i>
+    <h2>Account suspended</h2>
+    <p class="market-muted">Your performer account is currently suspended. Contact support for details.</p>
+  </div>
+
+  <!-- Own dashboard: activation required -->
+  <div id="state-activation" class="market-card pf-gate-card" hidden>
+    <i class="fa-solid fa-lock gate-icon"></i>
+    <h2>One more step</h2>
+    <p class="market-muted">Pay a one-time $1.50 activation fee to unlock your Performer Dashboard and start receiving booking requests.</p>
+    <button type="button" id="pay-activation-btn" class="market-btn market-btn-primary">Pay $1.50 Activation Fee</button>
+  </div>
+
+  <!-- Own dashboard: full dashboard -->
+  <div id="dashboard-view" hidden>
+    <div class="pf-header">
+      <img class="pf-avatar" id="dash-photo" src="" alt="">
+      <div>
+        <h1 class="pf-name" id="dash-name"></h1>
+        <p class="pf-meta" id="dash-meta"></p>
+        <div class="pf-rate" id="dash-rate"></div>
+      </div>
+    </div>
+
+    <div class="market-tabs">
+      <button type="button" class="market-tab-btn active" data-tab="requests"><i class="fa-solid fa-inbox"></i> Requests</button>
+      <button type="button" class="market-tab-btn" data-tab="profile"><i class="fa-solid fa-user"></i> Profile</button>
+      <button type="button" class="market-tab-btn" data-tab="media"><i class="fa-solid fa-photo-film"></i> Media</button>
+      <button type="button" class="market-tab-btn" data-tab="social"><i class="fa-solid fa-share-nodes"></i> Social Links</button>
+      <button type="button" class="market-tab-btn" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
+    </div>
+
+    <div class="market-tab-panel" id="tab-requests">
+      <div id="requests-list"></div>
+      <div id="requests-empty" class="market-empty" hidden><i class="fa-solid fa-inbox"></i><h3>No requests yet</h3><p>Booking invites matching your categories and location will show up here.</p></div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-profile" hidden>
+      <div class="market-card">
+        <h3 class="market-card-title">Categories</h3>
+        <div class="market-color-row" id="edit-categories" style="flex-wrap:wrap; gap:8px;"></div>
+        <button type="button" id="save-categories-btn" class="market-btn market-btn-outline market-btn-sm" style="margin-top:12px;">Save Categories</button>
+      </div>
+      <div class="market-card" style="margin-top:16px;">
+        <h3 class="market-card-title">Rate</h3>
+        <div class="market-form-row">
+          <div class="market-field"><label>Rate (USD)</label><input class="market-input" type="number" id="edit-rate" min="0"></div>
+          <div class="market-field"><label>Per</label><select class="market-select" id="edit-rate-unit"><option value="per_event">Event</option><option value="per_hour">Hour</option></select></div>
+        </div>
+        <button type="button" id="save-rate-btn" class="market-btn market-btn-outline market-btn-sm">Save Rate</button>
+      </div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-media" hidden>
+      <div class="market-card">
+        <h3 class="market-card-title">Profile Photo</h3>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <img id="media-photo-preview" class="upload-thumb-lg" src="" alt="" style="width:70px;height:70px;border-radius:10px;object-fit:cover;">
+          <input type="file" id="media-photo-input" accept="image/*">
+        </div>
+      </div>
+      <div class="market-card" style="margin-top:16px;">
+        <h3 class="market-card-title">Gallery Photos</h3>
+        <input type="file" id="media-gallery-input" accept="image/*">
+        <div class="gallery-grid" id="media-gallery-grid" style="margin-top:12px;"></div>
+      </div>
+      <div class="market-card" style="margin-top:16px;">
+        <h3 class="market-card-title">Video Clips</h3>
+        <input type="file" id="media-video-input" accept="video/*">
+        <div class="gallery-grid" id="media-video-grid" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-social" hidden>
+      <div class="market-card">
+        <div class="market-form-row">
+          <div class="market-field"><label>Instagram</label><input class="market-input" id="social-instagram"></div>
+          <div class="market-field"><label>YouTube</label><input class="market-input" id="social-youtube"></div>
+        </div>
+        <div class="market-form-row">
+          <div class="market-field"><label>TikTok</label><input class="market-input" id="social-tiktok"></div>
+          <div class="market-field"><label>Website</label><input class="market-input" id="social-website"></div>
+        </div>
+        <div class="market-form-row">
+          <div class="market-field"><label>Facebook</label><input class="market-input" id="social-facebook"></div>
+          <div class="market-field"><label>Twitter / X</label><input class="market-input" id="social-twitter"></div>
+        </div>
+        <button type="button" id="save-social-btn" class="market-btn market-btn-outline market-btn-sm">Save Social Links</button>
+      </div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-history" hidden>
+      <div id="history-list"></div>
+      <div id="history-empty" class="market-empty" hidden><i class="fa-solid fa-clock-rotate-left"></i><h3>No bookings yet</h3><p>Confirmed bookings will show up here.</p></div>
+    </div>
+  </div>
+
+  <div id="not-found-state" class="market-empty" hidden>
+    <i class="fa-solid fa-circle-exclamation"></i>
+    <h3>Performer not found</h3>
+    <a href="/find-performer" class="market-btn market-btn-outline">Back to Find a Performer</a>
+  </div>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+function rateLabel(p) { return `$${p.baseRateUsd} / ${p.rateUnit === 'per_hour' ? 'hour' : 'event'}`; }
+function metaLabel(p) {
+  const bits = [p.performerType === 'group' ? `Group of ${p.groupSize || 2}` : 'Solo performer', (p.categories || []).join(', '), p.city].filter(Boolean);
+  return bits.join(' · ');
+}
+function socialLinksHtml(links) {
+  const items = [
+    ['instagram', 'fa-brands fa-instagram', 'Instagram'], ['youtube', 'fa-brands fa-youtube', 'YouTube'],
+    ['tiktok', 'fa-brands fa-tiktok', 'TikTok'], ['website', 'fa-solid fa-globe', 'Website'],
+    ['facebook', 'fa-brands fa-facebook', 'Facebook'], ['twitter', 'fa-brands fa-x-twitter', 'X / Twitter'],
+  ];
+  return items.filter(([key]) => links && links[key]).map(([key, icon, label]) => `<a href="${escapeHtml(links[key])}" target="_blank" rel="noopener"><i class="${icon}"></i> ${label}</a>`).join('');
+}
+
+const isOwnDashboard = location.pathname === '/performer';
+
+async function init() {
+  if (isOwnDashboard) return initDashboard();
+  return initPublicView();
+}
+
+async function initPublicView() {
+  let performer = null;
+  const idMatch = location.pathname.match(/^\/performers\/(\d+)/);
+  if (idMatch) {
+    const res = await fetch(`/api/performers/${idMatch[1]}/public`);
+    const data = await res.json();
+    if (data.success) performer = data.performer;
+  } else {
+    const slug = location.pathname.split('/').filter(Boolean).pop();
+    const res = await fetch(`/api/performers/slug/${encodeURIComponent(slug)}`);
+    const data = await res.json();
+    if (data.success) performer = data.performer;
+  }
+  document.getElementById('loading-state').hidden = true;
+  if (!performer) { document.getElementById('not-found-state').hidden = false; return; }
+
+  document.getElementById('public-view').hidden = false;
+  document.getElementById('pub-photo').src = performer.photoUrl || '/mozartLogo.jpg';
+  document.getElementById('pub-name').textContent = performer.name;
+  document.getElementById('pub-meta').textContent = metaLabel(performer);
+  document.getElementById('pub-rate').textContent = rateLabel(performer);
+  document.getElementById('pub-bio').textContent = performer.bio || '';
+
+  if (performer.galleryPhotos && performer.galleryPhotos.length) {
+    document.getElementById('pub-gallery-card').hidden = false;
+    document.getElementById('pub-gallery').innerHTML = performer.galleryPhotos.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('');
+  }
+  if (performer.videoClips && performer.videoClips.length) {
+    document.getElementById('pub-video-card').hidden = false;
+    document.getElementById('pub-videos').innerHTML = performer.videoClips.map((url) => `<video src="${escapeHtml(url)}" controls></video>`).join('');
+  }
+  const socialHtml = socialLinksHtml(performer.socialLinks);
+  if (socialHtml) { document.getElementById('pub-social-card').hidden = false; document.getElementById('pub-social').innerHTML = socialHtml; }
+}
+
+let myProfile = null;
+
+async function initDashboard() {
+  const sessionData = await fetch('/api/session').then((r) => r.json());
+  if (!sessionData.user) { window.location.href = '/login?redirect=' + encodeURIComponent('/performer'); return; }
+
+  const res = await fetch('/api/performers/me');
+  const data = await res.json();
+  document.getElementById('loading-state').hidden = true;
+  myProfile = data.profile;
+  if (!myProfile) { window.location.href = '/become-performer'; return; }
+
+  if (myProfile.status === 'pending') return show('state-pending');
+  if (myProfile.status === 'rejected') return show('state-rejected');
+  if (myProfile.suspended) return show('state-suspended');
+  if (!myProfile.activationPaid) return show('state-activation');
+  show('dashboard-view');
+  renderDashboard();
+}
+
+function show(id) {
+  ['state-pending', 'state-rejected', 'state-suspended', 'state-activation', 'dashboard-view'].forEach((s) => { document.getElementById(s).hidden = s !== id; });
+}
+
+document.getElementById('pay-activation-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('pay-activation-btn');
+  btn.disabled = true; btn.textContent = 'Starting checkout...';
+  const res = await fetch('/api/performers/me/activation-fee/checkout', { method: 'POST' });
+  const data = await res.json();
+  if (!data.success) { btn.disabled = false; btn.textContent = 'Pay $1.50 Activation Fee'; return showToast(data.error || 'Could not start checkout.', 'error'); }
+  window.location.href = data.url;
+});
+
+function renderDashboard() {
+  document.getElementById('dash-photo').src = myProfile.photoUrl || '/mozartLogo.jpg';
+  document.getElementById('dash-name').textContent = myProfile.name;
+  document.getElementById('dash-meta').textContent = metaLabel(myProfile);
+  document.getElementById('dash-rate').textContent = rateLabel(myProfile);
+
+  document.getElementById('edit-rate').value = myProfile.baseRateUsd;
+  document.getElementById('edit-rate-unit').value = myProfile.rateUnit;
+  document.getElementById('media-photo-preview').src = myProfile.photoUrl || '/mozartLogo.jpg';
+  document.getElementById('social-instagram').value = (myProfile.socialLinks && myProfile.socialLinks.instagram) || '';
+  document.getElementById('social-youtube').value = (myProfile.socialLinks && myProfile.socialLinks.youtube) || '';
+  document.getElementById('social-tiktok').value = (myProfile.socialLinks && myProfile.socialLinks.tiktok) || '';
+  document.getElementById('social-website').value = (myProfile.socialLinks && myProfile.socialLinks.website) || '';
+  document.getElementById('social-facebook').value = (myProfile.socialLinks && myProfile.socialLinks.facebook) || '';
+  document.getElementById('social-twitter').value = (myProfile.socialLinks && myProfile.socialLinks.twitter) || '';
+
+  renderMediaGrids();
+  loadCategoriesEditor();
+
+  const params = new URLSearchParams(location.search);
+  activateTab(params.get('tab') || 'requests');
+}
+
+const TABS = ['requests', 'profile', 'media', 'social', 'history'];
+function activateTab(tab) {
+  if (!TABS.includes(tab)) tab = 'requests';
+  document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  TABS.forEach((t) => { document.getElementById(`tab-${t}`).hidden = t !== tab; });
+  if (tab === 'requests') loadRequests();
+  if (tab === 'history') loadHistory();
+}
+document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+
+async function loadCategoriesEditor() {
+  const res = await fetch('/api/performer-categories');
+  const data = await res.json();
+  if (!data.success) return;
+  const mine = new Set(myProfile.categories || []);
+  document.getElementById('edit-categories').innerHTML = data.categories.map((c) => `
+    <div class="market-color-swatch edit-cat-chip ${mine.has(c) ? 'active' : ''}" data-category="${escapeHtml(c)}" style="width:auto; height:auto; border-radius:999px; padding:.5rem 1rem; font-size:.8rem; font-weight:600; background:#fff;">${escapeHtml(c)}</div>
+  `).join('');
+  document.querySelectorAll('.edit-cat-chip').forEach((chip) => chip.addEventListener('click', () => chip.classList.toggle('active')));
+}
+document.getElementById('save-categories-btn').addEventListener('click', async () => {
+  const categories = [...document.querySelectorAll('.edit-cat-chip.active')].map((c) => c.dataset.category);
+  const res = await fetch('/api/performers/me/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories }) });
+  const data = await res.json();
+  if (data.success) { myProfile = data.profile; showToast('Categories saved.', 'success'); } else showToast(data.error || 'Failed.', 'error');
+});
+document.getElementById('save-rate-btn').addEventListener('click', async () => {
+  const baseRateUsd = document.getElementById('edit-rate').value;
+  const rateUnitVal = document.getElementById('edit-rate-unit').value;
+  const res = await fetch('/api/performers/me/rate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseRateUsd, rateUnit: rateUnitVal }) });
+  const data = await res.json();
+  if (data.success) { myProfile = data.profile; document.getElementById('dash-rate').textContent = rateLabel(myProfile); showToast('Rate saved.', 'success'); } else showToast(data.error || 'Failed.', 'error');
+});
+document.getElementById('save-social-btn').addEventListener('click', async () => {
+  const links = {
+    instagram: document.getElementById('social-instagram').value.trim() || null,
+    youtube: document.getElementById('social-youtube').value.trim() || null,
+    tiktok: document.getElementById('social-tiktok').value.trim() || null,
+    website: document.getElementById('social-website').value.trim() || null,
+    facebook: document.getElementById('social-facebook').value.trim() || null,
+    twitter: document.getElementById('social-twitter').value.trim() || null,
+  };
+  const res = await fetch('/api/performers/me/social-links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(links) });
+  const data = await res.json();
+  if (data.success) { myProfile = data.profile; showToast('Social links saved.', 'success'); } else showToast(data.error || 'Failed.', 'error');
+});
+
+async function uploadFile(file, kind) {
+  const endpoint = kind === 'video' ? '/api/uploads/performer-video' : '/api/uploads/photo';
+  const fieldName = kind === 'video' ? 'video' : 'photo';
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  const res = await fetch(endpoint, { method: 'POST', body: formData });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Upload failed.');
+  return data.url;
+}
+
+function renderMediaGrids() {
+  document.getElementById('media-gallery-grid').innerHTML = (myProfile.galleryPhotos || []).map((url) => `
+    <div style="position:relative;"><img src="${escapeHtml(url)}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;">
+    <button type="button" class="remove-gallery-btn" data-url="${escapeHtml(url)}" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:11px;cursor:pointer;">&times;</button></div>
+  `).join('');
+  document.getElementById('media-video-grid').innerHTML = (myProfile.videoClips || []).map((url) => `
+    <div style="position:relative;"><video src="${escapeHtml(url)}" muted style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;"></video>
+    <button type="button" class="remove-video-btn" data-url="${escapeHtml(url)}" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:11px;cursor:pointer;">&times;</button></div>
+  `).join('');
+  document.querySelectorAll('.remove-gallery-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    const res = await fetch('/api/performers/me/gallery', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: btn.dataset.url }) });
+    const data = await res.json();
+    if (data.success) { myProfile = data.profile; renderMediaGrids(); }
+  }));
+  document.querySelectorAll('.remove-video-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    const res = await fetch('/api/performers/me/videos', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: btn.dataset.url }) });
+    const data = await res.json();
+    if (data.success) { myProfile = data.profile; renderMediaGrids(); }
+  }));
+}
+
+document.getElementById('media-photo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const url = await uploadFile(file, 'photo');
+    const res = await fetch('/api/performers/me/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoUrl: url }) });
+    const data = await res.json();
+    if (data.success) { myProfile = data.profile; document.getElementById('media-photo-preview').src = url; document.getElementById('dash-photo').src = url; showToast('Photo updated.', 'success'); }
+  } catch (err) { showToast(err.message, 'error'); }
+});
+document.getElementById('media-gallery-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const url = await uploadFile(file, 'photo');
+    const res = await fetch('/api/performers/me/gallery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const data = await res.json();
+    if (data.success) { myProfile = data.profile; renderMediaGrids(); }
+  } catch (err) { showToast(err.message, 'error'); }
+  e.target.value = '';
+});
+document.getElementById('media-video-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  showToast('Uploading video...', 'info');
+  try {
+    const url = await uploadFile(file, 'video');
+    const res = await fetch('/api/performers/me/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const data = await res.json();
+    if (data.success) { myProfile = data.profile; renderMediaGrids(); showToast('Video uploaded.', 'success'); }
+  } catch (err) { showToast(err.message, 'error'); }
+  e.target.value = '';
+});
+
+function offerCardHtml(o) {
+  const r = o.request || {};
+  if (o.status === 'invited') {
+    return `
+      <div class="offer-card" data-offer-id="${o.id}">
+        <div class="offer-head">
+          <div><strong>${escapeHtml(r.eventType || '')}</strong> - ${escapeHtml(r.performerCategory || '')}<div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || 'Date TBD'} ${o.distanceKm != null ? `&middot; ${o.distanceKm}km away` : ''}</div></div>
+          <div style="font-weight:800;">$${o.proposedAmountUsd}</div>
+        </div>
+        <p class="market-small market-muted" style="margin:8px 0;">${escapeHtml(r.notes || '')}</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="market-btn market-btn-primary market-btn-sm accept-offer-btn" data-id="${o.id}">Accept $${o.proposedAmountUsd}</button>
+          <button type="button" class="market-btn market-btn-outline market-btn-sm counter-toggle-btn" data-id="${o.id}">Counter Offer</button>
+          <button type="button" class="market-btn market-btn-outline market-btn-sm decline-offer-btn" data-id="${o.id}">Decline</button>
+        </div>
+        <div class="counter-form" id="counter-form-${o.id}" hidden>
+          <input class="market-input" type="number" placeholder="Your amount ($)" id="counter-amount-${o.id}">
+          <input class="market-input" type="text" placeholder="Optional note" id="counter-note-${o.id}">
+          <button type="button" class="market-btn market-btn-primary market-btn-sm submit-counter-btn" data-id="${o.id}">Send</button>
+        </div>
+      </div>
+    `;
+  }
+  const badgeVariant = { accepted: 'success', countered: 'warning', declined: 'neutral', expired: 'neutral', selected: 'success', not_selected: 'neutral' }[o.status] || 'neutral';
+  return `
+    <div class="offer-card">
+      <div class="offer-head">
+        <div><strong>${escapeHtml(r.eventType || '')}</strong> - ${escapeHtml(r.performerCategory || '')}<div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || 'Date TBD'}</div></div>
+        <span class="market-badge market-badge-${badgeVariant}">${escapeHtml(o.status.replace(/_/g, ' '))}</span>
+      </div>
+    </div>
+  `;
+}
+
+async function loadRequests() {
+  const res = await fetch('/api/marketplace/offers/mine');
+  const data = await res.json();
+  if (!data.success) return;
+  const list = data.offers;
+  document.getElementById('requests-empty').hidden = list.length > 0;
+  document.getElementById('requests-list').innerHTML = list.map(offerCardHtml).join('');
+  document.querySelectorAll('.accept-offer-btn').forEach((btn) => btn.addEventListener('click', () => respondToOffer(btn.dataset.id, 'accept')));
+  document.querySelectorAll('.decline-offer-btn').forEach((btn) => btn.addEventListener('click', () => respondToOffer(btn.dataset.id, 'decline')));
+  document.querySelectorAll('.counter-toggle-btn').forEach((btn) => btn.addEventListener('click', () => {
+    const form = document.getElementById(`counter-form-${btn.dataset.id}`);
+    form.hidden = !form.hidden;
+  }));
+  document.querySelectorAll('.submit-counter-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    const amountUsd = document.getElementById(`counter-amount-${btn.dataset.id}`).value;
+    const note = document.getElementById(`counter-note-${btn.dataset.id}`).value;
+    if (!amountUsd) return showToast('Enter a counter-offer amount.', 'error');
+    const res2 = await fetch(`/api/marketplace/offers/${btn.dataset.id}/counter`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amountUsd, note }) });
+    const data2 = await res2.json();
+    if (data2.success) { showToast('Counter-offer sent.', 'success'); loadRequests(); } else showToast(data2.error || 'Failed.', 'error');
+  }));
+}
+
+async function respondToOffer(id, action) {
+  const res = await fetch(`/api/marketplace/offers/${id}/${action}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) { showToast(action === 'accept' ? 'Offer accepted.' : 'Offer declined.', 'success'); loadRequests(); }
+  else showToast(data.error || 'Failed.', 'error');
+}
+
+async function loadHistory() {
+  const res = await fetch('/api/marketplace/offers/mine');
+  const data = await res.json();
+  if (!data.success) return;
+  const selected = data.offers.filter((o) => o.status === 'selected');
+  document.getElementById('history-empty').hidden = selected.length > 0;
+  document.getElementById('history-list').innerHTML = selected.map((o) => {
+    const r = o.request || {};
+    return `<div class="offer-card"><strong>${escapeHtml(r.eventType || '')}</strong> - ${escapeHtml(r.performerCategory || '')}<div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || ''}</div></div>`;
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>

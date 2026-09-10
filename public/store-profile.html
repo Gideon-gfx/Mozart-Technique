@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store Profile - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.profile-header { display: flex; align-items: center; gap: 16px; padding: 28px 0 10px; }
+.profile-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg,#cc0000,#7e0e14); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.3rem; flex-shrink: 0; }
+.profile-name { font-size: 1.25rem; font-weight: 800; margin: 0; }
+.profile-email { color: var(--mz-muted); font-size: .85rem; margin: 2px 0 0; }
+
+.segmented { display: flex; gap: 6px; margin-bottom: 18px; }
+.segmented button { padding: .5rem 1rem; border-radius: 999px; border: 1px solid var(--mz-border); background: #fff; font-weight: 700; font-size: .8rem; cursor: pointer; color: var(--mz-muted); }
+.segmented button.active { background: var(--mz-ink); color: #fff; border-color: var(--mz-ink); }
+
+.order-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); padding: 16px; margin-bottom: 14px; }
+.order-card-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.order-thumbs { display: flex; gap: 8px; margin: 8px 0; }
+.order-thumbs img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; }
+.order-toggle-btn { font-size: .78rem; font-weight: 700; color: var(--mz-red); background: none; border: none; cursor: pointer; padding: 0; }
+.order-timeline-wrap { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--mz-border); }
+
+.inbox-item { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--mz-border); }
+.inbox-item:last-child { border-bottom: none; }
+.inbox-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--mz-bg-soft); display: flex; align-items: center; justify-content: center; color: var(--mz-red); flex-shrink: 0; }
+
+.review-card { border-bottom: 1px solid var(--mz-border); padding: 14px 0; display: flex; gap: 12px; }
+.review-card:last-child { border-bottom: none; }
+.review-card img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+
+.address-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); padding: 16px; margin-bottom: 14px; }
+.address-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+
+.notif-item { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--mz-border); font-size: .86rem; }
+.notif-item:last-child { border-bottom: none; }
+.notif-unread { font-weight: 700; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/store" class="market-home-btn" aria-label="Back to store"><i class="fa-solid fa-arrow-left"></i></a>
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-nav-actions market-nav-actions-end">
+      <div id="auth-state"></div>
+      <a href="/cart" class="market-nav-icon" aria-label="Cart"><i class="fa-solid fa-cart-shopping"></i></a>
+    </div>
+  </div>
+</nav>
+
+<div class="market-container">
+  <div class="profile-header">
+    <div class="profile-avatar" id="profile-avatar">?</div>
+    <div>
+      <p class="profile-name" id="profile-name">Welcome</p>
+      <p class="profile-email" id="profile-email"></p>
+    </div>
+  </div>
+
+  <div class="market-tabs" id="tabs">
+    <button type="button" class="market-tab-btn active" data-tab="orders"><i class="fa-solid fa-box"></i> Orders</button>
+    <button type="button" class="market-tab-btn" data-tab="inbox"><i class="fa-solid fa-inbox"></i> Inbox</button>
+    <button type="button" class="market-tab-btn" data-tab="ratings"><i class="fa-solid fa-star"></i> Ratings</button>
+    <button type="button" class="market-tab-btn" data-tab="recently-viewed"><i class="fa-solid fa-clock-rotate-left"></i> Recently Viewed</button>
+    <button type="button" class="market-tab-btn" data-tab="addresses"><i class="fa-solid fa-location-dot"></i> Address Book</button>
+    <button type="button" class="market-tab-btn" data-tab="notifications"><i class="fa-solid fa-bell"></i> Notifications</button>
+  </div>
+
+  <div class="market-tab-panel" id="tab-orders">
+    <div class="segmented" id="order-segments">
+      <button type="button" class="active" data-status-group="ongoing">Ongoing</button>
+      <button type="button" data-status-group="completed">Completed</button>
+      <button type="button" data-status-group="cancelled">Cancelled</button>
+    </div>
+    <div id="orders-list"></div>
+    <div id="orders-empty" class="market-empty" hidden><i class="fa-solid fa-box-open"></i><h3>No orders here</h3><p>Orders you place will show up here.</p></div>
+  </div>
+
+  <div class="market-tab-panel" id="tab-inbox" hidden>
+    <div class="market-card"><div id="inbox-list"></div></div>
+    <div id="inbox-empty" class="market-empty" hidden><i class="fa-solid fa-inbox"></i><h3>Nothing here yet</h3><p>Delivery updates about your orders will appear here.</p></div>
+  </div>
+
+  <div class="market-tab-panel" id="tab-ratings" hidden>
+    <div class="market-card"><div id="ratings-list"></div></div>
+    <div id="ratings-empty" class="market-empty" hidden><i class="fa-solid fa-star"></i><h3>No reviews yet</h3><p>Reviews you write on products will show up here.</p></div>
+  </div>
+
+  <div class="market-tab-panel" id="tab-recently-viewed" hidden>
+    <div class="market-product-grid" id="recently-viewed-grid"></div>
+    <div id="recently-viewed-empty" class="market-empty" hidden><i class="fa-solid fa-clock-rotate-left"></i><h3>Nothing viewed yet</h3><p>Products you look at will show up here.</p></div>
+  </div>
+
+  <div class="market-tab-panel" id="tab-addresses" hidden>
+    <button type="button" class="market-btn market-btn-primary market-btn-sm" id="add-address-btn" style="margin-bottom:16px;"><i class="fa-solid fa-plus"></i> Add Address</button>
+    <div id="address-form-card" class="market-card" style="margin-bottom:16px;" hidden></div>
+    <div id="addresses-list"></div>
+    <div id="addresses-empty" class="market-empty" hidden><i class="fa-solid fa-location-dot"></i><h3>No addresses saved</h3><p>Add a delivery address so you can check out.</p></div>
+  </div>
+
+  <div class="market-tab-panel" id="tab-notifications" hidden>
+    <div class="market-card"><div id="notifications-list"></div></div>
+    <div id="notifications-empty" class="market-empty" hidden><i class="fa-solid fa-bell"></i><h3>No notifications yet</h3><p>Updates about your orders and reviews will appear here.</p></div>
+  </div>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+const ONGOING = ['paid', 'processing', 'shipped', 'payment_flagged'];
+const COMPLETED = ['delivered'];
+const CANCELLED = ['cancelled'];
+
+let allOrders = [];
+let allCountries = [];
+let editingAddressId = null;
+let orderSegment = 'ongoing';
+
+async function loadProfile() {
+  const res = await fetch('/api/session');
+  const data = await res.json();
+  const user = data.user;
+  if (!user) return;
+  document.getElementById('profile-name').textContent = `Welcome, ${user.name || user.email}`;
+  document.getElementById('profile-email').textContent = user.email;
+  const initials = (user.name || user.email || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  document.getElementById('profile-avatar').textContent = initials;
+}
+
+// --- Tabs ---
+const TABS = ['orders', 'inbox', 'ratings', 'recently-viewed', 'addresses', 'notifications'];
+function activateTab(tab) {
+  if (!TABS.includes(tab)) tab = 'orders';
+  document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  TABS.forEach((t) => { document.getElementById(`tab-${t}`).hidden = t !== tab; });
+  if (tab === 'orders') loadOrders();
+  if (tab === 'inbox') loadInbox();
+  if (tab === 'ratings') loadRatings();
+  if (tab === 'recently-viewed') loadRecentlyViewed();
+  if (tab === 'addresses') loadAddresses();
+  if (tab === 'notifications') loadNotifications();
+  history.replaceState(null, '', `/store-profile?tab=${tab}`);
+}
+document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+
+// --- Orders ---
+function orderStatusBadge(status) {
+  const map = {
+    pending_payment: ['neutral', 'Pending payment'], paid: ['info', 'Paid'], processing: ['warning', 'Processing'],
+    shipped: ['info', 'Shipped'], delivered: ['success', 'Delivered'], cancelled: ['danger', 'Cancelled'],
+    payment_flagged: ['warning', 'Processing'],
+  };
+  const [variant, label] = map[status] || ['neutral', status];
+  return `<span class="market-badge market-badge-${variant}">${label}</span>`;
+}
+function orderCardHtml(order) {
+  return `
+    <div class="order-card" data-order-id="${order.id}">
+      <div class="order-card-head">
+        <div>
+          <div style="font-weight:800; font-family:monospace;">${escapeHtml(order.orderNumber)}</div>
+          <div class="market-muted market-small">${new Date(order.createdAt).toLocaleDateString()}</div>
+        </div>
+        ${orderStatusBadge(order.status)}
+      </div>
+      <div class="order-thumbs">${order.items.map((item) => `<img src="${item.image || ''}" alt="${escapeHtml(item.productName)}" title="${escapeHtml(item.productName)}">`).join('')}</div>
+      <div class="market-flex-between">
+        <span class="market-muted market-small">${order.items.length} item${order.items.length === 1 ? '' : 's'}</span>
+        <span style="font-weight:800;">$${Number(order.totalUsd).toFixed(2)}</span>
+      </div>
+      <button type="button" class="order-toggle-btn" data-order-toggle="${order.id}">View timeline <i class="fa-solid fa-chevron-down"></i></button>
+      <div class="order-timeline-wrap" id="order-timeline-${order.id}" hidden>
+        <ul class="market-timeline">
+          ${order.statusHistory.map((h) => `<li><div class="t-status">${escapeHtml(h.status.replace(/_/g, ' '))}</div><div class="t-message">${escapeHtml(h.message)}</div><div class="t-time">${new Date(h.at).toLocaleString()}</div></li>`).join('')}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+async function loadOrders() {
+  const res = await fetch('/api/store/orders');
+  const data = await res.json();
+  if (!data.success) return;
+  allOrders = data.orders;
+  renderOrders();
+}
+function renderOrders() {
+  const groups = { ongoing: ONGOING, completed: COMPLETED, cancelled: CANCELLED };
+  const filtered = allOrders.filter((o) => groups[orderSegment].includes(o.status));
+  const list = document.getElementById('orders-list');
+  document.getElementById('orders-empty').hidden = filtered.length > 0;
+  list.innerHTML = filtered.map(orderCardHtml).join('');
+  list.querySelectorAll('[data-order-toggle]').forEach((btn) => btn.addEventListener('click', () => {
+    const wrap = document.getElementById(`order-timeline-${btn.dataset.orderToggle}`);
+    wrap.hidden = !wrap.hidden;
+  }));
+}
+document.querySelectorAll('#order-segments button').forEach((btn) => btn.addEventListener('click', () => {
+  document.querySelectorAll('#order-segments button').forEach((b) => b.classList.remove('active'));
+  btn.classList.add('active');
+  orderSegment = btn.dataset.statusGroup;
+  renderOrders();
+}));
+
+// --- Inbox ---
+const INBOX_ICONS = { paid: 'fa-credit-card', processing: 'fa-boxes-packing', shipped: 'fa-truck-fast', delivered: 'fa-circle-check', cancelled: 'fa-circle-xmark', payment_flagged: 'fa-triangle-exclamation' };
+async function loadInbox() {
+  const res = await fetch('/api/store/inbox');
+  const data = await res.json();
+  if (!data.success) return;
+  const list = document.getElementById('inbox-list');
+  document.getElementById('inbox-empty').hidden = data.inbox.length > 0;
+  list.innerHTML = data.inbox.map((item) => `
+    <div class="inbox-item">
+      <div class="inbox-icon"><i class="fa-solid ${INBOX_ICONS[item.status] || 'fa-circle-info'}"></i></div>
+      <div>
+        <div style="font-weight:700; font-size:.86rem;">${escapeHtml(item.orderNumber)}</div>
+        <div class="market-muted market-small">${escapeHtml(item.message)}</div>
+        <div class="market-muted market-small">${new Date(item.at).toLocaleString()}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Ratings ---
+async function loadRatings() {
+  const res = await fetch('/api/store/my-reviews');
+  const data = await res.json();
+  if (!data.success) return;
+  const list = document.getElementById('ratings-list');
+  document.getElementById('ratings-empty').hidden = data.reviews.length > 0;
+  list.innerHTML = data.reviews.map((r) => `
+    <div class="review-card">
+      <img src="${r.productImage || ''}" alt="">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:.9rem;">${r.productSlug ? `<a href="/product?slug=${encodeURIComponent(r.productSlug)}">${escapeHtml(r.productName)}</a>` : escapeHtml(r.productName)}</div>
+        <div class="market-rating">${Array.from({length:5},(_,i)=>`<i class="fa-solid fa-star" style="color:${i < r.rating ? '#f5a623' : '#e2e6e8'}"></i>`).join('')}</div>
+        <p style="font-size:.85rem; margin:4px 0;">${escapeHtml(r.text)}</p>
+        ${r.replies.map((reply) => `<div class="review-reply" style="background:var(--mz-bg-soft); padding:8px 10px; border-radius:8px; font-size:.8rem; margin-top:4px;"><b style="color:var(--mz-red);">${escapeHtml(reply.adminName)}:</b> ${escapeHtml(reply.text)}</div>`).join('')}
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button type="button" class="market-btn market-btn-outline market-btn-sm delete-review-btn" data-id="${r.id}"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('.delete-review-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this review?')) return;
+    const res2 = await fetch(`/api/store/reviews/${btn.dataset.id}`, { method: 'DELETE' });
+    const data2 = await res2.json();
+    if (data2.success) { showToast('Review deleted.', 'success'); loadRatings(); }
+    else showToast(data2.error || 'Failed.', 'error');
+  }));
+}
+
+// --- Recently viewed ---
+async function loadRecentlyViewed() {
+  const res = await fetch('/api/store/recently-viewed');
+  const data = await res.json();
+  if (!data.success) return;
+  document.getElementById('recently-viewed-empty').hidden = data.products.length > 0;
+  document.getElementById('recently-viewed-grid').innerHTML = data.products.map((p) => `
+    <a class="market-product-card" href="/product?slug=${encodeURIComponent(p.slug)}">
+      <div class="market-product-image"><img src="${p.coverImage || ''}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
+      <div class="market-product-info">
+        <p class="market-product-name">${escapeHtml(p.name)}</p>
+        <div class="market-price">${p.symbol}${Number(p.priceLocal).toFixed(2)} <small>${p.currency}</small></div>
+      </div>
+    </a>
+  `).join('');
+}
+
+// --- Addresses ---
+async function ensureCountries() {
+  if (allCountries.length) return;
+  const res = await fetch('/api/geo');
+  const data = await res.json();
+  if (data.success) allCountries = data.countries;
+}
+function addressCardHtml(a) {
+  return `
+    <div class="address-card">
+      <div class="address-card-head">
+        <div>
+          <strong>${escapeHtml(a.label)}</strong> ${a.isDefault ? '<span class="market-badge market-badge-success">Default</span>' : ''}
+          <p style="margin:4px 0; font-size:.88rem;">${escapeHtml(a.fullName)} &middot; ${escapeHtml(a.phone)}</p>
+          <p class="market-muted market-small">${escapeHtml(a.street)}, ${escapeHtml(a.city)}${a.state ? ', ' + escapeHtml(a.state) : ''}, ${escapeHtml(a.countryName)} ${escapeHtml(a.postalCode || '')}</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${!a.isDefault ? `<button type="button" class="market-btn market-btn-outline market-btn-sm set-default-btn" data-id="${a.id}">Set Default</button>` : ''}
+          <button type="button" class="market-btn market-btn-outline market-btn-sm edit-address-btn" data-id="${a.id}">Edit</button>
+          <button type="button" class="market-btn market-btn-danger market-btn-sm delete-address-btn" data-id="${a.id}">Delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function loadAddresses() {
+  await ensureCountries();
+  const res = await fetch('/api/store/addresses');
+  const data = await res.json();
+  if (!data.success) return;
+  document.getElementById('addresses-empty').hidden = data.addresses.length > 0;
+  const list = document.getElementById('addresses-list');
+  list.innerHTML = data.addresses.map(addressCardHtml).join('');
+  list.querySelectorAll('.set-default-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    await fetch(`/api/store/addresses/${btn.dataset.id}/default`, { method: 'POST' });
+    loadAddresses();
+  }));
+  list.querySelectorAll('.delete-address-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this address?')) return;
+    const res2 = await fetch(`/api/store/addresses/${btn.dataset.id}`, { method: 'DELETE' });
+    const data2 = await res2.json();
+    if (data2.success) { showToast('Address deleted.', 'success'); loadAddresses(); }
+    else showToast(data2.error || 'Failed.', 'error');
+  }));
+  list.querySelectorAll('.edit-address-btn').forEach((btn) => btn.addEventListener('click', () => {
+    const address = data.addresses.find((a) => a.id === Number(btn.dataset.id));
+    openAddressForm(address);
+  }));
+}
+function countryOptionsHtml(selected) {
+  return allCountries.map((c) => `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+}
+function openAddressForm(address) {
+  editingAddressId = address ? address.id : null;
+  const card = document.getElementById('address-form-card');
+  card.hidden = false;
+  card.innerHTML = `
+    <h3 class="market-card-title">${address ? 'Edit address' : 'Add address'}</h3>
+    <div class="market-form-row">
+      <div class="market-field"><label>Label</label><input class="market-input" id="addr-label" value="${address ? escapeHtml(address.label) : 'Home'}"></div>
+      <div class="market-field"><label>Full name</label><input class="market-input" id="addr-fullname" value="${address ? escapeHtml(address.fullName) : ''}"></div>
+    </div>
+    <div class="market-form-row">
+      <div class="market-field"><label>Phone</label><input class="market-input" id="addr-phone" value="${address ? escapeHtml(address.phone) : ''}"></div>
+      <div class="market-field"><label>Country</label><select class="market-select" id="addr-country">${countryOptionsHtml(address ? address.country : '')}</select></div>
+    </div>
+    <div class="market-form-row">
+      <div class="market-field"><label>State / Region</label><input class="market-input" id="addr-state" value="${address ? escapeHtml(address.state) : ''}"></div>
+      <div class="market-field"><label>City</label><input class="market-input" id="addr-city" value="${address ? escapeHtml(address.city) : ''}"></div>
+    </div>
+    <div class="market-form-row">
+      <div class="market-field"><label>Street address</label><input class="market-input" id="addr-street" value="${address ? escapeHtml(address.street) : ''}"></div>
+      <div class="market-field"><label>Postal code</label><input class="market-input" id="addr-postal" value="${address ? escapeHtml(address.postalCode) : ''}"></div>
+    </div>
+    <label class="market-checkbox-row" style="margin-bottom:14px;"><input type="checkbox" id="addr-default" ${address && address.isDefault ? 'checked' : ''}> Set as default address</label>
+    <div style="display:flex; gap:10px;">
+      <button type="button" class="market-btn market-btn-primary" id="save-address-btn">Save Address</button>
+      <button type="button" class="market-btn market-btn-outline" id="cancel-address-btn">Cancel</button>
+    </div>
+  `;
+  document.getElementById('cancel-address-btn').addEventListener('click', () => { card.hidden = true; });
+  document.getElementById('save-address-btn').addEventListener('click', saveAddress);
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function saveAddress() {
+  const country = document.getElementById('addr-country').value;
+  const countryInfo = allCountries.find((c) => c.code === country);
+  const payload = {
+    label: document.getElementById('addr-label').value.trim() || 'Home',
+    fullName: document.getElementById('addr-fullname').value.trim(),
+    phone: document.getElementById('addr-phone').value.trim(),
+    country,
+    countryName: countryInfo ? countryInfo.name : country,
+    state: document.getElementById('addr-state').value.trim(),
+    city: document.getElementById('addr-city').value.trim(),
+    street: document.getElementById('addr-street').value.trim(),
+    postalCode: document.getElementById('addr-postal').value.trim(),
+    isDefault: document.getElementById('addr-default').checked,
+  };
+  if (!payload.fullName || !payload.phone || !payload.city || !payload.street) return showToast('Fill in name, phone, city and street.', 'error');
+  const res = await fetch(editingAddressId ? `/api/store/addresses/${editingAddressId}` : '/api/store/addresses', {
+    method: editingAddressId ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!data.success) return showToast(data.error || 'Could not save address.', 'error');
+  showToast('Address saved.', 'success');
+  document.getElementById('address-form-card').hidden = true;
+  loadAddresses();
+}
+document.getElementById('add-address-btn').addEventListener('click', async () => { await ensureCountries(); openAddressForm(null); });
+
+// --- Notifications ---
+async function loadNotifications() {
+  const res = await fetch('/api/notifications');
+  const data = await res.json();
+  if (!data.success) return;
+  const storeNotifs = data.notifications.filter((n) => (n.type || '').startsWith('store_'));
+  document.getElementById('notifications-empty').hidden = storeNotifs.length > 0;
+  document.getElementById('notifications-list').innerHTML = storeNotifs.map((n) => `
+    <div class="notif-item">
+      <i class="fa-solid fa-circle-info" style="color:var(--mz-red);"></i>
+      <div class="${n.read ? '' : 'notif-unread'}">
+        <div>${n.href ? `<a href="${n.href}">${escapeHtml(n.message)}</a>` : escapeHtml(n.message)}</div>
+        <div class="market-muted market-small">${new Date(n.createdAt).toLocaleString()}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+loadProfile();
+activateTab(new URLSearchParams(location.search).get('tab') || 'orders');
+</script>
+</body>
+</html>

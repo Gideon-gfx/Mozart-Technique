@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cart - Mozart Techniques Store</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.cart-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; padding: 28px 0 48px; align-items: start; }
+@media (max-width: 900px) { .cart-grid { grid-template-columns: 1fr; } }
+.cart-row { display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--mz-border); align-items: center; }
+.cart-row:last-child { border-bottom: none; }
+.cart-row img { width: 76px; height: 76px; border-radius: 8px; object-fit: cover; background: var(--mz-bg-soft); }
+.cart-item-name { font-weight: 700; font-size: .92rem; margin: 0 0 4px; }
+.cart-item-meta { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--mz-muted); margin-bottom: 6px; }
+.cart-color-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--mz-border); display: inline-block; }
+.cart-item-controls { display: flex; align-items: center; gap: 14px; }
+.cart-qty-control { display: flex; align-items: center; border: 1px solid var(--mz-border); border-radius: 999px; overflow: hidden; }
+.cart-qty-control button { width: 30px; height: 30px; border: none; background: #fff; cursor: pointer; }
+.cart-qty-control span { width: 34px; text-align: center; font-weight: 700; font-size: .85rem; display: inline-block; }
+.cart-remove-btn { border: none; background: none; color: var(--mz-muted-light); cursor: pointer; font-size: .95rem; }
+.cart-remove-btn:hover { color: #b91c1c; }
+.cart-line-total { text-align: right; font-weight: 800; font-size: .95rem; }
+.cart-warning { font-size: .76rem; color: #b91c1c; margin-top: 4px; }
+.summary-row { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 10px; color: var(--mz-muted); }
+.summary-total { display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800; margin: 16px 0; padding-top: 14px; border-top: 1px solid var(--mz-border); }
+#checkout-modal .market-field { text-align: left; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/store" class="market-home-btn" aria-label="Back to store"><i class="fa-solid fa-arrow-left"></i></a>
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-nav-actions market-nav-actions-end">
+      <div id="auth-state"></div>
+    </div>
+  </div>
+</nav>
+
+<div class="market-container">
+  <h1 class="market-page-title">Your Cart</h1>
+
+  <div id="cart-empty" class="market-empty" hidden>
+    <i class="fa-solid fa-cart-shopping"></i>
+    <h3>Your cart is empty</h3>
+    <p>Browse the store to find something for your practice.</p>
+    <a href="/store" class="market-btn market-btn-primary">Continue Shopping</a>
+  </div>
+
+  <div class="cart-grid" id="cart-grid" hidden>
+    <div class="market-card" id="cart-items-card">
+      <div id="cart-items-list"></div>
+    </div>
+
+    <div class="market-card">
+      <h2 class="market-card-title">Order Summary</h2>
+      <div class="summary-row"><span>Items</span><span id="summary-count">0</span></div>
+      <div class="summary-total"><span>Total</span><span id="summary-total">-</span></div>
+      <button type="button" id="checkout-btn" class="market-btn market-btn-primary market-btn-block">Proceed to Checkout</button>
+      <p class="market-muted market-small market-secure-note">Secure checkout powered by Stripe.</p>
+    </div>
+  </div>
+
+  <section class="market-section" id="recently-viewed-section" hidden>
+    <div class="market-section-header"><h2 class="market-section-title">Recently Viewed</h2></div>
+    <div class="market-product-grid" id="recently-viewed-grid"></div>
+  </section>
+</div>
+
+<div class="market-modal-overlay" id="checkout-modal" hidden>
+  <div class="market-modal">
+    <div id="checkout-modal-body"></div>
+  </div>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+const CART_KEY = 'musicMarketCart';
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function getCart() { try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; } }
+function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+let currentUser = null;
+let liveItems = []; // merged cart + live batch data, one entry per cart line
+
+async function loadSession() {
+  try {
+    const res = await fetch('/api/session');
+    const data = await res.json();
+    currentUser = data.user || null;
+  } catch { currentUser = null; }
+}
+
+function cartRowHtml(item) {
+  const unavailable = !item.active || item.stockForViewerCountry <= 0;
+  return `
+    <div class="cart-row" data-key="${item.key}">
+      <img src="${item.image || ''}" alt="${escapeHtml(item.name)}">
+      <div>
+        <p class="cart-item-name">${escapeHtml(item.name)}</p>
+        <div class="cart-item-meta">
+          ${item.colorHex ? `<span class="cart-color-dot" style="background:${item.colorHex}"></span>` : ''}
+          <span>${escapeHtml(item.colorName || '')}</span>
+          <span>&middot;</span>
+          <span>${item.symbol || '$'}${Number(item.unitPriceLocal || 0).toFixed(2)} ${item.currency || ''}</span>
+        </div>
+        ${unavailable
+          ? `<p class="cart-warning"><i class="fa-solid fa-triangle-exclamation"></i> ${item.active ? 'Out of stock for delivery to your country' : 'No longer available'} - <button type="button" class="cart-remove-btn cart-remove-inline" data-key="${item.key}" style="text-decoration:underline; color:#b91c1c;">remove</button></p>`
+          : `<div class="cart-item-controls">
+              <div class="cart-qty-control">
+                <button type="button" data-minus data-key="${item.key}" aria-label="Decrease quantity">&minus;</button>
+                <span>${item.quantity}</span>
+                <button type="button" data-plus data-key="${item.key}" aria-label="Increase quantity">+</button>
+              </div>
+              <span class="market-muted market-small">${item.stockForViewerCountry} left</span>
+            </div>`
+        }
+      </div>
+      <div>
+        <button type="button" class="cart-remove-btn" data-remove data-key="${item.key}" aria-label="Remove item"><i class="fa-solid fa-trash"></i></button>
+        <div class="cart-line-total">${item.symbol || '$'}${(Number(item.unitPriceLocal || 0) * item.quantity).toFixed(2)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCart() {
+  const cart = getCart();
+  const keys = Object.keys(cart);
+  if (!keys.length) {
+    document.getElementById('cart-empty').hidden = false;
+    document.getElementById('cart-grid').hidden = true;
+    return;
+  }
+  document.getElementById('cart-empty').hidden = true;
+  document.getElementById('cart-grid').hidden = false;
+  document.getElementById('cart-items-list').innerHTML = liveItems.map(cartRowHtml).join('');
+
+  const validItems = liveItems.filter((item) => item.active && item.stockForViewerCountry > 0);
+  const total = validItems.reduce((sum, item) => sum + Number(item.unitPriceLocal || 0) * item.quantity, 0);
+  document.getElementById('summary-count').textContent = validItems.reduce((sum, item) => sum + item.quantity, 0);
+  document.getElementById('summary-total').textContent = validItems.length ? `${validItems[0].symbol}${total.toFixed(2)}` : '-';
+  document.getElementById('checkout-btn').disabled = !validItems.length;
+
+  wireCartRowEvents();
+}
+
+function wireCartRowEvents() {
+  document.querySelectorAll('[data-plus]').forEach((btn) => btn.addEventListener('click', () => changeQty(btn.dataset.key, 1)));
+  document.querySelectorAll('[data-minus]').forEach((btn) => btn.addEventListener('click', () => changeQty(btn.dataset.key, -1)));
+  document.querySelectorAll('[data-remove], .cart-remove-inline').forEach((btn) => btn.addEventListener('click', () => removeItem(btn.dataset.key)));
+}
+
+function changeQty(key, delta) {
+  const cart = getCart();
+  const live = liveItems.find((i) => i.key === key);
+  if (!cart[key] || !live) return;
+  const max = live.stockForViewerCountry || 1;
+  cart[key].quantity = Math.min(max, Math.max(1, (cart[key].quantity || 1) + delta));
+  saveCart(cart);
+  live.quantity = cart[key].quantity;
+  renderCart();
+}
+
+function removeItem(key) {
+  const cart = getCart();
+  delete cart[key];
+  saveCart(cart);
+  liveItems = liveItems.filter((i) => i.key !== key);
+  renderCart();
+}
+
+async function refreshLiveData() {
+  const cart = getCart();
+  const keys = Object.keys(cart);
+  if (!keys.length) { liveItems = []; return; }
+  const res = await fetch('/api/store/products/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: keys.map((k) => ({ productId: cart[k].productId, colorId: cart[k].colorId })) }),
+  });
+  const data = await res.json();
+  const results = data.success ? data.items : [];
+  liveItems = keys.map((key, i) => {
+    const cached = cart[key];
+    const live = results[i] || { active: false };
+    return {
+      key,
+      quantity: cached.quantity,
+      productId: cached.productId,
+      colorId: cached.colorId,
+      active: Boolean(live.active),
+      name: live.productName || cached.name,
+      slug: live.productSlug || cached.slug,
+      image: live.image || cached.image,
+      colorName: live.colorName || cached.colorName,
+      colorHex: live.colorHex || cached.colorHex,
+      unitPriceLocal: live.unitPriceLocal != null ? live.unitPriceLocal : 0,
+      currency: live.currency || '',
+      symbol: live.symbol || '$',
+      stockForViewerCountry: live.stockForViewerCountry || 0,
+    };
+  });
+}
+
+// --- Checkout modal ---
+function openCheckoutModal() {
+  document.getElementById('checkout-modal').hidden = false;
+  renderCheckoutStep('loading');
+}
+function closeCheckoutModal() { document.getElementById('checkout-modal').hidden = true; }
+
+function renderCheckoutStep(step, payload) {
+  const body = document.getElementById('checkout-modal-body');
+  if (step === 'loading') {
+    body.innerHTML = `<i class="fa-solid fa-spinner fa-spin modal-icon"></i><p>Checking your delivery details...</p>`;
+    return;
+  }
+  if (step === 'need-address') {
+    body.innerHTML = `
+      <i class="fa-solid fa-location-dot modal-icon"></i>
+      <h3>Add a delivery address</h3>
+      <p>You need a saved delivery address before checking out.</p>
+      <div class="market-modal-actions">
+        <button type="button" class="market-btn market-btn-outline" id="modal-cancel-btn">Cancel</button>
+        <a href="/store-profile?tab=addresses" class="market-btn market-btn-primary">Add Address</a>
+      </div>
+    `;
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeCheckoutModal);
+    return;
+  }
+  if (step === 'confirm') {
+    const { addresses, total, symbol } = payload;
+    body.innerHTML = `
+      <i class="fa-solid fa-circle-question modal-icon"></i>
+      <h3>Proceed to checkout?</h3>
+      <p>You're about to pay <strong>${symbol}${total.toFixed(2)}</strong>. Confirm your delivery address below.</p>
+      <div class="market-modal-body">
+        <div class="market-field">
+          <label for="modal-address-select">Deliver to</label>
+          <select class="market-select" id="modal-address-select">
+            ${addresses.map((a) => `<option value="${a.id}" ${a.isDefault ? 'selected' : ''}>${escapeHtml(a.label)} - ${escapeHtml(a.fullName)}, ${escapeHtml(a.city)}, ${escapeHtml(a.countryName)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="market-modal-actions">
+        <button type="button" class="market-btn market-btn-outline" id="modal-cancel-btn">Cancel</button>
+        <button type="button" class="market-btn market-btn-primary" id="modal-proceed-btn">Proceed</button>
+      </div>
+    `;
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeCheckoutModal);
+    document.getElementById('modal-proceed-btn').addEventListener('click', submitCheckout);
+    return;
+  }
+  if (step === 'error') {
+    body.innerHTML = `
+      <i class="fa-solid fa-triangle-exclamation modal-icon"></i>
+      <h3>Couldn't start checkout</h3>
+      <p>${escapeHtml(payload.message)}</p>
+      <div class="market-modal-actions"><button type="button" class="market-btn market-btn-outline" id="modal-cancel-btn">Close</button></div>
+    `;
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeCheckoutModal);
+  }
+}
+
+document.getElementById('checkout-btn').addEventListener('click', async () => {
+  if (!currentUser) { window.location.href = '/login?redirect=' + encodeURIComponent('/cart'); return; }
+  openCheckoutModal();
+  const res = await fetch('/api/store/addresses');
+  const data = await res.json();
+  if (!data.success || !data.addresses.length) return renderCheckoutStep('need-address');
+  const validItems = liveItems.filter((item) => item.active && item.stockForViewerCountry > 0);
+  const total = validItems.reduce((sum, item) => sum + Number(item.unitPriceLocal || 0) * item.quantity, 0);
+  renderCheckoutStep('confirm', { addresses: data.addresses, total, symbol: validItems[0] ? validItems[0].symbol : '$' });
+});
+
+async function submitCheckout() {
+  const btn = document.getElementById('modal-proceed-btn');
+  btn.disabled = true; btn.textContent = 'Starting checkout...';
+  const addressId = Number(document.getElementById('modal-address-select').value);
+  const validItems = liveItems.filter((item) => item.active && item.stockForViewerCountry > 0);
+  const res = await fetch('/api/store/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addressId, items: validItems.map((item) => ({ productId: item.productId, colorId: item.colorId, quantity: item.quantity })) }),
+  });
+  const data = await res.json();
+  if (!data.success) { renderCheckoutStep('error', { message: data.error || 'Please try again.' }); return; }
+  window.location.href = data.url;
+}
+
+async function loadRecentlyViewed() {
+  if (!currentUser) return;
+  const res = await fetch('/api/store/recently-viewed');
+  const data = await res.json();
+  if (!data.success || !data.products.length) return;
+  document.getElementById('recently-viewed-section').hidden = false;
+  document.getElementById('recently-viewed-grid').innerHTML = data.products.map((p) => `
+    <a class="market-product-card" href="/product?slug=${encodeURIComponent(p.slug)}">
+      <div class="market-product-image"><img src="${p.coverImage || ''}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
+      <div class="market-product-info">
+        <p class="market-product-name">${escapeHtml(p.name)}</p>
+        <div class="market-price">${p.symbol}${Number(p.priceLocal).toFixed(2)} <small>${p.currency}</small></div>
+      </div>
+    </a>
+  `).join('');
+}
+
+async function init() {
+  await loadSession();
+  await refreshLiveData();
+  renderCart();
+  loadRecentlyViewed();
+}
+init();
+</script>
+</body>
+</html>

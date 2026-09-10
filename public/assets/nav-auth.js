@@ -148,24 +148,44 @@
     loader.innerHTML = '<div class="mt-loader-shell"><img src="/mozartLogo.jpg" alt="Mozart Techniques logo" /></div>';
     document.body.appendChild(loader);
 
+    // Held on screen for at least this long once shown, so a fast local
+    // load doesn't just flash it for a frame or two - it was reported as
+    // "too fast" to actually register.
+    const MIN_VISIBLE_MS = 900;
+    let shownAt = null;
+
+    const showPageLoader = () => {
+      shownAt = Date.now();
+      document.body.classList.add('mt-page-loading');
+    };
+
     const removePageLoader = () => {
-      document.body.classList.remove('mt-page-loading');
+      if (!document.body.classList.contains('mt-page-loading')) return;
+      const elapsed = shownAt ? Date.now() - shownAt : MIN_VISIBLE_MS;
+      window.setTimeout(() => document.body.classList.remove('mt-page-loading'), Math.max(0, MIN_VISIBLE_MS - elapsed));
     };
 
     document.addEventListener('click', (event) => {
       const link = event.target.closest('a[href]');
       if (!link) return;
       const href = link.getAttribute('href') || '';
-      if (!href || href.starts('#') || href.starts('javascript:') || href.starts('mailto:') || href.starts('tel:')) return;
+      if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
       if (link.hasAttribute('download') || link.target === '_blank') return;
-      document.body.classList.remove('mt-page-loading');
-      document.body.classList.add('mt-page-loading');
-      window.setTimeout(removePageLoader, 1800);
+      showPageLoader();
     }, true);
+
+    // Reload, back/forward, address-bar navigation and form submits never
+    // fire the click listener above, so this is the catch-all: whenever
+    // this document is about to be replaced by any other one (including a
+    // reload of itself), show the loader on the way out. The browser keeps
+    // this page (and the overlay) on screen until the next document is
+    // ready to paint, which is what actually makes it visible during a
+    // reload - the previous version only ever showed it for link clicks.
+    window.addEventListener('beforeunload', showPageLoader);
 
     window.addEventListener('pageshow', removePageLoader);
     window.addEventListener('load', removePageLoader);
-    window.setTimeout(removePageLoader, 1500);
+    window.setTimeout(removePageLoader, 1800);
   }
 
   function escapeHtml(text) {
@@ -186,6 +206,7 @@
       ? `<img src="${escapeHtml(user.photoUrl)}" alt="${name}">`
       : `<span class="mt-auth-initials">${initials(user.name || user.email)}</span>`;
     const editProfileLink = `<a href="/edit-profile"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>`;
+    const storeProfileLink = `<a href="/store-profile"><i class="fa-solid fa-bag-shopping"></i> Store Profile</a>`;
     const paymentMethodsLink = !user.hasTutorProfile && user.role !== 'admin' ? `<a href="/payment-methods"><i class="fa-solid fa-credit-card"></i> Manage Payment Methods</a>` : '';
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
@@ -200,6 +221,7 @@
           <a href="/orientation"><i class="fa-solid fa-compass"></i> Orientation</a>
           <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
           <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
+          ${storeProfileLink}
           ${editProfileLink}
           ${paymentMethodsLink}
           ${sponsorLink}
@@ -249,7 +271,8 @@
         // With exactly one unread thread, send them straight into it
         // instead of to the dashboard to hunt for it.
         if (link && data.threads && data.threads.length === 1) {
-          link.href = `/messages/chat/${data.threads[0].assignmentId}`;
+          const thread = data.threads[0];
+          link.href = thread.otherPartyName ? `/messages/chat?name=${encodeURIComponent(thread.otherPartyName)}` : `/messages/chat/${thread.assignmentId}`;
         }
       } catch (e) { /* offline - leave the badge as-is */ }
     }

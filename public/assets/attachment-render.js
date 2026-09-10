@@ -5,7 +5,7 @@
   document.head.append(style);
   const render = () => document.querySelectorAll('.message a:not([data-mt-file]), .mozart-ai-panel main p a:not([data-mt-file])').forEach((link) => {
     const href = link.href || ''; const name = link.textContent.replace(/^📎\s*/, '').trim() || 'Attachment';
-    if (!href || !/\/uploads\/chat\//.test(href)) return;
+    if (!href || !/\/uploads\/chat\/|\/mozart-techniques\/chat\//.test(href)) return;
     link.dataset.mtFile = '1'; const lower = (name + href).toLowerCase();
     if (/\.(png|jpe?g|gif|webp|bmp)(?:[?#]|$)/.test(lower)) { link.innerHTML = `<img src="${href}" alt="${name}">`; link.className = 'mt-attachment'; link.target = '_blank'; return; }
     if (/\.pdf(?:[?#]|$)/.test(lower)) { link.className = 'mt-attachment'; link.innerHTML = `<div class="mt-document"><div class="mt-doc-icon">PDF</div><div><span>${name}</span><small>Open PDF document</small></div></div>`; link.target = '_blank'; return; }

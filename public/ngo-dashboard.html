@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  <link rel="stylesheet" href="/assets/chat-kit.css">
   <style>
     :root {
       --mozart-red: #cc0000;
@@ -194,7 +195,7 @@
           <div class="card">
             <button type="button" id="payment-history-trigger" class="overview-payment-trigger">
               <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Payment</div><span id="overview-payment-status" class="badge pending">Pending</span></div>
-              <div id="overview-payment-amount" class="money">₦0</div>
+              <div id="overview-payment-amount" class="money">$0 USD</div>
               <p class="muted text-sm mt-2">Monthly subscription</p>
             </button>
           </div>
@@ -222,7 +223,7 @@
             <h3 class="text-2xl font-bold mb-4">Subscription Status</h3>
             <div class="space-y-4">
               <div class="row"><span class="muted">Status:</span><span id="subscription-status" class="badge pending">Inactive</span></div>
-              <div class="row"><span class="muted">Monthly Amount:</span><strong id="subscription-amount">₦0</strong></div>
+              <div class="row"><span class="muted">Monthly Amount:</span><strong id="subscription-amount">$0 USD</strong></div>
               <div class="row"><span class="muted">Expiration Date:</span><strong id="subscription-expiry">Not active yet</strong></div>
               <div class="pt-4 border-t border-gray-200">
                 <p class="muted mb-3">Activate subscription:</p>
@@ -428,15 +429,12 @@
                     <h3 id="message-chat-title" class="font-bold text-lg">Conversation</h3>
                     <p id="message-chat-meta" class="text-xs text-gray-500">Direct message</p>
                   </div>
-                  <button id="close-message-chat-btn" class="btn-secondary text-sm"><i class="fa-solid fa-xmark"></i> Close</button>
+                  <div class="flex items-center gap-2">
+                    <button id="org-message-call-btn" type="button" class="btn-secondary" title="Start a call"><i class="fa-solid fa-video"></i></button>
+                    <button id="close-message-chat-btn" class="btn-secondary text-sm"><i class="fa-solid fa-xmark"></i> Close</button>
+                  </div>
                 </div>
-                <div id="message-messages" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
-                <div class="border-t border-red-100 pt-3 flex gap-2">
-                  <button id="org-message-doc-btn" type="button" class="btn-secondary" title="Attach a document"><i class="fa-regular fa-file-lines"></i></button><input id="org-message-doc-input" type="file" class="hidden" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip" />
-                  <input id="message-text-input" type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200" />
-                  <button id="org-message-emoji-btn" type="button" class="btn-secondary" title="Emoji"><i class="fa-regular fa-face-smile"></i></button><button id="org-message-attach-btn" type="button" class="btn-secondary" title="Photo or video"><i class="fa-solid fa-paperclip"></i></button><button id="org-message-camera-btn" type="button" class="btn-secondary" title="Take a photo"><i class="fa-solid fa-camera"></i></button><button id="org-message-call-btn" type="button" class="btn-secondary" title="Start call"><i class="fa-solid fa-phone"></i></button><button id="send-message-to-contact-btn" class="btn-primary" title="Hold to record a voice note"><i id="org-message-send-icon" class="fa-solid fa-microphone"></i></button>
-                  <input id="org-message-file-input" type="file" class="hidden" accept="image/*,video/*" /><input id="org-message-camera-input" type="file" class="hidden" accept="image/*" capture="environment" /><div id="org-message-emoji-panel" class="hidden absolute bottom-16 right-2 z-10 rounded-xl border bg-white p-2 shadow-lg"></div>
-                </div>
+                <div id="chat-kit-mount" class="flex min-h-0 flex-1 flex-col"></div>
               </div>
               <div id="message-empty-state" class="h-[30rem] flex items-center justify-center text-center text-gray-400">
                 <div>
@@ -626,6 +624,7 @@
     </main>
   </div>
 
+  <script src="/assets/chat-kit.js"></script>
   <script>
     const sidebarItems = document.querySelectorAll('.sidebar-item');
     const tabs = document.querySelectorAll('.tab-panel');
@@ -689,7 +688,7 @@
           <tr>
             <td>${new Date(entry.date || Date.now()).toLocaleDateString()}</td>
             <td>${escapeHtml(typeName)}</td>
-            <td>₦${amount.toLocaleString()}</td>
+            <td>$${amount.toLocaleString()} USD</td>
           </tr>
         `;
       }).join('');
@@ -721,9 +720,14 @@
       if (settingsLogo) settingsLogo.src = org.logoUrl || '/mozartLogo.jpg';
       document.getElementById('stat-tutors').textContent = Array.isArray(org.tutors) ? org.tutors.length : 0;
       document.getElementById('stat-students').textContent = Array.isArray(org.members) ? org.members.length : 0;
-      const amount = Number(org.monthlyAmount || 0);
-      document.getElementById('overview-payment-amount').textContent = '₦' + amount.toLocaleString();
-      document.getElementById('subscription-amount').textContent = '₦' + amount.toLocaleString();
+      const amountUsd = Number(org.monthlyAmount || 0);
+      const amountLocal = Number(org.monthlyAmountLocal || amountUsd);
+      const localSymbol = org.localSymbol || '$';
+      const localDisplay = org.localCurrency && org.localCurrency !== 'USD'
+        ? `${localSymbol}${amountLocal.toLocaleString()} (${amountUsd.toLocaleString()} USD)`
+        : `$${amountUsd.toLocaleString()} USD`;
+      document.getElementById('overview-payment-amount').textContent = localDisplay;
+      document.getElementById('subscription-amount').textContent = localDisplay;
       const active = org.subscriptionStatus === 'active';
       const statusNode = document.getElementById('subscription-status');
       statusNode.textContent = active ? 'Active' : 'Inactive';
@@ -1094,45 +1098,78 @@
       });
     }
 
-    function renderMessages(messages = []) {
-      const container = document.getElementById('message-messages');
-      if (!container) return;
-      if (!messages.length) {
-        container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet</p>';
-        return;
-      }
-      container.innerHTML = messages.map((msg) => `
-        <div class="flex ${msg.senderType === 'org' ? 'justify-end' : 'justify-start'}">
-          <div class="max-w-md px-3 py-2 rounded-xl ${msg.senderType === 'org' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-800'}">
-            <p class="text-xs font-semibold mb-1">${escapeHtml(msg.senderName || 'User')}</p>
-            <p class="text-sm whitespace-pre-wrap">${escapeHtml(msg.text || '')}</p>
-            ${msg.attachment ? `<a href="${escapeHtml(msg.attachment.url)}" target="_blank" rel="noopener" class="mt-2 block text-sm underline"><i class="fa-solid fa-paperclip mr-1"></i>${escapeHtml(msg.attachment.name || 'Attachment')}</a>` : ''}
-            <p class="text-[10px] mt-1 opacity-70">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-          </div>
-        </div>
-      `).join('');
-      container.scrollTop = container.scrollHeight;
+    // Bridges the roster's "conversation might not exist yet" reality
+    // (a direct contact with no messages sent has no conversation id at
+    // all) to ChatKit, which needs a stable id to build its REST calls
+    // around: the first send lazily creates the conversation and this
+    // closure remembers the id it comes back with for every call after.
+    let chatKitController = null;
+    let chatKitConversationId = null;
+    let chatKitTargetType = null;
+    let chatKitTargetId = null;
+
+    function orgChatMessageActionUrls(getConvId) {
+      return {
+        edit: async (id, text) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).then((r) => r.json()),
+        del: async (id, mode) => mode === 'me'
+          ? fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/delete-for-me`, { method: 'POST' }).then((r) => r.json())
+          : fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+        react: async (id, emoji) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) }).then((r) => r.json()),
+        pin: async (id) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/pin`, { method: 'POST' }).then((r) => r.json()),
+        vote: async (id, optionId) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/poll-vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionId }) }).then((r) => r.json()),
+      };
     }
 
-    function setMessagePanel(contact, messages = []) {
+    function mountOrgChat() {
+      if (chatKitController) { chatKitController.destroy(); chatKitController = null; }
+      const actions = orgChatMessageActionUrls(() => chatKitConversationId);
+      chatKitController = ChatKit.mount(document.getElementById('chat-kit-mount'), {
+        me: { id: window.currentOrg && window.currentOrg.userId, role: 'org' },
+        isGroup: chatKitTargetType === 'group',
+        onAlert: showAlert,
+        api: {
+          list: async () => {
+            if (!chatKitConversationId) return { success: true, messages: [] };
+            const d = await fetch(`/api/organizations/conversations/${chatKitConversationId}/messages`).then((r) => r.json());
+            return { success: d.success, messages: d.messages || [] };
+          },
+          send: async (payload) => {
+            let result;
+            if (chatKitConversationId) {
+              result = await fetch(`/api/organizations/conversations/${chatKitConversationId}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
+            } else {
+              result = await fetch(`/api/organizations/conversations/${chatKitTargetId}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, type: chatKitTargetType, targetType: chatKitTargetType }) }).then((r) => r.json());
+              if (result.success && result.conversation) chatKitConversationId = result.conversation.id;
+            }
+            if (result.success) loadMessageRoster();
+            return result;
+          },
+          ...actions,
+        },
+      });
+    }
+
+    function setMessagePanel(contact, conversationId) {
       const panel = document.getElementById('message-chat-panel');
       const empty = document.getElementById('message-empty-state');
       if (!panel || !empty) return;
       if (!contact) {
         panel.classList.add('hidden');
         empty.classList.remove('hidden');
+        if (chatKitController) { chatKitController.destroy(); chatKitController = null; }
         return;
       }
       state.currentContact = contact;
       const title = document.getElementById('message-chat-title');
       const meta = document.getElementById('message-chat-meta');
-      const callButton = document.getElementById('org-message-call-btn');
       if (title) title.textContent = contact.name || 'Conversation';
       if (meta) meta.textContent = contact.type === 'group' ? `Group chat • ${contact.members?.length || 0} members` : contact.type === 'tutor' ? 'Tutor message' : 'Student message';
-      if (callButton) { callButton.title = `Call ${contact.name || 'contact'}`; callButton.setAttribute('aria-label', `Call ${contact.name || 'contact'}`); }
       panel.classList.remove('hidden');
       empty.classList.add('hidden');
-      renderMessages(messages);
+      chatKitConversationId = conversationId || null;
+      chatKitTargetType = contact.targetType || contact.type;
+      chatKitTargetId = contact.id;
+      mountOrgChat();
     }
 
     function renderMessageRoster(conversations = []) {
@@ -1176,14 +1213,8 @@
           const messageType = button.dataset.contactType;
           const rawName = button.dataset.contactName || 'Conversation';
           if (messageType === 'group') {
-            try {
-              const res = await fetch(`/api/organizations/conversations/${conversationId}/messages`);
-              const data = await res.json();
-              setMessagePanel({ id: conversationId, name: rawName, type: 'group' }, data.messages || []);
-              state.currentChatConversationId = conversationId;
-            } catch (error) {
-              console.warn('Failed to open group conversation', error);
-            }
+            setMessagePanel({ id: conversationId, name: rawName, type: 'group' }, conversationId);
+            state.currentChatConversationId = conversationId;
             return;
           }
           const directContact = { id: targetId, name: rawName, type: messageType };
@@ -1193,17 +1224,11 @@
             const conversation = convMap.get(`direct-${conversationId}`);
             if (conversation && conversation.id) {
               state.currentChatConversationId = conversation.id;
-              try {
-                const res = await fetch(`/api/organizations/conversations/${conversation.id}/messages`);
-                const data = await res.json();
-                setMessagePanel({ id: conversation.id, name: rawName, type: messageType, targetType: messageType }, data.messages || []);
-                return;
-              } catch (error) {
-                console.warn('Failed to load direct conversation', error);
-              }
+              setMessagePanel({ id: conversation.id, name: rawName, type: messageType, targetType: messageType }, conversation.id);
+              return;
             }
           }
-          setMessagePanel({ id: directContact.id, name: rawName, type: messageType, targetType: messageType }, []);
+          setMessagePanel({ id: directContact.id, name: rawName, type: messageType, targetType: messageType }, null);
         });
       });
     }
@@ -1222,38 +1247,14 @@
           });
           if (directConversation) {
             state.currentChatConversationId = directConversation.id;
-            const msgRes = await fetch(`/api/organizations/conversations/${directConversation.id}/messages`);
-            const msgData = await msgRes.json();
-            setMessagePanel({ id: directConversation.id, name: contact.name, type: contact.type, targetType: contact.type }, msgData.messages || []);
+            setMessagePanel({ id: directConversation.id, name: contact.name, type: contact.type, targetType: contact.type }, directConversation.id);
             return;
           }
         }
       } catch (error) {
         console.warn('Unable to find direct conversation:', error);
       }
-      setMessagePanel({ id: contact.id, name: contact.name, type: contact.type, targetType: contact.type }, []);
-    }
-
-    async function loadConversation(tutorId) {
-      try {
-        const res = await fetch('/api/organizations/conversations');
-        const data = await res.json();
-        if (!data.success) return;
-        const conv = data.conversations.find((c) => String(c.tutorId) === String(tutorId));
-        const container = document.getElementById('message-messages');
-        if (!conv) {
-          state.currentChatConversationId = null;
-          if (container) container.innerHTML = '<p class="text-gray-400 text-center py-8">No messages yet. Start the conversation.</p>';
-          return;
-        }
-        state.currentChatConversationId = conv.id;
-        const msgRes = await fetch(`/api/organizations/conversations/${conv.id}/messages`);
-        const msgData = await msgRes.json();
-        renderMessages(msgData.messages || []);
-        await fetch(`/api/organizations/conversations/${conv.id}/mark-read`, { method: 'POST' });
-      } catch (error) {
-        console.warn('Error loading conversation', error);
-      }
+      setMessagePanel({ id: contact.id, name: contact.name, type: contact.type, targetType: contact.type }, null);
     }
 
     async function loadMessageRoster() {
@@ -1764,113 +1765,30 @@
       }
     });
 
-    document.getElementById('send-message-btn')?.addEventListener('click', async () => {
-      if (!state.currentChatTutorId) return;
-      const input = document.getElementById('message-input');
-      const text = input.value.trim();
-      if (!text) return;
-      try {
-        const res = await fetch(`/api/organizations/conversations/${state.currentChatTutorId}/message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, type: 'tutor', targetType: 'tutor' })
-        });
-        const data = await res.json();
-        if (data.success) {
-          input.value = '';
-          loadConversation(state.currentChatTutorId);
-        } else {
-          showAlert(data.error || 'Message failed to send.', 'error');
-        }
-      } catch (error) {
-        console.warn('Error sending message', error);
-      }
-    });
-
     document.getElementById('close-message-chat-btn')?.addEventListener('click', () => {
       state.currentChatConversationId = null;
       state.currentContact = null;
-      setMessagePanel(null, []);
-      document.getElementById('message-text-input').value = '';
+      setMessagePanel(null);
     });
 
-    document.getElementById('send-message-to-contact-btn')?.addEventListener('click', async () => {
-      const input = document.getElementById('message-text-input');
-      const text = input.value.trim();
-      const file = document.getElementById('org-message-file-input')?.files[0];
-      if (!text && !file) return;
-
-      try {
-        let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
-        let attachment = null;
-        const selectedFile = file || document.getElementById('org-message-doc-input')?.files[0] || document.getElementById('org-message-camera-input')?.files[0];
-        if (selectedFile) {
-          const form = new FormData(); form.append('file', selectedFile);
-          const upload = await fetch('/api/chat/upload', { method: 'POST', body: form }).then((response) => response.json());
-          if (!upload.success) return showAlert(upload.error || 'Attachment upload failed.', 'error');
-          attachment = upload.attachment;
-        }
-        let payload = { text, attachment };
-
-        if (!state.currentChatConversationId && state.currentContact && state.currentContact.type !== 'group') {
-          endpoint = `/api/organizations/conversations/${state.currentContact.id}/message`;
-          payload = {
-            text, attachment,
-            type: state.currentContact.type,
-            targetType: state.currentContact.type,
-            name: state.currentContact.name,
-          };
-        }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.success) {
-          const convoId = data.conversation && data.conversation.id ? data.conversation.id : state.currentChatConversationId;
-          state.currentChatConversationId = convoId;
-          input.value = '';
-          if (document.getElementById('org-message-file-input')) document.getElementById('org-message-file-input').value = '';
-          const msgRes = await fetch(`/api/organizations/conversations/${convoId}/messages`);
-          const msgData = await msgRes.json();
-          renderMessages(msgData.messages || []);
-          loadMessageRoster();
-        } else {
-          showAlert(data.error || 'Message failed to send.', 'error');
-        }
-      } catch (error) {
-        console.warn('Error sending message', error);
-      }
-    });
-    document.getElementById('org-message-attach-btn')?.addEventListener('click', () => document.getElementById('org-message-file-input')?.click());
-    document.getElementById('org-message-doc-btn')?.addEventListener('click', () => document.getElementById('org-message-doc-input')?.click());
-    document.getElementById('org-message-camera-btn')?.addEventListener('click', () => document.getElementById('org-message-camera-input')?.click());
-    document.getElementById('org-message-emoji-btn')?.addEventListener('click', () => {
-      const panel = document.getElementById('org-message-emoji-panel');
-      panel.innerHTML = ['😀','😂','😍','👍','🙏','❤️','🎵','🎉','✅','❗'].map((emoji) => `<button type="button" class="p-1 text-lg">${emoji}</button>`).join('');
-      panel.classList.toggle('hidden');
-      panel.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => { document.getElementById('message-text-input').value += button.textContent; panel.classList.add('hidden'); document.getElementById('message-text-input').dispatchEvent(new Event('input')); }));
-    });
-    ['org-message-file-input','org-message-doc-input','org-message-camera-input'].forEach((id) => document.getElementById(id)?.addEventListener('change', () => { if (document.getElementById(id).files[0]) document.getElementById('message-text-input').dispatchEvent(new Event('input')); }));
-    document.getElementById('message-text-input')?.addEventListener('input', (event) => { document.getElementById('org-message-send-icon').className = event.target.value.trim() ? 'fa-solid fa-paper-plane' : 'fa-solid fa-microphone'; });
+    // Real fix for the call button - it used to just paste the link into a
+    // plain-text message ("Join our call: <link>") and never actually set a
+    // meeting link anywhere, so there was no "Join" affordance once sent.
+    // Requires a real conversation id (lazily created by the first chat
+    // message), matching the same rule the group-chat call button follows.
     document.getElementById('org-message-call-btn')?.addEventListener('click', async () => {
-      const contact = state.currentContact;
-      if (!contact) return showAlert('Select a tutor or student first.', 'error');
-      const link = window.prompt('Paste the Google Meet or Zoom link');
-      if (!link) return;
-      let endpoint = `/api/organizations/conversations/${state.currentChatConversationId}/send`;
-      let payload = { text: `Join our call: ${link}` };
-      if (!state.currentChatConversationId && contact.type !== 'group') {
-        endpoint = `/api/organizations/conversations/${contact.id}/message`;
-        payload = { ...payload, type: contact.type, targetType: contact.type, name: contact.name };
+      if (!state.currentContact) return showAlert('Select a tutor or student first.', 'error');
+      if (!chatKitConversationId) return showAlert('Send a message first, then you can add a call link.', 'info');
+      // Was always re-prompting even when this conversation already had a
+      // saved link - join it directly if one exists, same as every other
+      // call button in the app.
+      const existing = await fetch(`/api/org-chat/conversations/${chatKitConversationId}/messages`).then((r) => r.json()).catch(() => null);
+      if (existing && existing.success && existing.conversation && existing.conversation.meetingLink) {
+        window.location.href = existing.conversation.meetingLink;
+        return;
       }
-      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const result = await response.json();
-      if (!result.success) return showAlert(result.error || 'Could not send call link.', 'error');
-      state.currentChatConversationId = result.conversation?.id || state.currentChatConversationId;
-      loadMessageRoster();
+      const win = window.open('https://meet.google.com/new', '_blank', 'noopener');
+      if (!win) window.location.href = 'https://meet.google.com/new';
     });
 
     document.getElementById('create-group-chat-btn')?.addEventListener('click', async () => {
@@ -1961,6 +1879,16 @@
     loadIssuedCodes();
     loadOrganizationLibrary();
     refreshOrganizationNotifications();
+
+    // Newly-redeemed codes (a student/tutor just joined) only ever show up
+    // when this dashboard re-fetches - the data itself is always current,
+    // there's just nothing that was pulling it again while the page sat
+    // open. Keep the roster and code list current without a manual reload.
+    setInterval(() => {
+      if (document.hidden) return;
+      loadOrganizationData();
+      loadIssuedCodes();
+    }, 20000);
   </script>
 </body>
 </html>

@@ -17,6 +17,19 @@ const SNAPSHOT_FILES = [
   'chat.json',
   'org-chat.json',
   'support-chat.json',
+  'products.json',
+  'orders.json',
+  'addresses.json',
+  'productReviews.json',
+  'performers.json',
+  'marketplaceRequests.json',
+  'marketplaceOffers.json',
+  'benchmarkRates.json',
+  'performer-categories.json',
+  'event-types.json',
+  'reports.json',
+  'games.json',
+  'tutorOffers.json',
 ];
 
 const snapshotSchema = new mongoose.Schema({

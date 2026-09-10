@@ -100,14 +100,25 @@ async function apply({
     balanceUsd: 0,
     totalEarnedUsd: 0,
     stripeConnectAccountId: null,
+    stripeConnectAccountVersion: null,
     stripeConnectOnboardingComplete: false,
     stripeConnectPayoutsEnabled: false,
+    stripeConnectTransfersEnabled: false,
     stripeConnectDetailsSubmitted: false,
+    stripeConnectRequirementsDue: [],
     stripeConnectUpdatedAt: null,
     approvedByUserId: null,
     flagged: false,
     flaggedAt: null,
     expelled: false,
+    // One-time $1.50 activation fee, required before an approved tutor's
+    // dashboard unlocks - see requireApprovedTutorApi in server.js.
+    // Already-approved tutors are grandfathered true by a one-off migration
+    // script (scripts/grandfather-tutor-activations.js) run before this
+    // gate ships, so this false default only ever applies to new tutors.
+    activationPaid: false,
+    activationPaidAt: null,
+    activationGrandfathered: false,
     createdAt: new Date().toISOString(),
   };
   db.tutors.push(tutor);
@@ -130,10 +141,27 @@ function setStripeConnectAccount(id, account) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
   if (!tutor) return null;
+  const recipientBalance = account && account.configuration && account.configuration.recipient
+    && account.configuration.recipient.capabilities && account.configuration.recipient.capabilities.stripe_balance;
+  const transfersEnabled = recipientBalance && recipientBalance.stripe_transfers
+    ? recipientBalance.stripe_transfers.status === 'active'
+    : Boolean(account && account.transfers_enabled);
+  const payoutsEnabled = recipientBalance && recipientBalance.payouts
+    ? recipientBalance.payouts.status === 'active'
+    : Boolean(account && account.payouts_enabled);
+  const requirements = (account && account.requirements) || {};
+  const requirementsDue = Array.isArray(requirements.currently_due) ? requirements.currently_due : [];
   tutor.stripeConnectAccountId = account && account.id ? account.id : tutor.stripeConnectAccountId;
-  tutor.stripeConnectOnboardingComplete = Boolean(account && account.details_submitted);
-  tutor.stripeConnectPayoutsEnabled = Boolean(account && account.payouts_enabled);
-  tutor.stripeConnectDetailsSubmitted = Boolean(account && account.details_submitted);
+  tutor.stripeConnectAccountVersion = account && account.object === 'v2.core.account' ? 'v2' : (account && account.object ? 'v1' : tutor.stripeConnectAccountVersion);
+  tutor.stripeConnectOnboardingComplete = account && account.object === 'v2.core.account'
+    ? Boolean(transfersEnabled && payoutsEnabled && !account.closed)
+    : Boolean(account && account.details_submitted);
+  tutor.stripeConnectPayoutsEnabled = Boolean(payoutsEnabled);
+  tutor.stripeConnectTransfersEnabled = Boolean(transfersEnabled);
+  tutor.stripeConnectDetailsSubmitted = account && account.object === 'v2.core.account'
+    ? Boolean(!requirementsDue.length && !account.closed)
+    : Boolean(account && account.details_submitted);
+  tutor.stripeConnectRequirementsDue = requirementsDue;
   tutor.stripeConnectUpdatedAt = new Date().toISOString();
   persist(db);
   return tutor;
@@ -161,6 +189,17 @@ function canReevaluate(tutor, category) {
   const last = tutor.lastEvaluatedAtByCategory && tutor.lastEvaluatedAtByCategory[category];
   if (!last) return true;
   return Date.now() - new Date(last).getTime() >= REEVALUATION_COOLDOWN_MS;
+}
+
+function markActivationPaid(id, { grandfathered = false } = {}) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.activationPaid = true;
+  tutor.activationPaidAt = new Date().toISOString();
+  if (grandfathered) tutor.activationGrandfathered = true;
+  persist(db);
+  return tutor;
 }
 
 function completeOrientation(id, reward) {
@@ -326,6 +365,7 @@ function avgProfessionalism(tutor) {
 
 module.exports = {
   listAll, listApproved, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
+  markActivationPaid,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
   creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setHourlyRate, setIntakeQuestions, findBySlug,

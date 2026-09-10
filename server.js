@@ -25,11 +25,25 @@ const chat = require('./data/chat');
 const supportChat = require('./data/support-chat');
 const orientation = require('./data/orientation');
 const orgChat = require('./data/org-chat');
+const { REACTIONS, isValidReaction } = require('./data/reaction-emoji');
+const reports = require('./data/reports');
+const games = require('./data/games');
 const orgContent = require('./data/org-content');
 const allowedLocations = require('./data/allowed-locations');
 const organizations = require('./data/organizations');
+const products = require('./data/products');
+const orders = require('./data/orders');
+const addresses = require('./data/addresses');
+const productReviews = require('./data/productReviews');
+const performers = require('./data/performers');
+const marketplaceRequests = require('./data/marketplaceRequests');
+const marketplaceOffers = require('./data/marketplaceOffers');
+const tutorOffers = require('./data/tutorOffers');
+const marketplaceMatching = require('./data/marketplaceMatching');
+const benchmarkRates = require('./data/benchmarkRates');
 const mailer = require('./data/mailer');
 const stripeClient = require('./data/stripe-client');
+const cloudinaryClient = require('./data/cloudinary-client');
 const realtime = require('./data/realtime');
 const mongoPersistence = require('./data/mongo-persistence');
 const googleCalendar = require('./data/google-calendar');
@@ -102,13 +116,71 @@ app.use((req, res, next) => {
   next();
 });
 
+// When Cloudinary is configured, every upload goes there (and survives
+// redeploys); otherwise this falls back to the original local-disk
+// behavior, unchanged. Decided once at boot since it depends only on env
+// vars. See resolveUploadedFileUrl() below for the matching read side.
+const USE_CLOUDINARY = cloudinaryClient.isConfigured();
+if (USE_CLOUDINARY) {
+  console.log('Cloudinary configured - uploads will persist across redeploys.');
+} else {
+  console.warn('Cloudinary is not configured - uploads (photos, videos, etc.) are stored on local disk only and WILL BE LOST on the next redeploy. Set CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET to fix this.');
+}
+
+function diskOrMemoryStorage(diskDir) {
+  if (USE_CLOUDINARY) return multer.memoryStorage();
+  return multer.diskStorage({
+    destination: (req, file, cb) => cb(null, diskDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
+  });
+}
+
+// The single place every upload route resolves req.file into a permanent
+// URL - Cloudinary's secure_url when configured, the old local /uploads/...
+// path otherwise. `folder` matches the old local uploads/<folder>/ dirs.
+async function resolveUploadedFileUrl(file, folder) {
+  if (!file) return null;
+  if (!USE_CLOUDINARY) return `/uploads/${folder}/${file.filename}`;
+  const resourceType = file.mimetype.startsWith('image/') ? 'image' : file.mimetype.startsWith('video/') ? 'video' : 'raw';
+  const result = await cloudinaryClient.uploadBuffer(file.buffer, { folder, resourceType });
+  return result.secure_url;
+}
+
+// Chat attachment URLs must point at our own upload pipeline (either the old
+// local-disk path or a Cloudinary URL under our chat folder) - never an
+// arbitrary URL, which would let anyone render attacker-controlled content
+// inside someone else's thread. Accepts both storage backends since
+// USE_CLOUDINARY can differ between where a file was uploaded and where this
+// check runs (e.g. local dev vs production).
+function isOwnChatAttachmentUrl(url) {
+  if (typeof url !== 'string') return false;
+  return url.startsWith('/uploads/chat/') || /^https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image|video|raw)\/upload\/.*\/mozart-techniques\/chat\//.test(url);
+}
+
+// Shared by every chat-send route (lesson chat and every org-chat surface)
+// so a poll's shape only ever needs validating in one place.
+function validatePollInput(poll) {
+  if (!poll) return { poll: null, error: null };
+  const question = String(poll.question || '').trim();
+  const options = Array.isArray(poll.options) ? poll.options.map((o) => String(o || '').trim()).filter(Boolean) : [];
+  if (!question || options.length < 2 || options.length > 6) {
+    return { poll: null, error: 'A poll needs a question and between 2 and 6 options.' };
+  }
+  return { poll: { question, options }, error: null };
+}
+
+function validateLocationInput(location) {
+  if (!location) return { location: null, error: null };
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { location: null, error: 'A valid location is required.' };
+  return { location: { lat, lng }, error: null };
+}
+
 // Used for post-recorded online classes, physical/studio lesson recordings,
 // and video-library clips - all the same "upload a video file" shape.
 const videoUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, VIDEO_UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
-  }),
+  storage: diskOrMemoryStorage(VIDEO_UPLOAD_DIR),
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('video/')) return cb(new Error('Please upload a video file.'));
@@ -131,10 +203,7 @@ const BLOCKED_UPLOAD_EXT = new Set([
 ]);
 
 const chatUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, CHAT_UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
-  }),
+  storage: diskOrMemoryStorage(CHAT_UPLOAD_DIR),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: (req, file, cb) => {
     if (BLOCKED_UPLOAD_EXT.has(path.extname(file.originalname).toLowerCase())) {
@@ -148,10 +217,7 @@ const CERT_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'certificates');
 fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
 
 const certUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, CERT_UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
-  }),
+  storage: diskOrMemoryStorage(CERT_UPLOAD_DIR),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
@@ -166,13 +232,41 @@ fs.mkdirSync(PHOTO_UPLOAD_DIR, { recursive: true });
 
 // Tutor profile photos - shown on tutor cards/profiles across the site.
 const photoUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, PHOTO_UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
-  }),
+  storage: diskOrMemoryStorage(PHOTO_UPLOAD_DIR),
   limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) return cb(new Error('Please upload an image file.'));
+    cb(null, true);
+  },
+});
+
+const PRODUCT_IMAGE_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'products');
+fs.mkdirSync(PRODUCT_IMAGE_UPLOAD_DIR, { recursive: true });
+
+// Store product cover/gallery photos, uploaded one at a time from the admin
+// product form (cover image + any number of extra images).
+const productImageUpload = multer({
+  storage: diskOrMemoryStorage(PRODUCT_IMAGE_UPLOAD_DIR),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Please upload an image file.'));
+    cb(null, true);
+  },
+});
+
+const PERFORMER_VIDEO_UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads', 'performer-videos');
+fs.mkdirSync(PERFORMER_VIDEO_UPLOAD_DIR, { recursive: true });
+
+// Performer portfolio video clips. Reachable pre-approval (requireAuthApi
+// only, like the photo/certificate uploads), unlike the tutor videoUpload
+// instance whose every call site is gated behind requireApprovedTutorApi -
+// exposing that 500MB/already-vetted-only instance at a much lower trust
+// bar would be a worse abuse surface, so this gets its own smaller instance.
+const performerVideoUpload = multer({
+  storage: diskOrMemoryStorage(PERFORMER_VIDEO_UPLOAD_DIR),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB - short performer clips, not full lesson recordings
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('video/')) return cb(new Error('Please upload a video file.'));
     cb(null, true);
   },
 });
@@ -185,7 +279,9 @@ const photoUpload = multer({
 const GATED_HTML_FILES = [
   '/dashboard.html', '/admin.html', '/become-tutor.html', '/become-sponsor.html',
   '/orientation.html', '/tutor-evaluation.html', '/notifications.html',
-  '/chat.html', '/library.html', '/messages.html',
+  '/chat.html', '/library.html', '/messages.html', '/store-profile.html',
+  '/order-confirmation.html', '/become-performer.html', '/performance-requests.html',
+  '/my-organization.html',
 ];
 app.use((req, res, next) => {
   if (GATED_HTML_FILES.includes(req.path.toLowerCase())) {
@@ -217,6 +313,18 @@ function requireTutorProfilePage(req, res, next) {
   const profile = tutors.findByUserId(user.id);
   if (!profile) {
     return res.redirect('/become-tutor');
+  }
+  next();
+}
+
+function requirePerformerProfilePage(req, res, next) {
+  const user = currentUser(req);
+  if (!user) {
+    return res.redirect(`/login?redirect=${encodeURIComponent(req.originalUrl)}`);
+  }
+  const profile = performers.findByUserId(user.id);
+  if (!profile) {
+    return res.redirect('/become-performer');
   }
   next();
 }
@@ -266,8 +374,37 @@ function requireTutorProfileApi(req, res, next) {
   next();
 }
 
+// Any signed-up user with a performer profile, approved or not - mirrors
+// requireTutorProfileApi for pre-approval/pre-activation routes.
+function requirePerformerProfileApi(req, res, next) {
+  const user = currentUser(req);
+  if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
+  const profile = performers.findByUserId(user.id);
+  if (!profile) return res.status(403).json({ success: false, error: 'No performer application on file.' });
+  req.performerProfile = profile;
+  next();
+}
+
+// Mirrors requireApprovedTutorApi, plus the one-time activation fee -
+// performers have no grandfathered population (this feature is brand new),
+// so the fee check is live from day one, unlike the tutor gate below.
+function requireApprovedPerformerApi(req, res, next) {
+  const user = currentUser(req);
+  if (!user) return res.status(401).json({ success: false, error: 'You must be signed in.' });
+  const profile = performers.findByUserId(user.id);
+  if (!profile || profile.status !== 'approved' || profile.suspended) {
+    return res.status(403).json({ success: false, error: 'Approved performer access required.' });
+  }
+  if (!profile.activationPaid) {
+    return res.status(402).json({ success: false, error: 'A one-time activation fee is required to access your performer dashboard.', code: 'activation_required' });
+  }
+  req.performerProfile = profile;
+  next();
+}
+
 function publicUser(user) {
   const tutorProfile = tutors.findByUserId(user.id);
+  const performerProfile = performers.findByUserId(user.id);
   const org = organizations.findByUserId(user.id);
   const hasSponsorOrg = Boolean(org && org.status === 'approved');
   const memberships = user.organizationMemberships || (user.sponsor ? [user.sponsor] : []);
@@ -283,6 +420,9 @@ function publicUser(user) {
     hasTutorProfile: Boolean(tutorProfile),
     tutorProfileId: tutorProfile ? tutorProfile.id : null,
     tutorStatus: tutorProfile ? tutorProfile.status : null,
+    hasPerformerProfile: Boolean(performerProfile),
+    performerProfileId: performerProfile ? performerProfile.id : null,
+    performerStatus: performerProfile ? performerProfile.status : null,
     sponsor: user.sponsor || null,
     organizationMemberships: memberships,
     hasSponsorOrg,
@@ -293,6 +433,44 @@ function publicUser(user) {
 function organizationMembershipsForUser(user) {
   const memberships = user.organizationMemberships || (user.sponsor ? [user.sponsor] : []);
   return memberships.map((membership) => organizations.findById(membership.orgId)).filter((org) => org && org.status === 'approved' && (org.members || []).some((member) => Number(member.studentId) === Number(user.id)));
+}
+
+// Resolves which organization a request should act within: the org's own
+// login gets full access (unchanged, existing behavior); a tutor or student
+// who redeemed that org's access code falls back to membership, for the
+// read-mostly, member-scoped routes below (library viewing, classroom group
+// chat) - org-content management (create/edit/delete library items,
+// folders, monthly amount, etc.) stays owner-only and does not use this.
+function resolveOrgForUser(user) {
+  const owned = organizations.findByUserId(user.id);
+  if (owned) return owned;
+  const memberships = organizationMembershipsForUser(user);
+  return memberships[0] || null;
+}
+
+// The single access-check behind every generic /api/org-chat/... route
+// (edit/delete/react/pin/set-meeting-link) - resolves whether the caller is
+// the org itself, a tutor participant, or a student participant of this one
+// conversation, without the route needing to know which surface (org
+// dashboard, group chat, student's "my org" page, tutor's org panel) is
+// calling. Tutor participants are keyed by tutor PROFILE id (matching how
+// org-chat conversations already store them, e.g. server.js:3330), student
+// participants by their user id.
+function resolveOrgChatAccess(user, conversationId) {
+  const conversation = orgChat.findById(conversationId);
+  if (!conversation) return null;
+  const org = organizations.findByUserId(user.id);
+  if (org && org.id === conversation.orgId) {
+    return { conversation, role: 'org', participantId: org.id, participantName: org.name || org.contactName };
+  }
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile && conversation.participants.some((p) => p.type === 'tutor' && Number(p.id) === tutorProfile.id)) {
+    return { conversation, role: 'tutor', participantId: tutorProfile.id, participantName: tutorProfile.name };
+  }
+  if (conversation.participants.some((p) => p.type === 'student' && Number(p.id) === user.id)) {
+    return { conversation, role: 'student', participantId: user.id, participantName: user.name };
+  }
+  return null;
 }
 
 // Notifies every admin of a new tutor/org/student request - both in-app
@@ -504,6 +682,10 @@ app.get('/ngo-dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
 });
 
+app.get('/my-organization', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'my-organization.html'));
+});
+
 app.get('/edit-profile', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'edit-profile.html'));
 });
@@ -595,6 +777,40 @@ app.get(/^\/tutors\/[0-9]+(\/.*)?$/, (req, res) => {
   const tutor = tutors.findById(id);
   if (!tutor || tutor.status !== 'approved' || tutor.expelled) return res.redirect('/find-tutor');
   res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+});
+
+// --- Performance Marketplace pages (mirror the tutor page routes above) ---
+
+app.get('/become-performer', requireAuthPage, (req, res) => {
+  const user = currentUser(req);
+  if (user && performers.findByUserId(user.id)) {
+    return res.redirect('/performer');
+  }
+  res.sendFile(path.join(PUBLIC_DIR, 'become-performer.html'));
+});
+
+app.get('/performer', requirePerformerProfilePage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'performer.html'));
+});
+
+app.get('/performer/:slug', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'performer.html'));
+});
+
+// Publicly browsable - no login required, matches /find-tutor's posture.
+app.get('/find-performer', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'find-performer.html'));
+});
+
+app.get('/performers/:id', (req, res) => {
+  const performer = performers.findById(req.params.id);
+  if (!performer || performer.status !== 'approved' || performer.suspended) return res.redirect('/find-performer');
+  res.sendFile(path.join(PUBLIC_DIR, 'performer.html'));
+});
+
+// A requester's own posted event requests and the offers/responses on them.
+app.get('/performance-requests', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'performance-requests.html'));
 });
 
 // Public per-student page by slug (e.g. /student/john-doe)
@@ -785,11 +1001,11 @@ app.post('/api/mozart-ai/message', requireAuthApi, async (req, res) => {
 });
 
 app.post('/api/mozart-ai/attachment', requireAuthApi, (req, res) => {
-  chatUpload.single('file')(req, res, (err) => {
+  chatUpload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file first.' });
     const thread = supportChat.getOrCreate(currentUser(req));
-    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: `/uploads/chat/${req.file.filename}` };
+    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: await resolveUploadedFileUrl(req.file, 'chat') };
     const added = supportChat.addMessage(thread.id, { sender: 'user', text: `Attachment: ${req.file.originalname}`, attachment });
     res.json({ success: true, thread: added.thread, message: added.message });
   });
@@ -853,13 +1069,13 @@ app.post('/api/support-agent/threads/:id/message', requireSupportAgentApi, (req,
   res.json({ success: true, thread: added.thread });
 });
 app.post('/api/support-agent/threads/:id/attachment', requireSupportAgentApi, (req, res) => {
-  chatUpload.single('file')(req, res, (err) => {
+  chatUpload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
     const agent = currentUser(req); const thread = supportChat.findById(req.params.id);
     if (!thread) return res.status(404).json({ success: false, error: 'Support conversation not found.' });
     if (agent.role !== 'admin' && thread.assignedAgentId !== agent.id) return res.status(403).json({ success: false, error: 'Claim this conversation before sending a file.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file first.' });
-    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: `/uploads/chat/${req.file.filename}` };
+    const attachment = { name: req.file.originalname, type: req.file.mimetype, size: req.file.size, url: await resolveUploadedFileUrl(req.file, 'chat') };
     const added = supportChat.addMessage(thread.id, { sender: 'agent', adminId: agent.id, text: `Attachment: ${req.file.originalname}`, attachment });
     store.addNotification(added.thread.userId, { type: 'support_reply', message: `${agent.name || 'A Mozart Techniques support agent'} sent you a file.`, href: '/dashboard?open-live-support=1' });
     res.json({ success: true, thread: added.thread, message: added.message });
@@ -917,12 +1133,12 @@ app.post('/api/profile/name', requireAuthApi, (req, res) => {
   res.json({ success: true, user: publicUser(updated) });
 });
 
-app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), (req, res) => {
+app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No file uploaded.' });
   }
   const user = currentUser(req);
-  const photoPath = `/uploads/photos/${req.file.filename}`;
+  const photoPath = await resolveUploadedFileUrl(req.file, 'photos');
   store.setPhoto(user.id, photoPath);
   // Tutor cards and public tutor profiles read their image from the tutor
   // profile, not the user account. Keep both records in sync when a tutor
@@ -1272,26 +1488,26 @@ app.get('/api/tutors/slug/:slug', async (req, res) => {
 });
 
 app.post('/api/uploads/certificate', requireAuthApi, (req, res) => {
-  certUpload.single('certificate')(req, res, (err) => {
+  certUpload.single('certificate')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 15MB).' : err.message;
       return res.status(400).json({ success: false, error: message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to upload.' });
-    res.json({ success: true, url: `/uploads/certificates/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'certificates') });
   });
 });
 
 app.post('/api/uploads/photo', requireAuthApi, (req, res) => {
-  photoUpload.single('photo')(req, res, (err) => {
+  photoUpload.single('photo')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 8MB).' : err.message;
       return res.status(400).json({ success: false, error: message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a photo to upload.' });
-    res.json({ success: true, url: `/uploads/photos/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'photos') });
   });
 });
 
@@ -1370,8 +1586,31 @@ function publicAppUrl(req) {
 async function refreshTutorConnectStatus(tutor) {
   const client = stripeClient.getClient();
   if (!client || !tutor || !tutor.stripeConnectAccountId) return tutor;
-  const account = await client.accounts.retrieve(tutor.stripeConnectAccountId);
+  const account = await client.v2.core.accounts.retrieve(tutor.stripeConnectAccountId, {
+    include: ['configuration.recipient', 'requirements'],
+  });
   return tutors.setStripeConnectAccount(tutor.id, account);
+}
+
+function stripeConnectError(err) {
+  const messages = {
+    accounts_v2_access_blocked: 'Stripe Connect Accounts v2 is not enabled for the Mozart Techniques Stripe platform.',
+    platform_registration_required: 'Stripe Connect must be activated in the Mozart Techniques Stripe Dashboard before tutors can connect.',
+    connect_profile_not_submitted: 'The Mozart Techniques Stripe platform profile must be completed before tutors can connect.',
+    connect_identity_not_verified: 'Stripe must verify the Mozart Techniques platform before tutors can connect.',
+    capability_not_available_in_country: 'Stripe Connect payouts are not available for this tutor country.',
+    capability_not_available_in_platform_country: 'Stripe Connect payouts are not available for this platform country.',
+    cross_border_connected_account_creation_not_allowed: 'Stripe does not permit this cross-border connected-account payout route.',
+  };
+  return messages[err && err.code] || 'Stripe could not start or update this payout setup. Please try again or contact support.';
+}
+
+function tutorRecipientConfiguration() {
+  return { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } };
+}
+
+function connectAccountIncludes() {
+  return ['configuration.recipient', 'requirements'];
 }
 
 function stripeObjectId(value) {
@@ -1393,9 +1632,8 @@ async function tryAutomaticTutorTransfer(record, session, paymentIntentId) {
   }
 
   try {
-    const account = await client.accounts.retrieve(tutor.stripeConnectAccountId);
-    const refreshedTutor = tutors.setStripeConnectAccount(tutor.id, account);
-    if (!refreshedTutor.stripeConnectPayoutsEnabled) {
+    const refreshedTutor = await refreshTutorConnectStatus(tutor);
+    if (!refreshedTutor.stripeConnectTransfersEnabled || !refreshedTutor.stripeConnectPayoutsEnabled) {
       assignments.setSessionStripeTransfer(record.id, session.id, { status: 'pending_setup' });
       return null;
     }
@@ -1474,31 +1712,99 @@ function coveredOrganizationForAssignment(record, student) {
 app.get('/api/tutors/me/stripe-connect', requireApprovedTutorApi, async (req, res) => {
   try {
     const profile = await refreshTutorConnectStatus(req.tutorProfile);
-    res.json({ success: true, configured: Boolean(stripeClient.getClient()), accountId: profile.stripeConnectAccountId || null, detailsSubmitted: Boolean(profile.stripeConnectDetailsSubmitted), payoutsEnabled: Boolean(profile.stripeConnectPayoutsEnabled) });
+    res.json({
+      success: true,
+      configured: Boolean(stripeClient.getClient()),
+      accountId: profile.stripeConnectAccountId || null,
+      accountVersion: profile.stripeConnectAccountVersion || null,
+      detailsSubmitted: Boolean(profile.stripeConnectDetailsSubmitted),
+      payoutsEnabled: Boolean(profile.stripeConnectPayoutsEnabled),
+      transfersEnabled: Boolean(profile.stripeConnectTransfersEnabled),
+      requirementsDue: profile.stripeConnectRequirementsDue || [],
+    });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message || 'Could not read Stripe payout status.' });
+    res.status(400).json({ success: false, error: stripeConnectError(err) });
   }
 });
+
+async function createTutorConnectOnboardingLink(req) {
+  const client = stripeClient.getClient();
+  if (!client) throw Object.assign(new Error('Stripe is not configured on this server yet.'), { code: 'stripe_not_configured' });
+
+  const user = currentUser(req);
+  let profile = req.tutorProfile;
+  let account;
+  if (profile.stripeConnectAccountId) {
+    // The stored acct_ ID is authoritative: update/reuse it, including an
+    // existing v1 account that Stripe has made available to Accounts v2.
+    account = await client.v2.core.accounts.update(profile.stripeConnectAccountId, {
+      configuration: tutorRecipientConfiguration(),
+      include: connectAccountIncludes(),
+    });
+  } else {
+    account = await client.v2.core.accounts.create({
+      contact_email: user.email,
+      display_name: profile.name || user.name || 'Mozart Techniques tutor',
+      dashboard: 'express',
+      identity: { country: stripeConnectCountry(user) },
+      defaults: { responsibilities: { fees_collector: 'application', losses_collector: 'application' } },
+      configuration: tutorRecipientConfiguration(),
+      metadata: {
+        mozart_role: 'tutor',
+        mozart_tutor_id: String(profile.id),
+        mozart_user_id: String(user.id),
+      },
+      include: connectAccountIncludes(),
+    }, { idempotencyKey: `mozart-tutor-connect-v2-${profile.id}` });
+  }
+
+  profile = tutors.setStripeConnectAccount(profile.id, account);
+  const baseUrl = publicAppUrl(req);
+  const link = await client.v2.core.accountLinks.create({
+    account: profile.stripeConnectAccountId,
+    use_case: {
+      type: 'account_onboarding',
+      account_onboarding: {
+        configurations: ['recipient'],
+        refresh_url: `${baseUrl}/api/tutors/me/stripe-connect/refresh`,
+        return_url: `${baseUrl}/api/tutors/me/stripe-connect/return`,
+        collection_options: { fields: 'eventually_due', future_requirements: 'include' },
+      },
+    },
+  });
+  return { profile, link };
+}
 
 app.post('/api/tutors/me/stripe-connect/onboard', requireApprovedTutorApi, async (req, res) => {
-  const client = stripeClient.getClient();
-  if (!client) return res.status(503).json({ success: false, error: 'Stripe is not configured on this server yet.' });
   try {
-    const user = currentUser(req);
-    let profile = req.tutorProfile;
-    if (!profile.stripeConnectAccountId) {
-      const account = await client.accounts.create({ type: 'express', country: stripeConnectCountry(user), email: user.email, metadata: { mozart_role: 'tutor', mozart_tutor_id: String(profile.id), mozart_user_id: String(user.id) } });
-      profile = tutors.setStripeConnectAccount(profile.id, account);
-    }
-    const baseUrl = publicAppUrl(req);
-    const link = await client.accountLinks.create({ account: profile.stripeConnectAccountId, refresh_url: `${baseUrl}/api/tutors/me/stripe-connect/refresh`, return_url: `${baseUrl}/api/tutors/me/stripe-connect/return`, type: 'account_onboarding' });
+    const { profile, link } = await createTutorConnectOnboardingLink(req);
     res.json({ success: true, url: link.url, accountId: profile.stripeConnectAccountId });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message || 'Could not start Stripe payout setup.' });
-  }
+} catch (err) {
+  console.error('========== STRIPE CONNECT ERROR ==========');
+  console.error('Code:', err?.code);
+  console.error('Type:', err?.type);
+  console.error('Message:', err?.message);
+  console.error('Param:', err?.param);
+  console.error('Raw:', err);
+  console.error('==========================================');
+
+  res.status(err?.code === 'stripe_not_configured' ? 503 : 400).json({
+    success: false,
+    error: err?.message || stripeConnectError(err),
+    code: err?.code || 'stripe_connect_error'
+  });
+}
 });
 
-app.get('/api/tutors/me/stripe-connect/refresh', requireApprovedTutorApi, (req, res) => res.redirect('/tutor?connect=retry'));
+app.get('/api/tutors/me/stripe-connect/refresh', requireApprovedTutorApi, async (req, res) => {
+  try {
+    const { link } = await createTutorConnectOnboardingLink(req);
+    res.redirect(link.url);
+  } catch (err) {
+    console.warn('Stripe Connect onboarding refresh failed:', err.code || err.type || err.message);
+    res.redirect('/tutor?connect=error');
+  }
+});
 
 app.get('/api/tutors/me/stripe-connect/return', requireApprovedTutorApi, async (req, res) => {
   try {
@@ -1581,12 +1887,31 @@ function tutorGroupAccess(user, conversationId) {
 app.get('/api/group-chats', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const tutor = tutors.findByUserId(user.id);
+  const prefs = store.getThreadPrefs(user.id);
   const chats = (tutor ? orgChat.listForTutor(tutor.id) : [])
     .filter((item) => item.type === 'tutor-group')
     .concat((!tutor ? [] : []));
   const studentChats = orgChat.listAll ? orgChat.listAll() : [];
   const visible = tutor ? chats : studentChats.filter((item) => item.type === 'tutor-group' && (item.participants || []).some((entry) => entry.type === 'student' && Number(entry.id) === Number(user.id)));
-  res.json({ success: true, chats: visible.map((item) => ({ id: item.id, name: item.title, course: item.course, studentCount: (item.participants || []).filter((entry) => entry.type === 'student').length, lastAt: (item.messages || []).slice(-1)[0]?.createdAt || item.createdAt, lastMessage: (item.messages || []).slice(-1)[0]?.text || '', photoUrl: item.groupImageUrl || item.photoUrl || null })) });
+  const rows = visible.map((item) => {
+    const lastAt = (item.messages || []).slice(-1)[0]?.createdAt || item.createdAt;
+    const threadKey = `group:${item.id}`;
+    return {
+      id: item.id, name: item.title, course: item.course,
+      studentCount: (item.participants || []).filter((entry) => entry.type === 'student').length,
+      lastAt, lastMessage: (item.messages || []).slice(-1)[0]?.text || '',
+      photoUrl: item.groupImageUrl || item.photoUrl || null,
+      threadKey, hiddenAt: prefs.hiddenThreads[threadKey] || null,
+      favorite: prefs.favoriteThreadIds.includes(threadKey),
+      archived: prefs.archivedThreadIds.includes(threadKey),
+      pinned: prefs.pinnedThreadIds.includes(threadKey),
+      muted: (() => { const m = prefs.mutedThreads[threadKey]; return Boolean(m && (m.until === null || new Date(m.until) > new Date())); })(),
+      mutedUntil: (() => { const m = prefs.mutedThreads[threadKey]; return m && m.until && (new Date(m.until) > new Date()) ? m.until : null; })(),
+    };
+  })
+    .filter((row) => !(row.hiddenAt && new Date(row.lastAt) <= new Date(row.hiddenAt)))
+    .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.lastAt) - new Date(a.lastAt)));
+  res.json({ success: true, chats: rows });
 });
 
 app.get('/api/group-chats/:id', requireAuthApi, (req, res) => {
@@ -1617,23 +1942,1001 @@ app.delete('/api/group-chats/:id/members/:type/:memberId', requireAuthApi, (req,
 });
 app.post('/api/group-chats/:id/messages', requireAuthApi, (req, res) => {
   const access = tutorGroupAccess(currentUser(req), req.params.id);
-  const text = String(req.body && req.body.text || '').trim();
-  const attachment = req.body && req.body.attachment;
+  const { text: rawText, attachment, replyToId, poll, location } = req.body || {};
+  const text = String(rawText || '').trim();
   if (!access) return res.status(404).json({ success: false, error: 'Group chat not found.' });
-  if (!text && !attachment) return res.status(400).json({ success: false, error: 'Write a message or attach a file.' });
-  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
-  const message = orgChat.sendMessage(access.conversation.id, { senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text, attachment });
+  if (!text && !attachment && !poll && !location) return res.status(400).json({ success: false, error: 'Write a message, attach a file, a poll, or a location.' });
+  if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
+  const message = orgChat.sendMessage(access.conversation.id, {
+    senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text, attachment,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
+  });
   res.json({ success: true, message });
 });
+// Admin's region filter is now a multi-select dropdown rather than one
+// pill at a time - `regions` is a comma-separated list of country names
+// (falls back to the older singular `region` param for compatibility).
+// An empty set means "All countries", matching the previous no-filter
+// behavior.
+function parseRegionFilter(req) {
+  const raw = String(req.query.regions || req.query.region || '').trim();
+  if (!raw) return null;
+  const set = new Set(raw.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean));
+  return set.size ? set : null;
+}
+
 app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
-  const region = String(req.query.region || '').trim().toLowerCase();
+  const regionSet = parseRegionFilter(req);
   const list = payouts.listAll().filter((item) => {
-    if (!region) return true;
+    if (!regionSet) return true;
     const tutor = tutors.findById(item.tutorId);
-    return String(tutor && tutor.locality && tutor.locality.country || '').toLowerCase() === region;
+    return regionSet.has(String(tutor && tutor.locality && tutor.locality.country || '').toLowerCase());
   });
   res.json({ success: true, payouts: list });
 });
+app.get('/store', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
+app.get('/category', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'category.html'));
+});
+app.get('/product', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'product.html'));
+});
+app.get('/store-profile', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store-profile.html'));
+});
+app.get('/cart', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'cart.html'));
+});
+app.get('/store-privacy', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store-privacy.html'));
+});
+app.get('/order-confirmation', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'order-confirmation.html'));
+});
+
+// ==================== STORE (E-COMMERCE) ====================
+
+const STORE_CATEGORIES = [
+  { key: 'scripts-scores', title: 'Sheet Music & Scores', description: 'Printed and digital scores for every instrument and skill level.', image: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?auto=format&fit=crop&w=1600&q=80' },
+  { key: 'instruments', title: 'Instruments', description: 'Guitars, keyboards, strings, and more from trusted makers.', image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1600&q=80' },
+  { key: 'accessories', title: 'Accessories', description: 'Cases, straps, tuners, and everything else your practice needs.', image: 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?auto=format&fit=crop&w=1600&q=80' },
+  { key: 'digital-products', title: 'Digital Products', description: 'Downloadable lessons, backing tracks, and practice tools.', image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1600&q=80' },
+  { key: 'books-learning', title: 'Books & Learning', description: 'Method books and guides to build your musical foundation.', image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1600&q=80' },
+];
+
+async function storeProductSummary(product, geoInfo) {
+  const priceLocal = Math.round((await currency.convertFromUsd(product.priceUsd, geoInfo.currency)) * 100) / 100;
+  return {
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    category: product.category,
+    coverImage: product.coverImage,
+    priceUsd: product.priceUsd,
+    priceLocal,
+    currency: geoInfo.currency,
+    symbol: geoInfo.symbol,
+    avgRating: productReviews.avgRating(product.id),
+    reviewCount: productReviews.countFor(product.id),
+    inStock: products.totalStock(product) > 0,
+    createdAt: product.createdAt,
+  };
+}
+
+// Every color needs a name and at least one country with real stock -
+// otherwise the color x country matrix has no meaningful entry a buyer
+// could ever purchase.
+function validateProductColors(colors) {
+  if (!Array.isArray(colors) || !colors.length) return 'Add at least one color.';
+  for (const color of colors) {
+    if (!color || !String(color.name || '').trim()) return 'Every color needs a name.';
+    if (!Array.isArray(color.stock) || !color.stock.some((s) => Number(s.quantity) > 0)) {
+      return `Add at least one country with stock for "${color.name}".`;
+    }
+  }
+  return null;
+}
+
+// --- Public store browsing (geo-aware pricing, works for anonymous visitors) ---
+
+app.get('/api/store/categories', (req, res) => {
+  const active = products.listAll({ status: 'active' });
+  const categories = STORE_CATEGORIES.map((cat) => ({
+    ...cat,
+    productCount: active.filter((p) => p.category === cat.key).length,
+  }));
+  res.json({ success: true, categories });
+});
+
+app.get('/api/store/products', async (req, res) => {
+  const { category, q, sort, page } = req.query;
+  let list = products.listAll({ status: 'active', category: category || undefined });
+  if (q) {
+    const needle = String(q).toLowerCase();
+    list = list.filter((p) => p.name.toLowerCase().includes(needle) || p.description.toLowerCase().includes(needle));
+  }
+  if (sort === 'price-asc') list = list.slice().sort((a, b) => a.priceUsd - b.priceUsd);
+  else if (sort === 'price-desc') list = list.slice().sort((a, b) => b.priceUsd - a.priceUsd);
+  else if (sort === 'new') list = list.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  else {
+    list = list.slice().sort((a, b) => (productReviews.countFor(b.id) - productReviews.countFor(a.id))
+      || (new Date(b.createdAt) - new Date(a.createdAt)));
+  }
+
+  const pageSize = 24;
+  const pageNum = Math.max(1, Number(page) || 1);
+  const paged = list.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+
+  const geoInfo = await getGeoInfo(req);
+  const summaries = await Promise.all(paged.map((p) => storeProductSummary(p, geoInfo)));
+  res.json({ success: true, products: summaries, total: list.length, page: pageNum, pageSize, hasMore: pageNum * pageSize < list.length });
+});
+
+app.post('/api/store/products/batch', async (req, res) => {
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) return res.status(400).json({ success: false, error: 'Invalid request.' });
+  const geoInfo = await getGeoInfo(req);
+  const results = await Promise.all(items.map(async (item) => {
+    const product = products.findById(item.productId);
+    if (!product || product.status !== 'active') return { productId: item.productId, colorId: item.colorId, active: false };
+    const color = product.colors.find((c) => c.id === item.colorId);
+    const priceLocal = Math.round((await currency.convertFromUsd(product.priceUsd, geoInfo.currency)) * 100) / 100;
+    return {
+      productId: product.id, colorId: color ? color.id : null, active: true,
+      productName: product.name, productSlug: product.slug, image: product.coverImage,
+      colorName: color ? color.name : null, colorHex: color ? color.hex : null,
+      unitPriceUsd: product.priceUsd, unitPriceLocal: priceLocal,
+      currency: geoInfo.currency, symbol: geoInfo.symbol,
+      stockForViewerCountry: color ? products.stockFor(product, color.id, geoInfo.countryCode) : 0,
+    };
+  }));
+  res.json({ success: true, items: results });
+});
+
+app.get('/api/store/products/:id/reviews', (req, res) => {
+  const reviews = productReviews.listByProduct(req.params.id);
+  res.json({ success: true, reviews, avgRating: productReviews.avgRating(req.params.id), reviewCount: reviews.length });
+});
+
+app.get('/api/store/products/:slug', async (req, res) => {
+  const product = products.findBySlug(req.params.slug);
+  if (!product || product.status !== 'active') return res.status(404).json({ success: false, error: 'Product not found.' });
+  const geoInfo = await getGeoInfo(req);
+  const priceLocal = Math.round((await currency.convertFromUsd(product.priceUsd, geoInfo.currency)) * 100) / 100;
+  const colors = product.colors.map((color) => ({
+    id: color.id, name: color.name, hex: color.hex,
+    stockForViewerCountry: products.stockFor(product, color.id, geoInfo.countryCode),
+  }));
+  const related = await Promise.all(
+    products.listAll({ status: 'active', category: product.category })
+      .filter((p) => p.id !== product.id)
+      .slice(0, 4)
+      .map((p) => storeProductSummary(p, geoInfo)),
+  );
+  res.json({
+    success: true,
+    product: {
+      id: product.id, slug: product.slug, name: product.name, category: product.category,
+      description: product.description, images: product.images, coverImage: product.coverImage,
+      priceUsd: product.priceUsd, priceLocal, currency: geoInfo.currency, symbol: geoInfo.symbol,
+      colors, avgRating: productReviews.avgRating(product.id), reviewCount: productReviews.countFor(product.id),
+      viewerCountry: geoInfo.countryCode,
+    },
+    related,
+  });
+});
+
+// --- Reviews (signed-in shopper) ---
+
+app.post('/api/store/products/:id/reviews', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const productId = Number(req.params.id);
+  const product = products.findById(productId);
+  if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+  if (productReviews.findByUserAndProduct(user.id, productId)) {
+    return res.status(409).json({ success: false, error: 'You already reviewed this product. Edit your existing review instead.' });
+  }
+  const { rating, text } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ success: false, error: 'Please write a review.' });
+  const review = productReviews.create({ productId, userId: user.id, userName: user.name || user.email, rating, text });
+  res.json({ success: true, review });
+});
+
+app.put('/api/store/reviews/:id', requireAuthApi, (req, res) => {
+  const { rating, text } = req.body || {};
+  const review = productReviews.update(req.params.id, currentUser(req).id, { rating, text });
+  if (!review) return res.status(404).json({ success: false, error: 'Review not found.' });
+  res.json({ success: true, review });
+});
+
+app.delete('/api/store/reviews/:id', requireAuthApi, (req, res) => {
+  const removed = productReviews.remove(req.params.id, currentUser(req).id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Review not found.' });
+  res.json({ success: true });
+});
+
+app.get('/api/store/my-reviews', requireAuthApi, (req, res) => {
+  const reviews = productReviews.listByUser(currentUser(req).id).map((review) => {
+    const product = products.findById(review.productId);
+    return { ...review, productName: product ? product.name : 'Deleted product', productSlug: product ? product.slug : null, productImage: product ? product.coverImage : null };
+  });
+  res.json({ success: true, reviews });
+});
+
+// --- Address book (signed-in shopper; checkout requires at least one) ---
+
+app.get('/api/store/addresses', requireAuthApi, (req, res) => {
+  res.json({ success: true, addresses: addresses.listByUser(currentUser(req).id) });
+});
+
+app.post('/api/store/addresses', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const { label, fullName, phone, country, state, city, street, postalCode, isDefault } = req.body || {};
+  if (!fullName || !phone || !country || !city || !street) {
+    return res.status(400).json({ success: false, error: 'Full name, phone, country, city and street are required.' });
+  }
+  const countryInfo = geo.COUNTRY_CURRENCY[String(country).toUpperCase()];
+  const address = addresses.create(user.id, { label, fullName, phone, country, countryName: countryInfo ? countryInfo.name : country, state, city, street, postalCode, isDefault });
+  res.json({ success: true, address });
+});
+
+app.put('/api/store/addresses/:id', requireAuthApi, (req, res) => {
+  const fields = { ...(req.body || {}) };
+  if (fields.country) {
+    const countryInfo = geo.COUNTRY_CURRENCY[String(fields.country).toUpperCase()];
+    fields.countryName = countryInfo ? countryInfo.name : fields.country;
+  }
+  const address = addresses.update(req.params.id, currentUser(req).id, fields);
+  if (!address) return res.status(404).json({ success: false, error: 'Address not found.' });
+  res.json({ success: true, address });
+});
+
+app.delete('/api/store/addresses/:id', requireAuthApi, (req, res) => {
+  const removed = addresses.remove(req.params.id, currentUser(req).id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Address not found.' });
+  res.json({ success: true });
+});
+
+app.post('/api/store/addresses/:id/default', requireAuthApi, (req, res) => {
+  const address = addresses.setDefault(req.params.id, currentUser(req).id);
+  if (!address) return res.status(404).json({ success: false, error: 'Address not found.' });
+  res.json({ success: true, address });
+});
+
+// --- Orders, inbox & recently viewed (signed-in shopper) ---
+
+app.get('/api/store/orders', requireAuthApi, (req, res) => {
+  res.json({ success: true, orders: orders.listByUser(currentUser(req).id) });
+});
+
+app.get('/api/store/orders/:id', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const idParam = req.params.id;
+  const order = /^\d+$/.test(idParam) ? orders.findById(idParam) : orders.findByOrderNumber(idParam);
+  if (!order || order.userId !== user.id) return res.status(404).json({ success: false, error: 'Order not found.' });
+  res.json({ success: true, order });
+});
+
+app.get('/api/store/inbox', requireAuthApi, (req, res) => {
+  const userOrders = orders.listByUser(currentUser(req).id);
+  const feed = userOrders.flatMap((order) => order.statusHistory
+    .filter((entry) => entry.status !== 'pending_payment')
+    .map((entry) => ({ orderId: order.id, orderNumber: order.orderNumber, status: entry.status, message: entry.message, at: entry.at })));
+  feed.sort((a, b) => new Date(b.at) - new Date(a.at));
+  res.json({ success: true, inbox: feed });
+});
+
+app.post('/api/store/recently-viewed', requireAuthApi, (req, res) => {
+  const { productId } = req.body || {};
+  if (!productId) return res.status(400).json({ success: false, error: 'productId is required.' });
+  store.recordRecentlyViewed(currentUser(req).id, productId);
+  res.json({ success: true });
+});
+
+app.get('/api/store/recently-viewed', requireAuthApi, async (req, res) => {
+  const entries = store.getRecentlyViewed(currentUser(req).id);
+  const geoInfo = await getGeoInfo(req);
+  const summaries = [];
+  for (const entry of entries) {
+    const product = products.findById(entry.productId);
+    if (product && product.status === 'active') summaries.push(await storeProductSummary(product, geoInfo));
+  }
+  res.json({ success: true, products: summaries });
+});
+
+// --- Checkout ---
+
+app.post('/api/store/checkout', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+
+  const user = currentUser(req);
+  const { items: rawItems, addressId } = req.body || {};
+  if (!Array.isArray(rawItems) || !rawItems.length) return res.status(400).json({ success: false, error: 'Your cart is empty.' });
+
+  const address = addressId ? addresses.findById(addressId) : null;
+  if (!address || address.userId !== user.id) {
+    return res.status(400).json({ success: false, error: 'Add a delivery address before checking out.', code: 'no_address' });
+  }
+
+  const items = [];
+  for (const raw of rawItems) {
+    const product = products.findById(raw.productId);
+    const quantity = Math.max(1, Math.floor(Number(raw.quantity) || 1));
+    if (!product || product.status !== 'active') {
+      return res.status(400).json({ success: false, error: 'One of the items in your cart is no longer available.' });
+    }
+    const color = product.colors.find((c) => c.id === raw.colorId);
+    if (!color) {
+      return res.status(400).json({ success: false, error: `Please choose a color for "${product.name}".` });
+    }
+    const available = products.stockFor(product, color.id, address.country);
+    if (available < quantity) {
+      return res.status(400).json({
+        success: false,
+        error: `Only ${available} of "${product.name}" (${color.name}) left for delivery to ${address.countryName || address.country}.`,
+      });
+    }
+    items.push({
+      productId: product.id, productName: product.name, productSlug: product.slug,
+      colorId: color.id, colorName: color.name, colorHex: color.hex,
+      countryCode: address.country, quantity,
+      unitPriceUsd: product.priceUsd, lineTotalUsd: Math.round(product.priceUsd * quantity * 100) / 100,
+      image: product.coverImage,
+    });
+  }
+
+  const subtotalUsd = Math.round(items.reduce((sum, item) => sum + item.lineTotalUsd, 0) * 100) / 100;
+  const geoInfo = await getGeoInfo(req);
+  const displayTotal = Math.round((await currency.convertFromUsd(subtotalUsd, geoInfo.currency)) * 100) / 100;
+
+  const order = orders.createPending({
+    userId: user.id,
+    items,
+    addressId: address.id,
+    addressSnapshot: {
+      label: address.label, fullName: address.fullName, phone: address.phone, country: address.country,
+      countryName: address.countryName, state: address.state, city: address.city, street: address.street, postalCode: address.postalCode,
+    },
+    subtotalUsd, totalUsd: subtotalUsd,
+    displayCurrency: geoInfo.currency, displaySymbol: geoInfo.symbol, displayTotal,
+  });
+
+  try {
+    const session = await client.checkout.sessions.create({
+      mode: 'payment',
+      // Managed Payments (this Stripe account's default) requires a Stripe
+      // Tax product tax_code on every line item unless explicitly disabled;
+      // store products aren't registered with Stripe Tax, so opt out here -
+      // same simple card checkout as the rest of this app's Stripe flows.
+      managed_payments: { enabled: false },
+      line_items: items.map((item) => ({
+        price_data: {
+          currency: 'usd',
+          product_data: { name: `${item.productName} - ${item.colorName}` },
+          unit_amount: Math.round(item.unitPriceUsd * 100),
+        },
+        quantity: item.quantity,
+      })),
+      customer_email: user.email,
+      success_url: `${publicAppUrl(req)}/api/store/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/cart`,
+      metadata: { type: 'store-order', orderId: String(order.id) },
+    });
+    orders.attachStripeSession(order.id, session.id);
+    res.json({ success: true, url: session.url });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Could not start checkout.' });
+  }
+});
+
+// Stripe charges in USD always (avoids per-currency minor-unit handling for
+// a global storefront) - session.amount_total confirms USD paid; stock is
+// only decremented here, after payment is actually confirmed, so an
+// abandoned checkout never holds inventory hostage. Guarded by
+// order.status so a refreshed success page can't double-decrement.
+app.get('/api/store/checkout/success', async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.redirect('/cart?order=error');
+  const { sessionId } = req.query;
+  if (!sessionId) return res.redirect('/cart?order=error');
+
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId);
+    if (!session.metadata || session.metadata.type !== 'store-order') return res.redirect('/cart?order=error');
+    const order = orders.findById(session.metadata.orderId);
+    if (!order) return res.redirect('/cart?order=error');
+    if (session.payment_status !== 'paid') return res.redirect('/cart?order=pending');
+
+    if (order.status === 'pending_payment') {
+      let shortItem = null;
+      for (const item of order.items) {
+        const result = products.decrementStock(item.productId, item.colorId, item.countryCode, item.quantity);
+        if (!result.success) { shortItem = item; break; }
+      }
+      const paymentIntentId = stripeObjectId(session.payment_intent);
+      if (shortItem) {
+        orders.markFlagged(order.id, `Insufficient stock for ${shortItem.productName} (${shortItem.colorName}) after payment.`);
+        notifyAdmins({ type: 'store_order_flagged', message: `Order ${order.orderNumber} needs attention: stock ran out after payment.`, subject: 'Mozart Techniques Store - order needs attention' });
+      } else {
+        orders.markPaid(order.id, { paymentIntentId });
+      }
+      store.addNotification(order.userId, { type: 'store_order_paid', message: `Your order ${order.orderNumber} has been paid and is being processed.`, href: '/store-profile?tab=orders' });
+    }
+    res.redirect(`/order-confirmation?order=${order.orderNumber}`);
+  } catch (err) {
+    console.error('Store checkout success error:', err.message);
+    res.redirect('/cart?order=error');
+  }
+});
+
+// --- Admin: products, reviews, orders ---
+
+app.get('/api/admin/products', requireAdminApi, (req, res) => {
+  const list = products.listAll(req.query.status ? { status: req.query.status } : {});
+  const withStats = list.map((p) => ({ ...p, totalStock: products.totalStock(p), avgRating: productReviews.avgRating(p.id), reviewCount: productReviews.countFor(p.id) }));
+  res.json({ success: true, products: withStats });
+});
+
+app.post('/api/admin/products', requireAdminApi, (req, res) => {
+  const { name, category, description, priceUsd, coverImage, images, colors, status } = req.body || {};
+  if (!name || !category || !coverImage) return res.status(400).json({ success: false, error: 'Name, category and a cover image are required.' });
+  const colorError = validateProductColors(colors);
+  if (colorError) return res.status(400).json({ success: false, error: colorError });
+  const product = products.create({ name, category, description, priceUsd, coverImage, images, colors, status, createdBy: currentUser(req).id });
+  res.json({ success: true, product });
+});
+
+app.get('/api/admin/products/:id', requireAdminApi, (req, res) => {
+  const product = products.findById(req.params.id);
+  if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+  res.json({ success: true, product });
+});
+
+app.put('/api/admin/products/:id', requireAdminApi, (req, res) => {
+  const { name, category, description, priceUsd, coverImage, images, colors, status } = req.body || {};
+  if (colors != null) {
+    const colorError = validateProductColors(colors);
+    if (colorError) return res.status(400).json({ success: false, error: colorError });
+  }
+  const product = products.update(req.params.id, { name, category, description, priceUsd, coverImage, images, colors, status });
+  if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+  res.json({ success: true, product });
+});
+
+app.delete('/api/admin/products/:id', requireAdminApi, (req, res) => {
+  const product = products.archive(req.params.id);
+  if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+  res.json({ success: true, product });
+});
+
+app.post('/api/admin/products/upload-image', requireAdminApi, (req, res) => {
+  productImageUpload.single('image')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 8MB).' : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose an image to upload.' });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'products') });
+  });
+});
+
+app.get('/api/admin/products/:id/reviews', requireAdminApi, (req, res) => {
+  res.json({ success: true, reviews: productReviews.listByProduct(req.params.id) });
+});
+
+app.post('/api/admin/products/reviews/:reviewId/reply', requireAdminApi, (req, res) => {
+  const admin = currentUser(req);
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ success: false, error: 'Please enter a reply.' });
+  const review = productReviews.addReply(req.params.reviewId, { adminId: admin.id, adminName: admin.name || 'Mozart Techniques', text });
+  if (!review) return res.status(404).json({ success: false, error: 'Review not found.' });
+  const product = products.findById(review.productId);
+  store.addNotification(review.userId, { type: 'store_review_reply', message: `Mozart Techniques replied to your review of "${product ? product.name : 'a product'}".`, href: '/store-profile?tab=ratings' });
+  res.json({ success: true, review });
+});
+
+app.get('/api/admin/orders', requireAdminApi, (req, res) => {
+  res.json({ success: true, orders: orders.listAll(req.query.status ? { status: req.query.status } : {}) });
+});
+
+app.get('/api/admin/orders/:id', requireAdminApi, (req, res) => {
+  const order = orders.findById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, error: 'Order not found.' });
+  res.json({ success: true, order });
+});
+
+const ADMIN_SETTABLE_ORDER_STATUSES = ['processing', 'shipped', 'delivered', 'cancelled'];
+app.post('/api/admin/orders/:id/status', requireAdminApi, (req, res) => {
+  const { status, message } = req.body || {};
+  if (!ADMIN_SETTABLE_ORDER_STATUSES.includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid order status.' });
+  }
+  const order = orders.setStatus(req.params.id, status, message);
+  if (!order) return res.status(404).json({ success: false, error: 'Order not found.' });
+  store.addNotification(order.userId, { type: 'store_order_update', message: message || `Your order ${order.orderNumber} is now ${status}.`, href: '/store-profile?tab=orders' });
+  res.json({ success: true, order });
+});
+
+// ==================== END STORE ====================
+
+// ==================== PERFORMANCE MARKETPLACE ====================
+
+const ACTIVATION_FEE_USD = 1.5;
+
+function performerPublicSummary(p) {
+  return {
+    id: p.id, name: p.name, performerType: p.performerType, groupSize: p.groupSize,
+    categories: p.categories, city: p.city, locality: p.locality, photoUrl: p.photoUrl,
+    baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, bio: p.bio, experienceYears: p.experienceYears,
+  };
+}
+
+function performerFullPublicView(p) {
+  return {
+    id: p.id, name: p.name, performerType: p.performerType, groupSize: p.groupSize, categories: p.categories,
+    city: p.city, locality: p.locality, bio: p.bio, experienceYears: p.experienceYears, qualifications: p.qualifications,
+    styleTags: p.styleTags, baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, photoUrl: p.photoUrl,
+    galleryPhotos: p.galleryPhotos, videoClips: p.videoClips, socialLinks: p.socialLinks,
+  };
+}
+
+function decoratedOfferForRequester(offer) {
+  const performer = performers.findById(offer.performerId);
+  return {
+    ...offer,
+    performerName: performer ? performer.name : 'Performer',
+    performerPhotoUrl: performer ? performer.photoUrl : null,
+    performerBio: performer ? performer.bio : null,
+    performerCity: performer ? performer.city : null,
+  };
+}
+
+function summarizeOfferCounts(offers) {
+  const counts = { invited: 0, accepted: 0, countered: 0, declined: 0, expired: 0, selected: 0, not_selected: 0 };
+  offers.forEach((o) => { if (counts[o.status] != null) counts[o.status] += 1; });
+  return counts;
+}
+
+function notifyMatchingPerformers(req, request, matches) {
+  matches.forEach(({ performer }) => {
+    store.addNotification(performer.userId, {
+      type: 'marketplace_request_invite',
+      message: `New ${request.eventType} booking request near you (within ${request.radiusKm}km) - respond in your Performer Dashboard.`,
+      href: '/performer?tab=requests',
+    });
+    const performerUser = store.findById(performer.userId);
+    if (performerUser && performerUser.email) {
+      mailer.sendMail({
+        to: performerUser.email,
+        subject: 'Mozart Techniques - New booking request',
+        text: `A user is looking for a ${request.performerCategory} for a ${request.eventType} near you.\n\nProposed rate: $${request.proposedAmountUsd}\nDate: ${request.eventDate || 'TBD'}\n\nRespond in your Performer Dashboard: ${publicAppUrl(req)}/performer`,
+      });
+    }
+  });
+}
+
+function notifyRequesterOfResponse(offer, kind) {
+  const request = marketplaceRequests.findById(offer.requestId);
+  const performer = performers.findById(offer.performerId);
+  if (!request || !performer) return;
+  store.addNotification(request.requesterId, {
+    type: kind === 'accepted' ? 'marketplace_offer_accepted' : 'marketplace_offer_countered',
+    message: `${performer.name} ${kind === 'accepted' ? 'accepted your offer' : 'sent a counter-offer'} for your "${request.eventType}" booking request.`,
+    href: '/performance-requests',
+  });
+}
+
+// --- Taxonomy (public read, admin-gated append) ---
+
+app.get('/api/performer-categories', (req, res) => {
+  res.json({ success: true, categories: taxonomy.loadPerformerCategories() });
+});
+
+app.post('/api/admin/performer-categories', requireAdminApi, (req, res) => {
+  const name = String((req.body && req.body.category) || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ success: false, error: 'Category name is required.' });
+  const existing = taxonomy.loadPerformerCategories();
+  if (existing.some((c) => c.toLowerCase() === name.toLowerCase())) return res.status(409).json({ success: false, error: 'That category already exists.' });
+  res.json({ success: true, categories: taxonomy.addPerformerCategory(name) });
+});
+
+app.get('/api/event-types', (req, res) => {
+  res.json({ success: true, eventTypes: taxonomy.loadEventTypes() });
+});
+
+app.post('/api/admin/event-types', requireAdminApi, (req, res) => {
+  const name = String((req.body && req.body.eventType) || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ success: false, error: 'Event type name is required.' });
+  const existing = taxonomy.loadEventTypes();
+  if (existing.some((e) => e.toLowerCase() === name.toLowerCase())) return res.status(409).json({ success: false, error: 'That event type already exists.' });
+  res.json({ success: true, eventTypes: taxonomy.addEventType(name) });
+});
+
+app.get('/api/benchmark-rates', async (req, res) => {
+  const { category, country } = req.query;
+  if (!category) return res.status(400).json({ success: false, error: 'category is required.' });
+  const geoInfo = await getGeoInfo(req);
+  const rate = benchmarkRates.getRate(category, country || geoInfo.countryCode);
+  if (!rate) return res.json({ success: true, rate: null });
+  const amountLocal = Math.round((await currency.convertFromUsd(rate.amountUsd, geoInfo.currency)) * 100) / 100;
+  res.json({ success: true, rate: { category: rate.category, amountUsd: rate.amountUsd, amountLocal, currency: geoInfo.currency, symbol: geoInfo.symbol } });
+});
+
+app.get('/api/admin/benchmark-rates', requireAdminApi, (req, res) => {
+  res.json({ success: true, rates: benchmarkRates.listAll() });
+});
+
+app.post('/api/admin/benchmark-rates', requireAdminApi, (req, res) => {
+  const { category, country, amountUsd } = req.body || {};
+  if (!category || !amountUsd) return res.status(400).json({ success: false, error: 'Category and amount are required.' });
+  const rate = benchmarkRates.setRate({ category, country: country || null, amountUsd, updatedByUserId: currentUser(req).id });
+  res.json({ success: true, rate });
+});
+
+// --- Public performer browsing ---
+
+app.get('/api/performers', (req, res) => {
+  const { category, city } = req.query;
+  let list = performers.listApproved();
+  if (category) list = list.filter((p) => (p.categories || []).includes(category));
+  if (city) list = list.filter((p) => (p.city || '').toLowerCase().includes(String(city).toLowerCase()));
+  res.json({ success: true, performers: list.map(performerPublicSummary) });
+});
+
+app.get('/api/performers/:id/public', (req, res) => {
+  const performer = performers.findById(req.params.id);
+  if (!performer || performer.status !== 'approved' || performer.suspended) return res.status(404).json({ success: false, error: 'Performer not found.' });
+  res.json({ success: true, performer: performerFullPublicView(performer) });
+});
+
+app.get('/api/performers/slug/:slug', (req, res) => {
+  const performer = performers.findBySlug(req.params.slug);
+  if (!performer || performer.status !== 'approved' || performer.suspended) return res.status(404).json({ success: false, error: 'Performer not found.' });
+  res.json({ success: true, performer: performerFullPublicView(performer) });
+});
+
+// --- Performer profile (signed-in) ---
+
+app.get('/api/performers/me', requireAuthApi, (req, res) => {
+  res.json({ success: true, profile: performers.findByUserId(currentUser(req).id) });
+});
+
+app.post('/api/performers/apply', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  if (performers.findByUserId(user.id)) {
+    return res.status(409).json({ success: false, error: 'You already have a performer application on file.' });
+  }
+  const {
+    performerType, groupSize, categories, city, address, phone, travelRadiusKm,
+    bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit, photoUrl, socialLinks, agreementAccepted,
+  } = req.body || {};
+  if (!Array.isArray(categories) || !categories.length) return res.status(400).json({ success: false, error: 'Choose at least one performer category.' });
+  if (!city || !bio || !photoUrl) return res.status(400).json({ success: false, error: 'City, bio and a profile photo are required.' });
+  if (!baseRateUsd || Number(baseRateUsd) <= 0) return res.status(400).json({ success: false, error: 'Set your rate.' });
+  if (agreementAccepted !== true) return res.status(400).json({ success: false, error: 'Accept the performer agreement before applying.' });
+
+  const profile = await performers.apply({
+    userId: user.id, name: user.name, email: user.email, phone, performerType, groupSize, categories,
+    city, address, travelRadiusKm, bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit,
+    photoUrl, socialLinks, agreementAccepted,
+  });
+
+  notifyAdmins({
+    type: 'performer-application',
+    subject: `New performer application - ${user.name}`,
+    message: `New performer application from ${user.name} (${user.email}) - review it in the admin panel.`,
+  });
+
+  res.json({ success: true, profile });
+});
+
+app.post('/api/performers/me/categories', requirePerformerProfileApi, (req, res) => {
+  const validCategories = taxonomy.loadPerformerCategories();
+  const categories = Array.isArray(req.body.categories)
+    ? [...new Set(req.body.categories.map((c) => String(c).trim()).filter((c) => validCategories.includes(c)))]
+    : [];
+  if (!categories.length) return res.status(400).json({ success: false, error: 'Choose at least one category.' });
+  res.json({ success: true, profile: performers.setCategories(req.performerProfile.id, categories) });
+});
+
+app.post('/api/performers/me/rate', requirePerformerProfileApi, (req, res) => {
+  const { baseRateUsd, rateUnit } = req.body || {};
+  if (!baseRateUsd || Number(baseRateUsd) <= 0) return res.status(400).json({ success: false, error: 'Enter a valid rate.' });
+  res.json({ success: true, profile: performers.setRate(req.performerProfile.id, { baseRateUsd, rateUnit }) });
+});
+
+app.post('/api/performers/me/photo', requirePerformerProfileApi, (req, res) => {
+  const { photoUrl } = req.body || {};
+  if (!photoUrl) return res.status(400).json({ success: false, error: 'A photo URL is required.' });
+  res.json({ success: true, profile: performers.setPhoto(req.performerProfile.id, photoUrl) });
+});
+
+app.post('/api/performers/me/gallery', requirePerformerProfileApi, (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ success: false, error: 'An image URL is required.' });
+  res.json({ success: true, profile: performers.addGalleryPhoto(req.performerProfile.id, url) });
+});
+
+app.delete('/api/performers/me/gallery', requirePerformerProfileApi, (req, res) => {
+  const { url } = req.body || {};
+  res.json({ success: true, profile: performers.removeGalleryPhoto(req.performerProfile.id, url) });
+});
+
+app.post('/api/performers/me/videos', requirePerformerProfileApi, (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ success: false, error: 'A video URL is required.' });
+  res.json({ success: true, profile: performers.addVideo(req.performerProfile.id, url) });
+});
+
+app.delete('/api/performers/me/videos', requirePerformerProfileApi, (req, res) => {
+  const { url } = req.body || {};
+  res.json({ success: true, profile: performers.removeVideo(req.performerProfile.id, url) });
+});
+
+app.post('/api/performers/me/social-links', requirePerformerProfileApi, (req, res) => {
+  res.json({ success: true, profile: performers.setSocialLinks(req.performerProfile.id, req.body || {}) });
+});
+
+app.post('/api/uploads/performer-video', requireAuthApi, (req, res) => {
+  performerVideoUpload.single('video')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 200MB).' : err.message;
+      return res.status(400).json({ success: false, error: message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video to upload.' });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'performer-videos') });
+  });
+});
+
+// --- One-time activation fee (both roles share one Stripe success handler) ---
+
+app.post('/api/performers/me/activation-fee/checkout', requirePerformerProfileApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const profile = req.performerProfile;
+  if (profile.status !== 'approved') return res.status(400).json({ success: false, error: 'Your performer application is not approved yet.' });
+  if (profile.activationPaid) return res.status(400).json({ success: false, error: 'Activation fee already paid.' });
+  const user = currentUser(req);
+  try {
+    const session = await client.checkout.sessions.create({
+      mode: 'payment',
+      managed_payments: { enabled: false },
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Mozart Techniques - Performer Activation Fee' }, unit_amount: Math.round(ACTIVATION_FEE_USD * 100) }, quantity: 1 }],
+      customer_email: user.email,
+      success_url: `${publicAppUrl(req)}/api/activation-fee/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/performer`,
+      metadata: { type: 'activation-fee', role: 'performer', profileId: String(profile.id) },
+    });
+    res.json({ success: true, url: session.url });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Could not start checkout.' });
+  }
+});
+
+app.post('/api/tutors/me/activation-fee/checkout', requireTutorProfileApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const profile = req.tutorProfile;
+  if (profile.status !== 'approved') return res.status(400).json({ success: false, error: 'Your tutor application is not approved yet.' });
+  if (profile.activationPaid) return res.status(400).json({ success: false, error: 'Activation fee already paid.' });
+  const user = currentUser(req);
+  try {
+    const session = await client.checkout.sessions.create({
+      mode: 'payment',
+      managed_payments: { enabled: false },
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Mozart Techniques - Tutor Activation Fee' }, unit_amount: Math.round(ACTIVATION_FEE_USD * 100) }, quantity: 1 }],
+      customer_email: user.email,
+      success_url: `${publicAppUrl(req)}/api/activation-fee/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/tutor`,
+      metadata: { type: 'activation-fee', role: 'tutor', profileId: String(profile.id) },
+    });
+    res.json({ success: true, url: session.url });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Could not start checkout.' });
+  }
+});
+
+app.get('/api/activation-fee/checkout/success', async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.redirect('/dashboard?activation=error');
+  const { sessionId } = req.query;
+  if (!sessionId) return res.redirect('/dashboard?activation=error');
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId);
+    if (!session.metadata || session.metadata.type !== 'activation-fee') return res.redirect('/dashboard?activation=error');
+    if (session.payment_status !== 'paid') return res.redirect('/dashboard?activation=pending');
+    const { role, profileId } = session.metadata;
+    if (role === 'performer') {
+      const profile = performers.findById(profileId);
+      if (profile && !profile.activationPaid) {
+        performers.markActivationPaid(profile.id);
+        store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Performer Dashboard is now unlocked.', href: '/performer' });
+      }
+      return res.redirect('/performer?activation=success');
+    }
+    if (role === 'tutor') {
+      const profile = tutors.findById(profileId);
+      if (profile && !profile.activationPaid) {
+        tutors.markActivationPaid(profile.id);
+        store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Tutor Dashboard is now unlocked.', href: '/tutor' });
+      }
+      return res.redirect('/tutor?activation=success');
+    }
+    res.redirect('/dashboard?activation=error');
+  } catch (err) {
+    console.error('Activation fee checkout success error:', err.message);
+    res.redirect('/dashboard?activation=error');
+  }
+});
+
+// --- Marketplace requests (requester side) ---
+
+app.post('/api/marketplace/requests', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const { eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes, phone } = req.body || {};
+  if (!eventType || !performerCategory || !eventLocation || !proposedAmountUsd) {
+    return res.status(400).json({ success: false, error: 'Event type, performer category, location and a proposed amount are required.' });
+  }
+  const { request, matches } = await marketplaceRequests.create({
+    requesterId: user.id, requesterName: user.name, requesterEmail: user.email, requesterPhone: phone,
+    eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes,
+  });
+  const invites = marketplaceOffers.createInvites(request.id, request.proposedAmountUsd, matches);
+  notifyMatchingPerformers(req, request, matches);
+  res.json({ success: true, request, invitedCount: invites.length, locationResolved: Boolean(request.lat) });
+});
+
+app.get('/api/marketplace/requests/mine', requireAuthApi, (req, res) => {
+  const list = marketplaceRequests.listByRequester(currentUser(req).id).map((r) => ({
+    ...r,
+    offers: marketplaceOffers.listByRequest(r.id).map(decoratedOfferForRequester),
+  }));
+  res.json({ success: true, requests: list });
+});
+
+app.get('/api/marketplace/requests/:id', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const request = marketplaceRequests.findById(req.params.id);
+  if (!request || (request.requesterId !== user.id && user.role !== 'admin')) return res.status(404).json({ success: false, error: 'Request not found.' });
+  const offers = marketplaceOffers.listByRequest(request.id).map(decoratedOfferForRequester);
+  res.json({ success: true, request, offers });
+});
+
+app.post('/api/marketplace/requests/:id/cancel', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const request = marketplaceRequests.findById(req.params.id);
+  if (!request || request.requesterId !== user.id) return res.status(404).json({ success: false, error: 'Request not found.' });
+  res.json({ success: true, request: marketplaceRequests.cancel(request.id) });
+});
+
+app.post('/api/marketplace/requests/:id/select', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const request = marketplaceRequests.findById(req.params.id);
+  if (!request || request.requesterId !== user.id) return res.status(404).json({ success: false, error: 'Request not found.' });
+  if (request.status !== 'open') return res.status(400).json({ success: false, error: 'This request is no longer open.' });
+  const { offerId } = req.body || {};
+  const offer = marketplaceOffers.findById(offerId);
+  if (!offer || offer.requestId !== request.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (!['accepted', 'countered'].includes(offer.status)) return res.status(400).json({ success: false, error: 'You can only select an offer that has been accepted or countered.' });
+
+  marketplaceOffers.select(offer.id);
+  marketplaceOffers.markOthersNotSelected(request.id, offer.id);
+  const updated = marketplaceRequests.selectOffer(request.id, offer);
+
+  const performer = performers.findById(offer.performerId);
+  if (performer) {
+    store.addNotification(performer.userId, {
+      type: 'marketplace_offer_selected',
+      message: `You were selected for the "${request.eventType}" booking on ${request.eventDate || 'the requested date'}.`,
+      href: '/performer?tab=requests',
+    });
+  }
+  marketplaceOffers.listByRequest(request.id)
+    .filter((o) => o.status === 'not_selected')
+    .forEach((o) => {
+      const p = performers.findById(o.performerId);
+      if (p) store.addNotification(p.userId, { type: 'marketplace_offer_not_selected', message: `The requester chose another performer for the "${request.eventType}" booking.`, href: '/performer?tab=requests' });
+    });
+
+  res.json({ success: true, request: updated });
+});
+
+// --- Marketplace offers (performer side) ---
+
+app.get('/api/marketplace/offers/mine', requireApprovedPerformerApi, (req, res) => {
+  const list = marketplaceOffers.listByPerformer(req.performerProfile.id).map((o) => ({
+    ...o,
+    request: marketplaceRequests.findById(o.requestId),
+  }));
+  res.json({ success: true, offers: list });
+});
+
+app.post('/api/marketplace/offers/:id/accept', requireApprovedPerformerApi, (req, res) => {
+  const offer = marketplaceOffers.findById(req.params.id);
+  if (!offer || offer.performerId !== req.performerProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This invite is no longer open.' });
+  const updated = marketplaceOffers.accept(offer.id);
+  notifyRequesterOfResponse(offer, 'accepted');
+  res.json({ success: true, offer: updated });
+});
+
+app.post('/api/marketplace/offers/:id/counter', requireApprovedPerformerApi, (req, res) => {
+  const offer = marketplaceOffers.findById(req.params.id);
+  if (!offer || offer.performerId !== req.performerProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This invite is no longer open.' });
+  const { amountUsd, note } = req.body || {};
+  if (!amountUsd || Number(amountUsd) <= 0) return res.status(400).json({ success: false, error: 'Enter a counter-offer amount.' });
+  const updated = marketplaceOffers.counter(offer.id, { amountUsd, note });
+  notifyRequesterOfResponse(offer, 'countered');
+  res.json({ success: true, offer: updated });
+});
+
+app.post('/api/marketplace/offers/:id/decline', requireApprovedPerformerApi, (req, res) => {
+  const offer = marketplaceOffers.findById(req.params.id);
+  if (!offer || offer.performerId !== req.performerProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This invite is no longer open.' });
+  res.json({ success: true, offer: marketplaceOffers.decline(offer.id) });
+});
+
+// --- Admin: performer moderation + marketplace oversight ---
+
+app.get('/api/admin/performers', requireAdminApi, (req, res) => {
+  const admin = currentUser(req);
+  const scoped = performers.listAll().filter((profile) => canManageUser(admin, store.findById(profile.userId)));
+  res.json({ success: true, performers: scoped });
+});
+
+app.post('/api/admin/performers/:id/status', requireAdminApi, (req, res) => {
+  const { status } = req.body || {};
+  if (!['approved', 'rejected', 'pending'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid status.' });
+  const profile = performers.findById(req.params.id);
+  if (!profile || !canManageUser(currentUser(req), store.findById(profile.userId))) return res.status(403).json({ success: false, error: 'You can only review performers in your country.' });
+  const updated = performers.setStatus(req.params.id, status, currentUser(req).id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
+  if (status === 'approved') {
+    store.addNotification(updated.userId, { type: 'performer', message: 'Your performer application has been approved! Pay the one-time $1.50 activation fee to unlock your Performer Dashboard.', href: '/performer' });
+  } else if (status === 'rejected') {
+    store.addNotification(updated.userId, { type: 'performer', message: 'Your performer application was not approved this time.' });
+  }
+  res.json({ success: true, performer: updated });
+});
+
+app.post('/api/admin/performers/:id/suspend', requireAdminApi, (req, res) => {
+  const profile = performers.findById(req.params.id);
+  if (!profile || !canManageUser(currentUser(req), store.findById(profile.userId))) return res.status(403).json({ success: false, error: 'You can only manage performers in your country.' });
+  const updated = performers.suspend(req.params.id, (req.body && req.body.reason) || null);
+  res.json({ success: true, performer: updated });
+});
+
+app.post('/api/admin/performers/:id/unsuspend', requireAdminApi, (req, res) => {
+  const profile = performers.findById(req.params.id);
+  if (!profile || !canManageUser(currentUser(req), store.findById(profile.userId))) return res.status(403).json({ success: false, error: 'You can only manage performers in your country.' });
+  res.json({ success: true, performer: performers.unsuspend(req.params.id) });
+});
+
+app.get('/api/admin/marketplace/requests', requireAdminApi, (req, res) => {
+  const list = marketplaceRequests.listAll()
+    .map((r) => ({ ...r, offerCounts: summarizeOfferCounts(marketplaceOffers.listByRequest(r.id)) }))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ success: true, requests: list });
+});
+
+app.get('/api/admin/marketplace/requests/:id', requireAdminApi, (req, res) => {
+  const request = marketplaceRequests.findById(req.params.id);
+  if (!request) return res.status(404).json({ success: false, error: 'Request not found.' });
+  res.json({ success: true, request, offers: marketplaceOffers.listByRequest(request.id).map(decoratedOfferForRequester) });
+});
+
+// ==================== END PERFORMANCE MARKETPLACE ====================
 
 // Admin: process a payout request and debit tutor balance
 app.post('/api/admin/payouts/:tutorId/process', requireAdminApi, (req, res) => {
@@ -1687,7 +2990,7 @@ app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certific
 
   let certificateUrl = null;
   if (req.file) {
-    certificateUrl = `/uploads/certificates/${req.file.filename}`;
+    certificateUrl = await resolveUploadedFileUrl(req.file, 'certificates');
   }
 
   const org = await organizations.apply({
@@ -1717,7 +3020,7 @@ app.post('/api/organizations/apply', requireAuthApi, certUpload.single('certific
   res.json({ success: true, organization: org });
 });
 
-app.get('/api/organizations/me', requireAuthApi, (req, res) => {
+app.get('/api/organizations/me', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
   if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
@@ -1734,7 +3037,15 @@ app.get('/api/organizations/me', requireAuthApi, (req, res) => {
     if (tutor) tutorProfiles.set(tutor.id, tutor);
   });
   const tutorsForOrg = Array.from(tutorProfiles.values()).map((tutor) => ({ id: tutor.id, userId: tutor.userId, name: tutor.name, email: tutor.email || '', role: 'Tutor', photoUrl: tutor.photoUrl || null }));
-  res.json({ success: true, organization: { ...org, students, tutors: tutorsForOrg, members: students }, subscriptionActive: organizations.isSubscriptionActive(org) });
+  // monthlyAmount is stored and charged in USD; convert only for display,
+  // same pattern as tutor hourly rates / store prices (getGeoInfo + convertFromUsd).
+  const geoInfo = await getGeoInfo(req);
+  const monthlyAmountLocal = Math.round((await currency.convertFromUsd(org.monthlyAmount || 0, geoInfo.currency)) * 100) / 100;
+  res.json({
+    success: true,
+    organization: { ...org, students, tutors: tutorsForOrg, members: students, monthlyAmountLocal, localCurrency: geoInfo.currency, localSymbol: geoInfo.symbol },
+    subscriptionActive: organizations.isSubscriptionActive(org),
+  });
 });
 
 app.post('/api/organizations/me/generate-code', requireAuthApi, (req, res) => {
@@ -1777,10 +3088,11 @@ app.post('/api/organizations/me/profile', requireAuthApi, (req, res) => {
 app.post('/api/organizations/me/logo', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(currentUser(req).id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  photoUpload.single('photo')(req, res, (error) => {
+  photoUpload.single('photo')(req, res, async (error) => {
     if (error) return res.status(400).json({ success: false, error: error.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose an image to upload.' });
-    res.json({ success: true, organization: organizations.updateProfile(org.id, { logoUrl: `/uploads/photos/${req.file.filename}` }) });
+    const logoUrl = await resolveUploadedFileUrl(req.file, 'photos');
+    res.json({ success: true, organization: organizations.updateProfile(org.id, { logoUrl }) });
   });
 });
 
@@ -1810,15 +3122,6 @@ app.post('/api/redeem-code', requireAuthApi, (req, res) => {
   res.json({ success: true, orgId: result.org.id, orgName: result.org.name, organizationMemberships: store.findById(user.id).organizationMemberships });
 });
 
-app.get('/api/organizations/me', requireAuthApi, (req, res) => {
-  const user = currentUser(req);
-  const org = organizations.findByUserId(user.id);
-  if (!org || org.status !== 'approved') {
-    return res.status(404).json({ success: false, error: 'No approved organization found.' });
-  }
-  res.json({ success: true, organization: org });
-});
-
 app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
   const client = stripeClient.getClient();
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
@@ -1843,11 +3146,14 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
       : `Yearly subscription for ${org.name}`;
 
     const session = await client.checkout.sessions.create({
-      payment_method_types: ['card'],
+      // Managed Payments (this Stripe account's default) rejects an
+      // explicit payment_method_types and requires a Stripe Tax product
+      // tax_code otherwise - opt out to keep the existing simple card flow.
+      managed_payments: { enabled: false },
       mode: isMonthly ? 'subscription' : 'payment',
       line_items: [{
         price_data: {
-          currency: 'ngn',
+          currency: 'usd',
           product_data: { name: `${org.name} - ${isMonthly ? 'Monthly' : 'Yearly'} Subscription` },
           unit_amount: amount,
           ...(isMonthly && {
@@ -1883,7 +3189,7 @@ app.post('/api/organizations/lesson-bills/:assignmentId/:sessionId/checkout', re
   const client = stripeClient.getClient(); const org = organizations.findByUserId(currentUser(req).id); const record = assignments.findById(req.params.assignmentId); const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId)); const student = record && store.findById(record.studentId);
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
   if (!org || !organizations.isSubscriptionActive(org) || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student) || !lesson || lesson.paymentStatus !== 'held') return res.status(404).json({ success: false, error: 'Sponsored lesson bill not found.' });
-  const checkout = await client.checkout.sessions.create({ payment_method_types: ['card'], mode: 'payment', line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson for ${record.studentName}` }, unit_amount: Math.round(lesson.totalUsd * 100) }, quantity: 1 }], customer_email: org.email, success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`, cancel_url: `${publicAppUrl(req)}/ngo-dashboard`, metadata: { type: 'lesson-bill', orgId: String(org.id), assignmentId: String(record.id), sessionId: String(lesson.id) } });
+  const checkout = await client.checkout.sessions.create({ managed_payments: { enabled: false }, mode: 'payment', line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson for ${record.studentName}` }, unit_amount: Math.round(lesson.totalUsd * 100) }, quantity: 1 }], customer_email: org.email, success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`, cancel_url: `${publicAppUrl(req)}/ngo-dashboard`, metadata: { type: 'lesson-bill', orgId: String(org.id), assignmentId: String(record.id), sessionId: String(lesson.id) } });
   res.json({ success: true, url: checkout.url });
 });
 
@@ -2097,11 +3403,15 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const { text, type, targetType, name, attachment } = req.body || {};
-  if ((!text || !text.trim()) && !attachment) {
-    return res.status(400).json({ success: false, error: 'Message text or an attachment is required.' });
+  const { text, type, targetType, name, attachment, replyToId, poll, location } = req.body || {};
+  if ((!text || !text.trim()) && !attachment && !poll && !location) {
+    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, or a location is required.' });
   }
-  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
 
   const targetId = Number(req.params.targetId);
   const resolvedType = targetType || type || 'tutor';
@@ -2119,6 +3429,7 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
     senderName: org.name || org.contactName,
     text: String(text || '').trim(),
     attachment: attachment || null,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
   });
 
   res.json({ success: true, message, conversation });
@@ -2126,7 +3437,8 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
 
 app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const org = organizations.findByUserId(user.id);
+  const isOwner = Boolean(organizations.findByUserId(user.id));
+  const org = resolveOrgForUser(user);
   if (!org) {
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
@@ -2141,6 +3453,16 @@ app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
     type: member.type,
     name: member.name || (member.type === 'tutor' ? 'Tutor' : 'Student')
   })) : [];
+
+  // A tutor creating their own classroom group chat needs to actually be
+  // in it - the org's own dashboard picks members explicitly and doesn't
+  // need this, since the org itself isn't a chat "member."
+  if (!isOwner) {
+    const tutorProfile = tutors.findByUserId(user.id);
+    if (tutorProfile && !normalizedMembers.some((m) => m.type === 'tutor' && m.id === tutorProfile.id)) {
+      normalizedMembers.unshift({ id: tutorProfile.id, type: 'tutor', name: tutorProfile.name || 'Tutor' });
+    }
+  }
 
   if (!normalizedMembers.length) {
     return res.status(400).json({ success: false, error: 'Add at least one tutor or student.' });
@@ -2162,11 +3484,15 @@ app.post('/api/organizations/conversations/:id/send', requireAuthApi, (req, res)
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const { text, attachment } = req.body || {};
-  if ((!text || !text.trim()) && !attachment) {
-    return res.status(400).json({ success: false, error: 'Message text or an attachment is required.' });
+  const { text, attachment, replyToId, poll, location } = req.body || {};
+  if ((!text || !text.trim()) && !attachment && !poll && !location) {
+    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, or a location is required.' });
   }
-  if (attachment && (typeof attachment.url !== 'string' || !attachment.url.startsWith('/uploads/chat/'))) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
 
   const conversationId = Number(req.params.id);
   const conversation = orgChat.listForOrganization(org.id).find((item) => item.id === conversationId);
@@ -2180,6 +3506,7 @@ app.post('/api/organizations/conversations/:id/send', requireAuthApi, (req, res)
     senderName: org.name || org.contactName,
     text: String(text || '').trim(),
     attachment: attachment || null,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
   });
 
   res.json({ success: true, message, conversation });
@@ -2195,6 +3522,224 @@ app.post('/api/organizations/conversations/:id/mark-read', requireAuthApi, (req,
 
   orgChat.markRead(Number(req.params.id), 'org');
   res.json({ success: true });
+});
+
+// --- STUDENT SIDE: viewing and messaging the organization that sponsors them ---
+// A student who redeemed an org's access code has zero UI to interact with
+// that org today beyond the redeem widget - these routes back the new
+// "My Organization" page (content feed + a direct conversation with the org).
+
+app.get('/api/organizations/mine', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = resolveOrgForUser(user);
+  if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  res.json({
+    success: true,
+    organization: {
+      id: org.id, name: org.name, contactName: org.contactName, email: org.email, phone: org.phone,
+      organizationType: org.organizationType, subscriptionStatus: org.subscriptionStatus, logoUrl: org.logoUrl || null,
+    },
+  });
+});
+
+app.get('/api/organizations/mine/conversation', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = resolveOrgForUser(user);
+  if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  const conversation = orgChat.getOrCreateConversation(org.id, { type: 'student', studentId: user.id, name: user.name });
+  orgChat.markRead(conversation.id, 'student');
+  res.json({ success: true, conversation, organizationName: org.name || org.contactName });
+});
+
+app.post('/api/organizations/mine/conversation/message', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = resolveOrgForUser(user);
+  if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  const { text, attachment, replyToId, poll, location } = req.body || {};
+  if ((!text || !text.trim()) && !attachment && !poll && !location) {
+    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, or a location is required.' });
+  }
+  if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
+
+  const conversation = orgChat.getOrCreateConversation(org.id, { type: 'student', studentId: user.id, name: user.name });
+  const message = orgChat.sendMessage(conversation.id, {
+    senderId: user.id, senderType: 'student', senderName: user.name,
+    text: String(text || '').trim(), attachment: attachment || null,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
+  });
+  store.addNotification(org.userId, {
+    type: 'organization',
+    message: `${user.name} sent your organization a message.`,
+    href: '/ngo-dashboard',
+  });
+  res.json({ success: true, message, conversation: orgChat.findById(conversation.id) });
+});
+
+// --- GENERIC ORG-CHAT MESSAGE ACTIONS ---
+// One set of routes, keyed by conversation id, shared by every org-chat
+// surface (org dashboard, group chat, a student's "my org" page, a tutor's
+// org panel) instead of duplicating edit/delete/react/pin logic per page -
+// resolveOrgChatAccess() above works out whether the caller is the org
+// itself, a tutor participant, or a student participant.
+
+const ORG_CHAT_ROLE_FIELD = { org: 'readByOrg', tutor: 'readByTutor', student: 'readByStudent' };
+
+// A group conversation can have several recipients but the read-state is
+// still only tracked per role (not per participant) - so "seen by someone
+// else" here means any role other than the sender's own has polled the
+// thread since, the same conservative signal used for 1:1 org/tutor and
+// org/student conversations.
+function orgMessageSeenByOthers(message) {
+  return Object.entries(ORG_CHAT_ROLE_FIELD)
+    .filter(([role]) => role !== message.senderType)
+    .some(([, field]) => Boolean(message[field]));
+}
+
+function loadOrgChatMessage(req, res) {
+  const user = currentUser(req);
+  const access = resolveOrgChatAccess(user, req.params.convId);
+  if (!access) { res.status(403).json({ success: false, error: 'Not your conversation.' }); return null; }
+  const message = (access.conversation.messages || []).find((m) => Number(m.id) === Number(req.params.msgId));
+  if (!message) { res.status(404).json({ success: false, error: 'Message not found.' }); return null; }
+  return { ...access, user, message };
+}
+
+// Generic list/send, usable by any participant (org, tutor, or student) of
+// a conversation - the org-owner-scoped /api/organizations/conversations/...
+// routes only ever worked for the org's own login; this pair is what lets a
+// participant who ISN'T the org (e.g. a tutor viewing the org's direct
+// message to them) read and reply without needing org ownership.
+app.get('/api/org-chat/conversations/:convId/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const access = resolveOrgChatAccess(user, req.params.convId);
+  if (!access) return res.status(403).json({ success: false, error: 'Not your conversation.' });
+  orgChat.markRead(access.conversation.id, access.role);
+  res.json({ success: true, messages: orgChat.getMessages(access.conversation.id), conversation: orgChat.findById(access.conversation.id) });
+});
+
+app.post('/api/org-chat/conversations/:convId/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const access = resolveOrgChatAccess(user, req.params.convId);
+  if (!access) return res.status(403).json({ success: false, error: 'Not your conversation.' });
+  const { text, attachment, replyToId, poll, location } = req.body || {};
+  if ((!text || !text.trim()) && !attachment && !poll && !location) {
+    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, or a location is required.' });
+  }
+  if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
+  const message = orgChat.sendMessage(access.conversation.id, {
+    senderId: user.id, senderType: access.role, senderName: access.participantName,
+    text: String(text || '').trim(), attachment: attachment || null,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
+  });
+  res.json({ success: true, message, conversation: orgChat.findById(access.conversation.id) });
+});
+
+app.put('/api/org-chat/conversations/:convId/messages/:msgId', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  if (ctx.message.senderId !== ctx.user.id) return res.status(403).json({ success: false, error: 'You can only edit your own messages.' });
+  if (Date.now() - new Date(ctx.message.createdAt).getTime() > EDIT_WINDOW_MS) {
+    return res.status(409).json({ success: false, error: 'This message is more than 30 minutes old and can no longer be edited.' });
+  }
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ success: false, error: 'Message text is required.' });
+  const updated = orgChat.editMessage(ctx.conversation.id, ctx.message.id, ctx.user.id, text);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+app.delete('/api/org-chat/conversations/:convId/messages/:msgId', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  if (ctx.message.senderId !== ctx.user.id) return res.status(403).json({ success: false, error: 'You can only delete your own messages.' });
+  if (Date.now() - new Date(ctx.message.createdAt).getTime() > DELETE_EVERYONE_WINDOW_MS) {
+    return res.status(409).json({ success: false, error: 'This message is more than 10 minutes old and can only be deleted for you.' });
+  }
+  if (orgMessageSeenByOthers(ctx.message)) {
+    return res.status(409).json({ success: false, error: 'This message has already been seen and can only be deleted for you.' });
+  }
+  const updated = orgChat.deleteMessage(ctx.conversation.id, ctx.message.id, ctx.user.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/org-chat/conversations/:convId/messages/:msgId/delete-for-me', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  const updated = orgChat.deleteForMe(ctx.conversation.id, ctx.message.id, ctx.user.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/org-chat/conversations/:convId/messages/:msgId/react', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (!isValidReaction(emoji)) return res.status(400).json({ success: false, error: 'Not a supported reaction.' });
+  const updated = orgChat.addReaction(ctx.conversation.id, ctx.message.id, ctx.user.id, ctx.role, emoji);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  const justReacted = (updated.reactions || []).some((r) => r.userId === ctx.user.id && r.emoji === emoji);
+  if (justReacted && ctx.message.senderId !== ctx.user.id) {
+    store.addNotification(ctx.message.senderId, { type: 'chat', message: `${ctx.participantName} reacted ${emoji} to your message.` });
+  }
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/org-chat/conversations/:convId/messages/:msgId/poll-vote', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  if (!ctx.message.poll) return res.status(400).json({ success: false, error: 'This message is not a poll.' });
+  const optionId = Number(req.body && req.body.optionId);
+  if (!ctx.message.poll.options.some((o) => o.id === optionId)) return res.status(400).json({ success: false, error: 'Not a valid poll option.' });
+  const updated = orgChat.votePoll(ctx.conversation.id, ctx.message.id, ctx.user.id, optionId);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/org-chat/conversations/:convId/messages/:msgId/pin', requireAuthApi, (req, res) => {
+  const ctx = loadOrgChatMessage(req, res);
+  if (!ctx) return;
+  const updated = orgChat.togglePin(ctx.conversation.id, ctx.message.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+// Real fix for the org call button, which used to just paste the link into
+// a plain-text message - mirrors the already-correct group-chat pattern
+// (server.js's /api/group-chats/:id/meeting) but generalized to any
+// conversation type via resolveOrgChatAccess.
+app.post('/api/org-chat/conversations/:convId/meeting', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const access = resolveOrgChatAccess(user, req.params.convId);
+  if (!access) return res.status(403).json({ success: false, error: 'Not your conversation.' });
+  const meetingLink = String((req.body && req.body.meetingLink) || '').trim();
+  if (!/^https?:\/\//i.test(meetingLink)) return res.status(400).json({ success: false, error: 'Paste a full Google Meet link beginning with https://.' });
+  const conversation = orgChat.setMeetingLink(access.conversation.id, meetingLink);
+  res.json({ success: true, conversation });
+});
+
+// Tutor-scoped list of every org conversation they participate in (direct
+// with the org, plus any org group chats) - closes the gap where a tutor
+// linked to an organization had no route at all to see its direct messages
+// (orgChat.listForTutor() elsewhere is filtered to course groups only).
+app.get('/api/organizations/mine/conversations', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (!tutorProfile) return res.status(404).json({ success: false, error: 'No tutor profile found.' });
+  const org = resolveOrgForUser(user);
+  if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  const direct = orgChat.getOrCreateConversation(org.id, { type: 'tutor', tutorId: tutorProfile.id, name: tutorProfile.name });
+  const groups = orgChat.listForOrganization(org.id).filter((c) => c.type === 'group' && c.participants.some((p) => p.type === 'tutor' && Number(p.id) === tutorProfile.id));
+  const conversations = [direct, ...groups].map((c) => ({ ...c, unreadCount: orgChat.getUnreadCount(c.id, 'tutor') }));
+  res.json({ success: true, conversations, organizationName: org.name || org.contactName });
 });
 
 // --- ORGANIZATION PRIVATE CONTENT (videos, photos, info, games) ---
@@ -2260,7 +3805,7 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
 });
 
 app.get('/api/organizations/library', requireAuthApi, (req, res) => {
-  const org = organizations.findByUserId(currentUser(req).id);
+  const org = resolveOrgForUser(currentUser(req));
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
   const content = orgContent.listForOrg(org.id).filter((item) => item.libraryItem === true).map((item) => ({ ...item, source: 'organization' }));
   const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart').map((item) => ({ ...item, source: 'Mozart Techniques' }));
@@ -2338,20 +3883,19 @@ app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
   const mediaType = req.query.type || 'photo'; // 'photo', 'video', or 'document'
   const uploader = mediaType === 'video' ? videoUpload : mediaType === 'document' ? chatUpload : photoUpload;
   
-  uploader.single('media')(req, res, (err) => {
+  uploader.single('media')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
-      const message = err.code === 'LIMIT_FILE_SIZE' 
+      const message = err.code === 'LIMIT_FILE_SIZE'
         ? `File is too large (max ${mediaType === 'video' ? '500MB' : '8MB'}).`
         : err.message;
       return res.status(400).json({ success: false, error: message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to upload.' });
-    
-    const url = mediaType === 'video'
-      ? `/uploads/videos/${req.file.filename}`
-      : mediaType === 'document' ? `/uploads/chat/${req.file.filename}` : `/uploads/photos/${req.file.filename}`;
-    
+
+    const folder = mediaType === 'video' ? 'videos' : mediaType === 'document' ? 'chat' : 'photos';
+    const url = await resolveUploadedFileUrl(req.file, folder);
+
     res.json({ success: true, url, mediaType });
   });
 });
@@ -2677,13 +4221,17 @@ app.get('/api/tutor-requests/candidates', requireAuthApi, async (req, res) => {
 
   res.json({
     success: true,
-    candidates: candidates.map((c) => ({
+    currency: geoInfo.currency,
+    symbol: geoInfo.symbol,
+    candidates: await Promise.all(candidates.map(async (c) => ({
       id: c.tutor.id, name: c.tutor.name, bio: c.tutor.bio, city: c.tutor.city, photoUrl: c.tutor.photoUrl || null,
       teachesOnline: c.tutor.teachesOnline, experienceYears: c.tutor.experienceYears, inPersonVenue: c.tutor.inPersonVenue,
-      hourlyRateUsd: c.tutor.hourlyRateUsd, avgRating: tutors.avgRating(c.tutor), avgProfessionalism: tutors.avgProfessionalism(c.tutor),
+      hourlyRateUsd: c.tutor.hourlyRateUsd,
+      hourlyRateLocal: Math.round((await currency.convertFromUsd(c.tutor.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
+      avgRating: tutors.avgRating(c.tutor), avgProfessionalism: tutors.avgProfessionalism(c.tutor),
       distanceKm: c.distanceKm != null ? Math.round(c.distanceKm * 10) / 10 : null,
       localityMatch: type === 'online' ? (c.localityScore >= 1 ? 'same city' : c.localityScore >= 0.66 ? 'same region' : c.localityScore >= 0.33 ? 'same country' : null) : null,
-    })),
+    }))),
   });
 });
 
@@ -2694,6 +4242,9 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   const type = assignments.LESSON_TYPES.includes(lessonType) ? lessonType : null;
   if (!type) return res.status(400).json({ success: false, error: 'Choose online, physical, or in-studio lessons.' });
   if (type !== 'online' && !city) return res.status(400).json({ success: false, error: 'Provide your city for in-person lessons.' });
+  const suggestedAmountUsd = req.body.suggestedAmountUsd != null && req.body.suggestedAmountUsd !== ''
+    ? Math.max(0, Number(req.body.suggestedAmountUsd) || 0)
+    : null;
 
   const user = currentUser(req);
   const selfTutor = tutors.findByUserId(user.id);
@@ -2714,40 +4265,195 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Each selected course must be taught by the chosen tutor.' });
   }
 
+  // Negotiate (broadcast) requests carry the student's exact address, if
+  // they've ever shared their precise location (the same GPS reverse-geocode
+  // the "Use my current location" button sets - data/store.js's
+  // setRealLocation), so a candidate tutor can judge reachability before
+  // accepting. The direct "request this one tutor" flow deliberately never
+  // sets this, keeping its existing reveal-only-once-matched behavior.
+  const isNegotiate = !requestTutorIds.length;
+  // Only physical/studio lessons need the tutor to actually travel or know
+  // where to meet - an online negotiate request has no reason to expose
+  // the student's home address.
+  const studentFullAddress = (isNegotiate && type !== 'online') ? (user.studentProfile && user.studentProfile.fullAddress) || null : null;
+
   const studentGeo = city ? await geocodeAddress(city) : null;
-  const requests = requestedCategories.map((selectedCategory) => {
+  const requestsWithCandidates = requestedCategories.map((selectedCategory) => {
     const candidates = assignments.generateCandidates({
       category: selectedCategory, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
     }).filter((c) => inViewerCountry(c.tutor, geoInfo.name));
-    return assignments.createRequest({
+    const request = assignments.createRequest({
       studentId: user.id, studentName: user.name, studentEmail: user.email,
       category: selectedCategory, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
       preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
       intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [], studentCountry: geoInfo.name,
+      suggestedAmountUsd, studentFullAddress,
     });
+    return { request, candidates };
   });
+  const requests = requestsWithCandidates.map((item) => item.request);
+  const amountSuffix = suggestedAmountUsd ? ` - they suggested $${suggestedAmountUsd.toFixed(2)}/hr` : '';
 
   notifyAdmins({
     type: 'tutor-request',
     subject: `New tutor request - ${requestedCategories.join(', ')}`,
-    message: `New tutor request from ${user.name} for ${requestedCategories.join(', ')} - match them in the admin panel.`,
+    message: `New tutor request from ${user.name} for ${requestedCategories.join(', ')}${amountSuffix} - match them in the admin panel.`,
     excludeUserId: user.id,
   });
 
-  requestTutorIds.forEach((id) => {
-    const preferredTutor = tutors.findById(id);
-    if (preferredTutor && preferredTutor.status === 'approved') {
-      store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}. Open your Tutor Profile to review and accept the requests.`, href: '/tutor' });
-    }
-  });
+  if (!isNegotiate) {
+    requestTutorIds.forEach((id) => {
+      const preferredTutor = tutors.findById(id);
+      if (preferredTutor && preferredTutor.status === 'approved') {
+        store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}${amountSuffix}. Open your Tutor Profile to review and accept the requests.`, href: '/tutor' });
+      }
+    });
+  } else {
+    // InDrive-style negotiate: no specific tutor was chosen, so the request
+    // fans out to every matching candidate tutor as a structured offer (see
+    // data/tutorOffers.js) - each can accept, counter with their own rate,
+    // or decline, independently; the student then reviews every response
+    // and picks one (POST /api/tutor-requests/:id/select).
+    const notifiedUserIds = new Set();
+    requestsWithCandidates.forEach(({ request, candidates }) => {
+      if (candidates.length) tutorOffers.createInvites(request.id, suggestedAmountUsd, candidates);
+      candidates.forEach(({ tutor }) => {
+        if (notifiedUserIds.has(tutor.userId)) return;
+        notifiedUserIds.add(tutor.userId);
+        store.addNotification(tutor.userId, {
+          type: 'tutor-request',
+          message: `New ${request.category} student request near you${amountSuffix}. Open your Tutor Profile to review, accept, or counter.`,
+          href: '/tutor?tab=negotiate',
+        });
+        const tutorUser = store.findById(tutor.userId);
+        if (tutorUser && tutorUser.email) {
+          mailer.sendMail({
+            to: tutorUser.email,
+            subject: 'Mozart Techniques - New student request',
+            text: `A student is looking for a ${request.category} tutor${amountSuffix}.\n\nReview and respond in your Tutor Dashboard: ${publicAppUrl(req)}/tutor?tab=negotiate`,
+          });
+        }
+      });
+    });
+  }
 
   store.addNotification(user.id, {
     type: 'tutor-request',
-    message: `Your requests for ${requestedCategories.join(', ')} have been sent to your chosen tutor. You will be notified when they accept.`,
-    href: '/dashboard',
+    message: isNegotiate
+      ? `Your requests for ${requestedCategories.join(', ')} have been sent to matching tutors near you. You will be notified as they respond.`
+      : `Your requests for ${requestedCategories.join(', ')} have been sent to your chosen tutor. You will be notified when they accept.`,
+    href: isNegotiate ? '/find-tutor?tab=negotiate' : '/dashboard',
   });
 
-  res.json({ success: true, request: requests[0], requests });
+  const suggestedAmountLocal = suggestedAmountUsd != null
+    ? Math.round((await currency.convertFromUsd(suggestedAmountUsd, geoInfo.currency)) * 100) / 100
+    : null;
+
+  res.json({
+    success: true, request: requests[0], requests,
+    suggestedAmountLocal, currency: geoInfo.currency, symbol: geoInfo.symbol,
+  });
+});
+
+// --- Negotiate flow: student reviews every tutor's response and picks one ---
+
+app.get('/api/tutor-requests/mine', requireAuthApi, async (req, res) => {
+  const user = currentUser(req);
+  const geoInfo = await getGeoInfo(req);
+  const myRequests = assignments.listAll().filter((r) => r.studentId === user.id && !(r.preferredTutorIds || []).length);
+  const requests = await Promise.all(myRequests.map(async (r) => {
+    const offers = tutorOffers.listByRequest(r.id);
+    const decorated = await Promise.all(offers.map(async (offer) => {
+      const tutor = tutors.findById(offer.tutorId);
+      const amountUsd = offer.status === 'countered' ? offer.counterAmountUsd : offer.suggestedAmountUsd;
+      return {
+        ...offer,
+        tutorName: tutor ? tutor.name : 'Tutor',
+        tutorPhotoUrl: tutor ? tutor.photoUrl || null : null,
+        tutorBio: tutor ? tutor.bio : null,
+        tutorCity: tutor ? tutor.city : null,
+        tutorHourlyRateUsd: tutor ? tutor.hourlyRateUsd : null,
+        avgRating: tutor ? tutors.avgRating(tutor) : null,
+        amountLocal: amountUsd != null ? Math.round((await currency.convertFromUsd(amountUsd, geoInfo.currency)) * 100) / 100 : null,
+      };
+    }));
+    return { ...r, offers: decorated };
+  }));
+  res.json({ success: true, requests, currency: geoInfo.currency, symbol: geoInfo.symbol });
+});
+
+app.post('/api/tutor-requests/:id/select', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const request = assignments.findById(req.params.id);
+  if (!request || request.studentId !== user.id) return res.status(404).json({ success: false, error: 'Request not found.' });
+  if (request.status !== 'pending') return res.status(400).json({ success: false, error: 'This request is no longer open.' });
+  const { offerId } = req.body || {};
+  const offer = tutorOffers.findById(offerId);
+  if (!offer || offer.requestId !== request.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (!['accepted', 'countered'].includes(offer.status)) return res.status(400).json({ success: false, error: 'You can only pick a tutor who accepted or countered.' });
+  const tutor = tutors.findById(offer.tutorId);
+  if (!tutor) return res.status(404).json({ success: false, error: 'Tutor not found.' });
+
+  tutorOffers.select(offer.id);
+  tutorOffers.markOthersNotSelected(request.id, offer.id);
+  const updated = assignments.assignTutor(request.id, tutor, offer.distanceKm);
+
+  store.addNotification(tutor.userId, { type: 'tutor-request', message: `${user.name} picked you for their ${updated.category} request. Your dashboard is ready.`, href: '/tutor' });
+  tutorOffers.listByRequest(request.id)
+    .filter((o) => o.status === 'not_selected')
+    .forEach((o) => {
+      const other = tutors.findById(o.tutorId);
+      if (other) store.addNotification(other.userId, { type: 'tutor-request', message: `The "${updated.category}" student request was matched with another tutor.` });
+    });
+
+  res.json({ success: true, request: updated });
+});
+
+// --- Negotiate flow: tutor side - review invites, accept/counter/decline ---
+
+app.get('/api/tutor-offers/mine', requireApprovedTutorApi, async (req, res) => {
+  const geoInfo = await getGeoInfo(req);
+  const offers = tutorOffers.listByTutor(req.tutorProfile.id);
+  const decorated = await Promise.all(offers.map(async (offer) => {
+    const request = assignments.findById(offer.requestId);
+    const amountUsd = offer.status === 'countered' ? offer.counterAmountUsd : offer.suggestedAmountUsd;
+    return {
+      ...offer,
+      request,
+      suggestedAmountLocal: offer.suggestedAmountUsd != null ? Math.round((await currency.convertFromUsd(offer.suggestedAmountUsd, geoInfo.currency)) * 100) / 100 : null,
+      amountLocal: amountUsd != null ? Math.round((await currency.convertFromUsd(amountUsd, geoInfo.currency)) * 100) / 100 : null,
+    };
+  }));
+  res.json({ success: true, offers: decorated.filter((o) => o.request), currency: geoInfo.currency, symbol: geoInfo.symbol });
+});
+
+app.post('/api/tutor-offers/:id/accept', requireApprovedTutorApi, (req, res) => {
+  const offer = tutorOffers.findById(req.params.id);
+  if (!offer || offer.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This request is no longer open.' });
+  const updated = tutorOffers.accept(offer.id);
+  const request = assignments.findById(offer.requestId);
+  if (request) store.addNotification(request.studentId, { type: 'tutor-request', message: `${req.tutorProfile.name} accepted your ${request.category} request at your suggested rate. Review and pick a tutor from your requests.`, href: '/find-tutor?tab=negotiate' });
+  res.json({ success: true, offer: updated });
+});
+
+app.post('/api/tutor-offers/:id/counter', requireApprovedTutorApi, (req, res) => {
+  const offer = tutorOffers.findById(req.params.id);
+  if (!offer || offer.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This request is no longer open.' });
+  const { amountUsd, note } = req.body || {};
+  if (!amountUsd || Number(amountUsd) <= 0) return res.status(400).json({ success: false, error: 'Enter a counter-offer amount.' });
+  const updated = tutorOffers.counter(offer.id, { amountUsd, note });
+  const request = assignments.findById(offer.requestId);
+  if (request) store.addNotification(request.studentId, { type: 'tutor-request', message: `${req.tutorProfile.name} sent a counter-offer for your ${request.category} request.`, href: '/find-tutor?tab=negotiate' });
+  res.json({ success: true, offer: updated });
+});
+
+app.post('/api/tutor-offers/:id/decline', requireApprovedTutorApi, (req, res) => {
+  const offer = tutorOffers.findById(req.params.id);
+  if (!offer || offer.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
+  if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This request is no longer open.' });
+  res.json({ success: true, offer: tutorOffers.decline(offer.id) });
 });
 
 app.post('/api/admin/payout-requests/:id/process', requireAdminApi, (req, res) => {
@@ -2763,6 +4469,11 @@ app.post('/api/admin/payout-requests/:id/process', requireAdminApi, (req, res) =
 
 app.get('/api/tutors/me/pending-requests', requireApprovedTutorApi, (req, res) => {
   const requests = assignments.listAll()
+    // Direct "request this specific tutor" requests only. Negotiate
+    // (broadcast) requests use the structured tutorOffers flow instead
+    // (GET /api/tutor-offers/mine) - that one supports counter-offers and
+    // lets the student compare every response, rather than instant-assigning
+    // to whichever tutor accepts first.
     .filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(req.tutorProfile.id))
     .map((record) => {
       const student = store.findById(record.studentId);
@@ -2774,7 +4485,8 @@ app.get('/api/tutors/me/pending-requests', requireApprovedTutorApi, (req, res) =
 
 app.post('/api/tutors/me/pending-requests/:id/accept', requireApprovedTutorApi, (req, res) => {
   const record = assignments.findById(req.params.id);
-  if (!record || record.status !== 'pending' || !(record.preferredTutorIds || []).includes(req.tutorProfile.id)) {
+  const isEligible = record && (record.preferredTutorIds || []).includes(req.tutorProfile.id);
+  if (!record || record.status !== 'pending' || !isEligible) {
     return res.status(404).json({ success: false, error: 'Student request not found.' });
   }
   const updated = assignments.assignTutor(record.id, req.tutorProfile, null);
@@ -2942,14 +4654,14 @@ app.get('/api/library/:id', requireAuthApi, (req, res) => {
 });
 
 app.post('/api/library/upload', requireApprovedTutorApi, (req, res) => {
-  videoUpload.single('video')(req, res, (err) => {
+  videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
       return res.status(400).json({ success: false, error: message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
-    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'videos') });
   });
 });
 
@@ -2986,11 +4698,11 @@ app.post('/api/tutor-library', requireApprovedTutorApi, (req, res) => {
 });
 
 app.post('/api/tutor-library/upload', requireApprovedTutorApi, (req, res) => {
-  videoUpload.single('video')(req, res, (err) => {
+  videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
-    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'videos') });
   });
 });
 
@@ -3195,7 +4907,7 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
       });
     }
     const checkout = await client.checkout.sessions.create({
-      payment_method_types: ['card'], mode: 'payment',
+      managed_payments: { enabled: false }, mode: 'payment',
       line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
       customer: checkoutCustomerId,
       payment_intent_data: {
@@ -3203,7 +4915,7 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
         metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
       },
       success_url: `${publicAppUrl(req)}/api/assignments/${record.id}/sessions/${pending.id}/checkout-success?sessionId={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicAppUrl(req)}/messages/chat/${record.id}?payment=cancel`,
+      cancel_url: `${publicAppUrl(req)}/messages/chat?name=${encodeURIComponent(record.tutorName || '')}&payment=cancel`,
       metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
     });
     return res.json({ success: true, checkoutUrl: checkout.url, redirectToCheckout: true });
@@ -3223,7 +4935,9 @@ app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req,
   const session = client && req.query.sessionId ? await client.checkout.sessions.retrieve(req.query.sessionId) : null;
   const record = assignments.findById(req.params.id);
   const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId));
-  if (!session || session.payment_status !== 'paid' || !record || !lesson || lesson.paymentStatus !== 'held' || session.metadata.studentId !== String(record.studentId)) return res.redirect(`/messages/chat/${record ? record.id : ''}?payment=error`);
+  if (!session || session.payment_status !== 'paid' || !record || !lesson || lesson.paymentStatus !== 'held' || session.metadata.studentId !== String(record.studentId)) {
+    return res.redirect(record ? `/messages/chat?name=${encodeURIComponent(record.tutorName || '')}&payment=error` : '/messages?payment=error');
+  }
   // Checkout can save the card for future student-approved automatic
   // payments. Store only Stripe IDs and masked display information.
   try {
@@ -3243,7 +4957,7 @@ app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req,
   }
   const result = assignments.confirmSession(record.id, lesson.id);
   if (result) await releaseTutorEarnings(record, result.session, { paymentIntentId: session.payment_intent });
-  res.redirect(`/messages/chat/${record.id}?payment=${result ? 'success' : 'error'}`);
+  res.redirect(`/messages/chat?name=${encodeURIComponent(record.tutorName || '')}&payment=${result ? 'success' : 'error'}`);
 });
 
 // Tutor sets/updates their own externally-created meeting link (Google
@@ -3577,7 +5291,7 @@ app.get('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
 // normal message referencing it, so an abandoned upload never becomes a
 // half-sent message in the thread.
 app.post('/api/chat/upload', requireAuthApi, (req, res) => {
-  chatUpload.single('file')(req, res, (err) => {
+  chatUpload.single('file')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 50MB).' : err.message;
       return res.status(400).json({ success: false, error: message });
@@ -3593,7 +5307,7 @@ app.post('/api/chat/upload', requireAuthApi, (req, res) => {
     res.json({
       success: true,
       attachment: {
-        url: `/uploads/chat/${req.file.filename}`,
+        url: await resolveUploadedFileUrl(req.file, 'chat'),
         name: req.file.originalname,
         mime,
         size: req.file.size,
@@ -3609,18 +5323,35 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   const role = assignmentParticipantRole(user, record);
   if (!role) return res.status(403).json({ success: false, error: 'Not your assignment.' });
 
-  const { text, libraryItemId, attachment } = req.body || {};
-  if ((!text || !text.trim()) && !libraryItemId && !attachment) {
-    return res.status(400).json({ success: false, error: 'Message text, a file, or a tagged clip is required.' });
+  const otherPartyUserId = role === 'student' ? (tutors.findById(record.tutorId) || {}).userId : record.studentId;
+  if (otherPartyUserId && store.isBlockedPair(user.id, otherPartyUserId)) {
+    return res.status(403).json({ success: false, error: "You can't message this person." });
+  }
+
+  const { text, libraryItemId, attachment, replyToId, poll, location } = req.body || {};
+  if ((!text || !text.trim()) && !libraryItemId && !attachment && !poll && !location) {
+    return res.status(400).json({ success: false, error: 'Message text, a file, a tagged clip, a poll, or a location is required.' });
   }
   // Only accept an attachment that points at our own upload directory -
   // otherwise this field would let anyone render an arbitrary URL inside
   // someone else's thread.
   let safeAttachment = null;
-  if (attachment && typeof attachment.url === 'string' && attachment.url.startsWith('/uploads/chat/')) {
+  if (attachment && isOwnChatAttachmentUrl(attachment.url)) {
     safeAttachment = attachment;
   } else if (attachment) {
     return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
+  }
+  if (location && record.lessonType === 'online') {
+    return res.status(400).json({ success: false, error: 'Location sharing is only available for in-person lessons.' });
+  }
+  const { poll: safePoll, error: pollError } = validatePollInput(poll);
+  if (pollError) return res.status(400).json({ success: false, error: pollError });
+  const { location: safeLocation, error: locationError } = validateLocationInput(location);
+  if (locationError) return res.status(400).json({ success: false, error: locationError });
+  let replyTo = null;
+  if (replyToId) {
+    replyTo = chat.findById(replyToId);
+    if (!replyTo || replyTo.assignmentId !== record.id) return res.status(400).json({ success: false, error: 'That message no longer exists.' });
   }
 
   const candidateLibraryItem = libraryItemId ? reels.findById(libraryItemId) : null;
@@ -3639,10 +5370,11 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   }
   const message = chat.send(record.id, {
     senderId: user.id, senderRole: role, text: (text || '').trim(), libraryItem, attachment: safeAttachment,
+    replyToId: replyTo ? replyTo.id : null, poll: safePoll, location: safeLocation,
   });
 
   const recipientId = role === 'student' ? tutors.findById(record.tutorId).userId : record.studentId;
-  store.addNotification(recipientId, { type: 'chat', message: `New message from ${user.name} about your ${record.category} lesson.` });
+  store.addNotification(recipientId, { type: 'chat', message: `New message from ${user.name} about your ${record.category} lesson.`, href: `/messages/chat?name=${encodeURIComponent(user.name)}` });
 
   // Push to anyone with the thread open. The message is already saved, so
   // this is purely delivery speed - a failed/absent socket costs nothing.
@@ -3670,6 +5402,295 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   res.json({ success: true, message });
 });
 
+// Edit/delete/pin all share the same access check: the requester must be a
+// participant (student or tutor) in the assignment thread the message
+// belongs to, resolved the same way as the message list/send routes above.
+function loadOwnMessage(req, res) {
+  const user = currentUser(req);
+  const record = assignments.findById(req.params.id);
+  const role = assignmentParticipantRole(user, record);
+  if (!role) { res.status(403).json({ success: false, error: 'Not your assignment.' }); return null; }
+  const message = chat.findById(req.params.messageId);
+  if (!message || message.assignmentId !== record.id) { res.status(404).json({ success: false, error: 'Message not found.' }); return null; }
+  return { user, record, role, message };
+}
+
+// Shared editing/delete-for-everyone time windows, used by both the
+// assignment chat and every org-chat surface so the rule reads the same
+// everywhere: edits are allowed for 30 minutes after sending; deleting for
+// everyone (not just for yourself) is allowed for 10 minutes, and only
+// before the recipient has actually seen it - whichever comes first.
+const EDIT_WINDOW_MS = 30 * 60 * 1000;
+const DELETE_EVERYONE_WINDOW_MS = 10 * 60 * 1000;
+function messageAgeMs(message) { return Date.now() - new Date(message.createdAt).getTime(); }
+
+app.put('/api/assignments/:id/messages/:messageId', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ success: false, error: 'Message text is required.' });
+  if (ctx.message.senderId !== ctx.user.id) return res.status(403).json({ success: false, error: 'You can only edit your own messages.' });
+  if (messageAgeMs(ctx.message) > EDIT_WINDOW_MS) {
+    return res.status(409).json({ success: false, error: 'This message is more than 30 minutes old and can no longer be edited.' });
+  }
+  const updated = chat.editMessage(ctx.message.id, ctx.user.id, text);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  realtime.broadcast(ctx.record.id, { type: 'message_edited', assignmentId: ctx.record.id, message: updated });
+  res.json({ success: true, message: updated });
+});
+
+// "Delete for everyone" only works within 10 minutes of sending, and only
+// before the other party has seen the thread since this message arrived -
+// readByStudent/readByTutor are per-message flags only ever bulk-flipped by
+// chat.markRead() on a thread fetch, so the recipient's own flag on this
+// exact row is a reliable "have they polled since this landed" signal
+// without needing a new field.
+function recipientHasSeenMessage(message) {
+  const recipientField = message.senderRole === 'student' ? 'readByTutor' : 'readByStudent';
+  return Boolean(message[recipientField]);
+}
+
+app.delete('/api/assignments/:id/messages/:messageId', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  if (ctx.message.senderId !== ctx.user.id) return res.status(403).json({ success: false, error: 'You can only delete your own messages.' });
+  if (messageAgeMs(ctx.message) > DELETE_EVERYONE_WINDOW_MS) {
+    return res.status(409).json({ success: false, error: 'This message is more than 10 minutes old and can only be deleted for you.' });
+  }
+  if (recipientHasSeenMessage(ctx.message)) {
+    return res.status(409).json({ success: false, error: 'This message has already been seen and can only be deleted for you.' });
+  }
+  const updated = chat.deleteMessage(ctx.message.id, ctx.user.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  realtime.broadcast(ctx.record.id, { type: 'message_deleted', assignmentId: ctx.record.id, messageId: updated.id });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/assignments/:id/messages/:messageId/delete-for-me', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  const updated = chat.deleteForMe(ctx.message.id, ctx.user.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/assignments/:id/messages/:messageId/react', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (!isValidReaction(emoji)) return res.status(400).json({ success: false, error: 'Not a supported reaction.' });
+  const updated = chat.addReaction(ctx.message.id, ctx.user.id, ctx.role, emoji);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  realtime.broadcast(ctx.record.id, { type: 'message_reacted', assignmentId: ctx.record.id, message: updated });
+  // Only notify the other party, and only when they actually added a
+  // reaction (not when they removed their own) - a toggle-off shouldn't
+  // ping anyone.
+  const justReacted = (updated.reactions || []).some((r) => r.userId === ctx.user.id && r.emoji === emoji);
+  if (justReacted && ctx.message.senderId !== ctx.user.id) {
+    store.addNotification(ctx.message.senderId, { type: 'chat', message: `${ctx.user.name} reacted ${emoji} to your message.`, href: `/messages/chat?name=${encodeURIComponent(ctx.user.name)}` });
+  }
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/assignments/:id/messages/:messageId/poll-vote', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  if (!ctx.message.poll) return res.status(400).json({ success: false, error: 'This message is not a poll.' });
+  const optionId = Number(req.body && req.body.optionId);
+  if (!ctx.message.poll.options.some((o) => o.id === optionId)) return res.status(400).json({ success: false, error: 'Not a valid poll option.' });
+  const updated = chat.votePoll(ctx.message.id, ctx.user.id, optionId);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  realtime.broadcast(ctx.record.id, { type: 'message_poll_vote', assignmentId: ctx.record.id, message: updated });
+  res.json({ success: true, message: updated });
+});
+
+app.post('/api/assignments/:id/messages/:messageId/pin', requireAuthApi, (req, res) => {
+  const ctx = loadOwnMessage(req, res);
+  if (!ctx) return;
+  const updated = chat.togglePin(ctx.message.id);
+  if (!updated) return res.status(404).json({ success: false, error: 'Message not found.' });
+  realtime.broadcast(ctx.record.id, { type: 'message_pinned', assignmentId: ctx.record.id, messageId: updated.id, pinned: updated.pinned });
+  res.json({ success: true, message: updated });
+});
+
+// --- Thread preferences (favorite/archive/pin/mute/mark-unread/clear/delete/block) ---
+// One small family of routes shared by both thread types (a direct
+// assignment thread and a tutor-group chat) - resolves participancy the
+// same way each type's own routes already do, then delegates to store.js's
+// per-user preference toggles. Thread keys are `assignment:<id>` /
+// `group:<id>`, matching what /api/conversations and /api/group-chats key
+// their rows by below.
+function resolveThreadContext(req, res) {
+  const user = currentUser(req);
+  const type = req.params.type;
+  const id = Number(req.params.id);
+  if (type === 'assignment') {
+    const record = assignments.findById(id);
+    const role = assignmentParticipantRole(user, record);
+    if (!role) { res.status(403).json({ success: false, error: 'Not your thread.' }); return null; }
+    const otherPartyUserId = role === 'student' ? (tutors.findById(record.tutorId) || {}).userId : record.studentId;
+    return { user, type, id, role, threadKey: `assignment:${id}`, otherPartyUserId };
+  }
+  if (type === 'group') {
+    const access = tutorGroupAccess(user, id);
+    if (!access) { res.status(403).json({ success: false, error: 'Not your thread.' }); return null; }
+    return { user, type, id, role: access.role, threadKey: `group:${id}`, otherPartyUserId: null };
+  }
+  res.status(400).json({ success: false, error: 'Unknown thread type.' });
+  return null;
+}
+
+app.post('/api/threads/:type/:id/favorite', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  res.json({ success: true, favorite: store.toggleFavoriteThread(ctx.user.id, ctx.threadKey) });
+});
+
+app.post('/api/threads/:type/:id/archive', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  res.json({ success: true, archived: store.toggleArchivedThread(ctx.user.id, ctx.threadKey) });
+});
+
+app.post('/api/threads/:type/:id/pin', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  res.json({ success: true, pinned: store.togglePinnedThread(ctx.user.id, ctx.threadKey) });
+});
+
+app.post('/api/threads/:type/:id/mute', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  const duration = req.body && req.body.duration;
+  if (duration && !['8h', '1w', 'always'].includes(duration)) return res.status(400).json({ success: false, error: 'Not a valid mute duration.' });
+  res.json({ success: true, muted: store.setMutedThread(ctx.user.id, ctx.threadKey, duration || null) });
+});
+
+app.post('/api/threads/:type/:id/mark-unread', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  if (ctx.type === 'assignment') chat.markUnread(ctx.id, ctx.role);
+  else orgChat.markUnread(ctx.id, ctx.role);
+  res.json({ success: true });
+});
+
+app.post('/api/threads/:type/:id/clear', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  if (ctx.type === 'assignment') chat.clearForUser(ctx.id, ctx.user.id);
+  else orgChat.clearForUser(ctx.id, ctx.user.id);
+  res.json({ success: true });
+});
+
+app.post('/api/threads/:type/:id/delete', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  if (ctx.type === 'assignment') chat.clearForUser(ctx.id, ctx.user.id);
+  else orgChat.clearForUser(ctx.id, ctx.user.id);
+  store.hideThread(ctx.user.id, ctx.threadKey);
+  res.json({ success: true });
+});
+
+app.post('/api/threads/:type/:id/block', requireAuthApi, (req, res) => {
+  const ctx = resolveThreadContext(req, res);
+  if (!ctx) return;
+  if (ctx.type !== 'assignment' || !ctx.otherPartyUserId) return res.status(400).json({ success: false, error: 'Blocking only applies to a direct chat.' });
+  res.json({ success: true, blocked: store.toggleBlockedUser(ctx.user.id, ctx.otherPartyUserId) });
+});
+
+// Marks every direct + group thread this user is part of as read in one
+// call, backing "Mark all as read" in the messages-list "..." menu.
+app.post('/api/threads/mark-all-read', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutorProfile = tutors.findByUserId(user.id);
+  assignments.listAll().forEach((record) => {
+    const role = record.studentId === user.id ? 'student' : (tutorProfile && record.tutorId === tutorProfile.id ? 'tutor' : null);
+    if (role) chat.markRead(record.id, role);
+  });
+  const groups = (tutorProfile ? orgChat.listForTutor(tutorProfile.id) : orgChat.listAll())
+    .filter((item) => item.type === 'tutor-group' && (tutorProfile ? Number(item.tutorId) === Number(tutorProfile.id) : (item.participants || []).some((p) => p.type === 'student' && Number(p.id) === Number(user.id))));
+  groups.forEach((group) => orgChat.markRead(group.id, tutorProfile ? 'tutor' : 'student'));
+  res.json({ success: true });
+});
+
+// The reported user is resolved from threadKey server-side rather than
+// trusted from the client - a direct assignment thread always has exactly
+// one "other party", and resolving it here (instead of the tutor-profile-id
+// vs user-id mixup a client would have to untangle) also means a client
+// can't report an arbitrary, unrelated user id.
+app.post('/api/reports', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const { threadKey, reason } = req.body || {};
+  if (!reason || !reason.trim()) return res.status(400).json({ success: false, error: 'Tell us what happened.' });
+  const match = String(threadKey || '').match(/^assignment:(\d+)$/);
+  if (!match) return res.status(400).json({ success: false, error: 'Reporting is only available in a direct chat.' });
+  const record = assignments.findById(match[1]);
+  const role = assignmentParticipantRole(user, record);
+  if (!role) return res.status(403).json({ success: false, error: 'Not your thread.' });
+  const reportedUserId = role === 'student' ? (tutors.findById(record.tutorId) || {}).userId : record.studentId;
+  if (!reportedUserId) return res.status(400).json({ success: false, error: 'Could not resolve who to report.' });
+  const report = reports.create({ reporterId: user.id, reportedUserId, threadKey, reason });
+  const reportedUser = store.findById(reportedUserId);
+  notifyAdmins({
+    type: 'user-report',
+    subject: 'New user report',
+    message: `${user.name} reported ${reportedUser ? reportedUser.name : 'a user'}: "${report.reason}"`,
+  });
+  res.json({ success: true, report });
+});
+
+// --- Classroom mini-games ---
+// Any signed-in student can play; if they're linked to an organization the
+// session is also tagged with that org's id so it shows up on the org's
+// leaderboard. Playing never requires an org link - it's a standalone
+// feature that happens to roll up into a classroom view when one exists.
+const GAME_TIERS = ['beginner', 'intermediate', 'advanced'];
+app.post('/api/games/note-recognition/session', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const { tier, score, correctCount, totalCount } = req.body || {};
+  if (!GAME_TIERS.includes(tier)) return res.status(400).json({ success: false, error: 'Not a valid tier.' });
+  if (!Number.isFinite(score) || !Number.isFinite(correctCount) || !Number.isFinite(totalCount)) {
+    return res.status(400).json({ success: false, error: 'Missing score data.' });
+  }
+  const org = resolveOrgForUser(user);
+  const session = games.recordSession({
+    orgId: org ? org.id : null,
+    studentUserId: user.id,
+    studentName: user.name,
+    gameType: 'note-recognition',
+    tier,
+    score: Math.max(0, Math.round(score)),
+    correctCount: Math.max(0, Math.round(correctCount)),
+    totalCount: Math.max(0, Math.round(totalCount)),
+  });
+  res.json({ success: true, session });
+});
+
+app.get('/api/games/note-recognition/my-history', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  res.json({ success: true, sessions: games.listForStudent(user.id).slice(0, 20) });
+});
+
+// Org owner or a tutor linked to that org can view the classroom leaderboard.
+app.get('/api/organizations/:orgId/games/leaderboard', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findById(Number(req.params.orgId));
+  if (!org) return res.status(404).json({ success: false, error: 'Organization not found.' });
+  const isOwner = org.userId === user.id;
+  const isLinkedTutor = organizationMembershipsForUser(user).some((membership) => membership.id === org.id);
+  if (!isOwner && !isLinkedTutor) return res.status(403).json({ success: false, error: 'Not your organization.' });
+  const sessions = games.listForOrg(org.id);
+  const byStudent = new Map();
+  sessions.forEach((s) => {
+    const existing = byStudent.get(s.studentUserId) || { studentUserId: s.studentUserId, studentName: s.studentName, bestScore: 0, roundsPlayed: 0 };
+    existing.bestScore = Math.max(existing.bestScore, s.score);
+    existing.roundsPlayed += 1;
+    byStudent.set(s.studentUserId, existing);
+  });
+  const leaderboard = [...byStudent.values()].sort((a, b) => b.bestScore - a.bestScore);
+  res.json({ success: true, leaderboard, recentSessions: sessions.slice(0, 25) });
+});
+
 // Total unread messages across every thread this user is part of - drives
 // the unread badge in the nav.
 // Every conversation this user is part of, newest activity first - the
@@ -3679,6 +5700,7 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
 app.get('/api/conversations', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const tutorProfile = tutors.findByUserId(user.id);
+  const prefs = store.getThreadPrefs(user.id);
 
   const conversations = assignments.listAll()
     .map((record) => {
@@ -3690,14 +5712,17 @@ app.get('/api/conversations', requireAuthApi, (req, res) => {
       // The other person, from this user's point of view.
       let name;
       let photoUrl = null;
+      let otherPartyUserId = null;
       if (role === 'student') {
         const theirTutor = tutors.findById(record.tutorId);
         name = record.tutorName;
         photoUrl = theirTutor ? theirTutor.photoUrl || null : null;
+        otherPartyUserId = theirTutor ? theirTutor.userId : null;
       } else {
         const theirStudent = store.findById(record.studentId);
         name = record.studentName;
         photoUrl = theirStudent ? theirStudent.photoUrl || null : null;
+        otherPartyUserId = record.studentId;
       }
 
       const messages = chat.listForAssignment(record.id);
@@ -3707,22 +5732,42 @@ app.get('/api/conversations', requireAuthApi, (req, res) => {
           || ({ image: 'Photo', video: 'Video', audio: 'Voice note' }[last.attachment && last.attachment.kind] || (last.attachment ? last.attachment.name : ''))
           || (last.libraryItem ? `Clip: ${last.libraryItem.title}` : ''))
         : '';
+      const lastAt = last ? last.createdAt : (record.assignedAt || record.createdAt);
+
+      const threadKey = `assignment:${record.id}`;
+      // A thread "deleted" from the list reappears once it has activity
+      // newer than when it was hidden, rather than staying gone forever.
+      const hiddenAt = prefs.hiddenThreads[threadKey];
+      if (hiddenAt && new Date(lastAt) <= new Date(hiddenAt)) return null;
+
+      const muted = prefs.mutedThreads[threadKey];
+      const stillMuted = muted && (muted.until === null || new Date(muted.until) > new Date());
 
       return {
         assignmentId: record.id,
         role,
         name,
         photoUrl,
+        otherPartyUserId,
         category: record.category,
         status: record.status,
         lessonType: record.lessonType,
         lastMessage: lastLabel,
-        lastAt: last ? last.createdAt : (record.assignedAt || record.createdAt),
+        lastAt,
         unread: chat.unreadCountForRole(record.id, role),
+        favorite: prefs.favoriteThreadIds.includes(threadKey),
+        archived: prefs.archivedThreadIds.includes(threadKey),
+        pinned: prefs.pinnedThreadIds.includes(threadKey),
+        // `muted` covers "muted forever" (mutedUntil stays null in that
+        // case) as well as a timed mute - mutedUntil alone can't tell "not
+        // muted" and "muted forever" apart, since both are null.
+        muted: Boolean(stillMuted),
+        mutedUntil: stillMuted && muted.until ? muted.until : null,
+        blocked: otherPartyUserId ? prefs.blockedUserIds.includes(otherPartyUserId) : false,
       };
     })
     .filter(Boolean)
-    .sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
+    .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.lastAt) - new Date(a.lastAt)));
 
   res.json({ success: true, conversations });
 });
@@ -3738,7 +5783,7 @@ app.get('/api/messages/unread-count', requireAuthApi, (req, res) => {
       : (tutorProfile && record.tutorId === tutorProfile.id ? 'tutor' : null);
     if (!role) return;
     const count = chat.unreadCountForRole(record.id, role);
-    if (count > 0) threads.push({ assignmentId: record.id, category: record.category, count });
+    if (count > 0) threads.push({ assignmentId: record.id, category: record.category, count, otherPartyName: role === 'student' ? record.tutorName : record.studentName });
     total += count;
   });
   res.json({ success: true, total, threads });
@@ -3813,7 +5858,7 @@ app.post('/api/admin/organizations/:id/monthly-amount', requireAdminApi, (req, r
   
   store.addNotification(updated.userId, {
     type: 'organization',
-    message: `Your monthly subscription amount has been set to ₦${monthlyAmount}. Choose to pay monthly or yearly when you activate your subscription.`,
+    message: `Your monthly subscription amount has been set to $${monthlyAmount} USD. Choose to pay monthly or yearly when you activate your subscription.`,
   });
   res.json({ success: true, organization: updated });
 });
@@ -3859,8 +5904,8 @@ app.post('/api/admin/users/:id/clear-flag', requireAdminApi, (req, res) => {
 // admin monitor all tutor/student activity in one place rather than having
 // to open each assignment individually.
 app.get('/api/admin/activity', requireAdminApi, (req, res) => {
-  const region = String(req.query.region || '').trim().toLowerCase();
-  const sessions = assignments.listAll().filter((r) => !region || String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase() === region).flatMap((r) => (r.sessions || []).map((s) => ({
+  const regionSet = parseRegionFilter(req);
+  const sessions = assignments.listAll().filter((r) => !regionSet || regionSet.has(String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase())).flatMap((r) => (r.sessions || []).map((s) => ({
     ...s,
     requestId: r.id,
     category: r.category,
@@ -3875,8 +5920,8 @@ app.get('/api/admin/activity', requireAdminApi, (req, res) => {
 // A live feed of every chat message platform-wide, newest first - part of
 // "admin can see all activities."
 app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
-  const region = String(req.query.region || '').trim().toLowerCase();
-  const allRecords = assignments.listAll().filter((r) => !region || String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase() === region);
+  const regionSet = parseRegionFilter(req);
+  const allRecords = assignments.listAll().filter((r) => !regionSet || regionSet.has(String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase()));
   const messages = allRecords.flatMap((r) => chat.listForAssignment(r.id).map((m) => ({
     ...m, category: r.category, tutorName: r.tutorName, studentName: r.studentName,
   })));
@@ -3888,11 +5933,11 @@ app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
 // elsewhere (the payments ledger, tutor/assignment records), never a
 // placeholder or estimate.
 app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
-  const region = String(req.query.region || '').trim().toLowerCase();
+  const regionSet = parseRegionFilter(req);
   const assignmentInRegion = (assignmentId) => {
-    if (!region) return true;
+    if (!regionSet) return true;
     const record = assignments.findById(assignmentId);
-    return String(record && (record.studentCountry || (store.findById(record.studentId)?.country)) || '').toLowerCase() === region;
+    return regionSet.has(String(record && (record.studentCountry || (store.findById(record.studentId)?.country)) || '').toLowerCase());
   };
   const allPayments = payments.listAll().filter((payment) => assignmentInRegion(payment.assignmentId));
   const totalRevenueUsd = allPayments.reduce((sum, p) => sum + p.priceUsd, 0);
@@ -3919,7 +5964,7 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
   });
   const topSubjects = Object.values(subjectCounts).sort((a, b) => b.revenueUsd - a.revenueUsd).slice(0, 5);
 
-  const tutorLeaderboard = tutors.listAll().filter((t) => !region || String(t.locality && t.locality.country || '').toLowerCase() === region)
+  const tutorLeaderboard = tutors.listAll().filter((t) => !regionSet || regionSet.has(String(t.locality && t.locality.country || '').toLowerCase()))
     .filter((t) => t.ratingCount > 0)
     .map((t) => ({ id: t.id, name: t.name, avgRating: tutors.avgRating(t), ratingCount: t.ratingCount, lessonsCompletedCount: t.lessonsCompletedCount || 0, totalEarnedUsd: t.totalEarnedUsd || 0 }))
     .sort((a, b) => b.avgRating - a.avgRating || b.ratingCount - a.ratingCount)
@@ -3939,8 +5984,8 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
       platformRevenueUsd: Math.round(platformRevenueUsd * 100) / 100,
       revenue30dUsd,
       pendingEscrowUsd: Math.round(pendingEscrowUsd * 100) / 100,
-      totalUsers: store.listUsers().filter((user) => !region || String(user.country || '').toLowerCase() === region).length,
-      activeTutors: tutors.listApproved().filter((tutor) => !region || String(tutor.locality && tutor.locality.country || '').toLowerCase() === region).length,
+      totalUsers: store.listUsers().filter((user) => !regionSet || regionSet.has(String((user.studentProfile && user.studentProfile.locality && user.studentProfile.locality.country) || user.country || '').toLowerCase())).length,
+      activeTutors: tutors.listApproved().filter((tutor) => !regionSet || regionSet.has(String(tutor.locality && tutor.locality.country || '').toLowerCase())).length,
       lessonsLogged,
     },
     revenueByDay,
@@ -3957,6 +6002,21 @@ app.get('/api/admin/flagged', requireAdminApi, (req, res) => {
     tutors: flaggedTutors,
     students: flaggedStudents.map((u) => ({ id: u.id, name: u.name, email: u.email, rating: u.rating })),
   });
+});
+
+app.get('/api/admin/reports', requireAdminApi, (req, res) => {
+  const rows = reports.listAll().map((report) => {
+    const reporter = store.findById(report.reporterId);
+    const reported = store.findById(report.reportedUserId);
+    return { ...report, reporterName: reporter ? reporter.name : null, reportedUserName: reported ? reported.name : null };
+  });
+  res.json({ success: true, reports: rows });
+});
+
+app.post('/api/admin/reports/:id/resolve', requireAdminApi, (req, res) => {
+  const report = reports.setStatus(req.params.id, 'resolved');
+  if (!report) return res.status(404).json({ success: false, error: 'Report not found.' });
+  res.json({ success: true, report });
 });
 
 app.get('/api/admin/tutor-requests', requireAdminApi, (req, res) => {
@@ -4039,13 +6099,13 @@ app.post('/api/admin/orientation', requireAdminApi, (req, res) => {
 });
 
 app.post('/api/admin/orientation/upload', requireAdminApi, (req, res) => {
-  videoUpload.single('video')(req, res, (err) => {
+  videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
-    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'videos') });
   });
 });
 
@@ -4079,14 +6139,14 @@ app.post('/api/admin/library', requireAdminApi, (req, res) => {
 });
 
 app.post('/api/admin/library/upload', requireAdminApi, (req, res) => {
-  videoUpload.single('video')(req, res, (err) => {
+  videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
       return res.status(400).json({ success: false, error: message });
     }
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a video file to upload.' });
-    res.json({ success: true, url: `/uploads/videos/${req.file.filename}` });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'videos') });
   });
 });
 

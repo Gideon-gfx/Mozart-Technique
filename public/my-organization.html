@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Organization - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<link rel="stylesheet" href="/assets/chat-kit.css">
+<link rel="stylesheet" href="/assets/note-game.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.site-nav { background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; }
+.site-nav-inner { max-width: 1000px; margin: 0 auto; padding: 0 24px; height: 70px; display: flex; align-items: center; justify-content: space-between; }
+.site-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; }
+.site-logo img { width: 38px; height: 38px; border-radius: 12px; object-fit: cover; }
+.page-wrap { max-width: 1000px; margin: 0 auto; padding: 28px 24px 60px; }
+.org-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.org-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); }
+.org-name { font-size: 1.3rem; font-weight: 800; margin: 0; }
+.org-meta { color: var(--mz-muted); font-size: .85rem; margin: 2px 0; }
+.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 12px; }
+.content-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); overflow: hidden; background: #fff; }
+.content-card img, .content-card video { width: 100%; aspect-ratio: 16/10; object-fit: cover; background: var(--mz-bg-soft); }
+.content-card-body { padding: 10px 12px; }
+.content-card-title { font-weight: 700; font-size: .86rem; margin: 0 0 3px; }
+.content-card-text { font-size: .8rem; color: var(--mz-muted); margin: 0; }
+
+.chat-panel { display: flex; flex-direction: column; height: 520px; border: 1px solid var(--mz-border); border-radius: var(--mz-radius-lg); overflow: hidden; background: #fff; }
+.chat-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--mz-border); }
+.chat-panel-head h3 { font-size: .9rem; font-weight: 800; margin: 0; }
+.chat-call-btn { border: none; background: var(--mz-bg-soft); color: var(--mz-red); width: 34px; height: 34px; border-radius: 999px; cursor: pointer; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="site-nav">
+  <div class="site-nav-inner">
+    <a href="/dashboard" class="site-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques">Mozart Techniques</a>
+    <div id="auth-state"></div>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <div id="loading-state" class="market-empty"><i class="fa-solid fa-spinner fa-spin"></i></div>
+
+  <div id="not-linked-state" class="market-empty" hidden>
+    <i class="fa-solid fa-building"></i>
+    <h3>Not linked to an organization</h3>
+    <p>Redeem your organization's access code from your Dashboard to see this page.</p>
+    <a href="/dashboard" class="market-btn market-btn-outline">Back to Dashboard</a>
+  </div>
+
+  <div id="org-view" hidden>
+    <div class="org-header">
+      <img class="org-logo" id="org-logo" src="/mozartLogo.jpg" alt="">
+      <div>
+        <h1 class="org-name" id="org-name"></h1>
+        <p class="org-meta" id="org-meta"></p>
+      </div>
+    </div>
+
+    <div class="market-tabs">
+      <button type="button" class="market-tab-btn active" data-tab="content"><i class="fa-solid fa-photo-film"></i> Updates</button>
+      <button type="button" class="market-tab-btn" data-tab="messages"><i class="fa-solid fa-comments"></i> Message Organization</button>
+      <button type="button" class="market-tab-btn" data-tab="games"><i class="fa-solid fa-gamepad"></i> Games</button>
+    </div>
+
+    <div class="market-tab-panel" id="tab-content">
+      <div class="content-grid" id="content-grid"></div>
+      <div id="content-empty" class="market-empty" hidden><i class="fa-solid fa-inbox"></i><h3>No updates yet</h3><p>Announcements and materials from your organization will show up here.</p></div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-messages" hidden>
+      <div class="chat-panel">
+        <div class="chat-panel-head">
+          <h3 id="chat-panel-title">Message Organization</h3>
+          <button type="button" class="chat-call-btn" id="chat-call-btn" title="Join or start a call"><i class="fa-solid fa-video"></i></button>
+        </div>
+        <div id="chat-kit-mount" class="flex min-h-0 flex-1 flex-col" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+      </div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-games" hidden>
+      <div id="game-tier-picker" class="game-tier-picker"></div>
+      <div id="game-mount"></div>
+    </div>
+  </div>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script src="/assets/chat-kit.js"></script>
+<script src="/assets/note-game.js"></script>
+<script>
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+let currentUserId = null;
+let org = null;
+
+const TABS = ['content', 'messages', 'games'];
+let chatKitController = null;
+let conversationId = null;
+function activateTab(tab) {
+  document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  TABS.forEach((t) => { document.getElementById(`tab-${t}`).hidden = t !== tab; });
+  if (tab === 'messages') mountChat();
+  if (tab === 'games') initGamesTab();
+}
+document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+
+function contentCardHtml(item) {
+  const media = item.type === 'video' && item.fileUrl
+    ? `<video src="${escapeHtml(item.fileUrl)}" controls></video>`
+    : item.type === 'photo' && (item.fileUrl || item.url)
+      ? `<img src="${escapeHtml(item.fileUrl || item.url)}" alt="">`
+      : '';
+  return `
+    <div class="content-card">
+      ${media}
+      <div class="content-card-body">
+        <p class="content-card-title">${escapeHtml(item.title)}</p>
+        ${item.text ? `<p class="content-card-text">${escapeHtml(item.text)}</p>` : ''}
+        ${item.url && item.type !== 'photo' ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="market-section-link">Open link</a>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+async function loadOrg() {
+  const sessionRes = await fetch('/api/session');
+  const sessionData = await sessionRes.json();
+  if (!sessionData.user) { window.location.href = '/login?redirect=' + encodeURIComponent('/my-organization'); return; }
+  currentUserId = sessionData.user.id;
+
+  const res = await fetch('/api/organizations/mine');
+  const data = await res.json();
+  document.getElementById('loading-state').hidden = true;
+  if (!data.success) { document.getElementById('not-linked-state').hidden = false; return; }
+
+  org = data.organization;
+  document.getElementById('org-view').hidden = false;
+  document.getElementById('org-logo').src = org.logoUrl || '/mozartLogo.jpg';
+  document.getElementById('org-name').textContent = org.name || org.contactName;
+  document.getElementById('org-meta').textContent = `${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'} - ${org.subscriptionStatus === 'active' ? 'Active sponsorship' : 'Sponsorship inactive'}`;
+
+  loadContent();
+}
+
+async function loadContent() {
+  const res = await fetch(`/api/organizations/${org.id}/private-content`);
+  const data = await res.json();
+  if (!data.success) return;
+  const items = data.content || data.items || [];
+  document.getElementById('content-empty').hidden = items.length > 0;
+  document.getElementById('content-grid').innerHTML = items.map(contentCardHtml).join('');
+}
+
+async function mountChat() {
+  if (chatKitController) { chatKitController.refresh(); return; }
+  const initial = await fetch('/api/organizations/mine/conversation').then((r) => r.json());
+  if (!initial.success) return;
+  conversationId = initial.conversation.id;
+  document.getElementById('chat-panel-title').textContent = `Message ${initial.organizationName || 'Organization'}`;
+
+  document.getElementById('chat-call-btn').addEventListener('click', async () => {
+    const conv = await fetch(`/api/organizations/mine/conversation`).then((r) => r.json());
+    if (conv.success && conv.conversation.meetingLink) return window.location.href = conv.conversation.meetingLink;
+    const win = window.open('https://meet.google.com/new', '_blank', 'noopener');
+    if (!win) window.location.href = 'https://meet.google.com/new';
+  });
+
+  chatKitController = ChatKit.mount(document.getElementById('chat-kit-mount'), {
+    me: { id: currentUserId, role: 'student' },
+    isGroup: false,
+    onAlert: showToast,
+    api: {
+      list: async () => { const d = await fetch('/api/organizations/mine/conversation').then((r) => r.json()); return { success: d.success, messages: d.success ? d.conversation.messages : [] }; },
+      send: async (payload) => fetch('/api/organizations/mine/conversation/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json()),
+      edit: async (id, text) => fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).then((r) => r.json()),
+      del: async (id, mode) => mode === 'me'
+        ? fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}/delete-for-me`, { method: 'POST' }).then((r) => r.json())
+        : fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+      react: async (id, emoji) => fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) }).then((r) => r.json()),
+      pin: async (id) => fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}/pin`, { method: 'POST' }).then((r) => r.json()),
+      vote: async (id, optionId) => fetch(`/api/org-chat/conversations/${conversationId}/messages/${id}/poll-vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionId }) }).then((r) => r.json()),
+    },
+  });
+}
+
+// --- Games tab ---
+let gamesTabReady = false;
+let activeGameController = null;
+const GAME_TIER_LABELS = { beginner: 'Ages 5-8', intermediate: 'Ages 9-12', advanced: 'Ages 13+' };
+function initGamesTab() {
+  if (gamesTabReady) return;
+  gamesTabReady = true;
+  const picker = document.getElementById('game-tier-picker');
+  picker.innerHTML = Object.entries(GAME_TIER_LABELS).map(([tier, label], i) => `<button type="button" class="game-tier-btn${i === 0 ? ' active' : ''}" data-tier="${tier}">${label}</button>`).join('');
+  picker.addEventListener('click', (e) => {
+    const btn = e.target.closest('.game-tier-btn');
+    if (!btn) return;
+    picker.querySelectorAll('.game-tier-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    startGame(btn.dataset.tier);
+  });
+  startGame('beginner');
+}
+function startGame(tier) {
+  if (activeGameController) { activeGameController.destroy(); activeGameController = null; }
+  activeGameController = NoteGame.mount(document.getElementById('game-mount'), {
+    tier,
+    questionCount: 10,
+    onComplete: async ({ score, correctCount, totalCount }) => {
+      const res = await fetch('/api/games/note-recognition/session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, score, correctCount, totalCount }),
+      }).then((r) => r.json());
+      if (!res.success) showToast(res.error || 'Could not save your score.', 'error');
+      const mount = document.getElementById('game-mount');
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'market-btn market-btn-primary';
+      again.style.marginTop = '16px';
+      again.textContent = 'Play again';
+      again.addEventListener('click', () => startGame(tier));
+      mount.appendChild(again);
+    },
+  });
+}
+
+loadOrg();
+</script>
+</body>
+</html>

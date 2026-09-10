@@ -6,11 +6,6 @@ const { geocodeAddress } = require('./geocode');
 const DATA_FILE = path.join(__dirname, 'users.json');
 const MIN_RATINGS_BEFORE_FLAG = 3;
 const FLAG_THRESHOLD = 2.5; // out of 5
-const LIVE_ACCOUNT_EMAILS = new Set([
-  'mozarttechniques@gmail.com',
-  'emmanuelsolomontenore@gmail.com',
-  'gabrielsolomon781@gmail.com',
-]);
 
 function load() {
   if (!fs.existsSync(DATA_FILE)) return { users: [], nextId: 1 };
@@ -111,6 +106,27 @@ function addNotification(userId, { type, message, href = null }) {
   user.notifications = user.notifications.slice(0, 50); // cap history
   persist(db);
   return user;
+}
+
+// Recently-viewed store products, capped and most-recent-first - same
+// per-user-record shape as notifications above, kept here rather than in a
+// new data file since it's inherently tied to a real account, not a browser.
+function recordRecentlyViewed(userId, productId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!Array.isArray(user.recentlyViewedProducts)) user.recentlyViewedProducts = [];
+  user.recentlyViewedProducts = [
+    { productId: Number(productId), viewedAt: new Date().toISOString() },
+    ...user.recentlyViewedProducts.filter((entry) => entry.productId !== Number(productId)),
+  ].slice(0, 24);
+  persist(db);
+  return user;
+}
+
+function getRecentlyViewed(userId) {
+  const user = load().users.find((u) => u.id === userId);
+  return (user && user.recentlyViewedProducts) || [];
 }
 
 function clearPushPending(userId, notificationId) {
@@ -214,10 +230,26 @@ function setStripeConnectAccount(userId, account) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
+  const recipientBalance = account && account.configuration && account.configuration.recipient
+    && account.configuration.recipient.capabilities && account.configuration.recipient.capabilities.stripe_balance;
+  const transfersEnabled = recipientBalance && recipientBalance.stripe_transfers
+    ? recipientBalance.stripe_transfers.status === 'active'
+    : Boolean(account && account.transfers_enabled);
+  const payoutsEnabled = recipientBalance && recipientBalance.payouts
+    ? recipientBalance.payouts.status === 'active'
+    : Boolean(account && account.payouts_enabled);
+  const requirements = (account && account.requirements) || {};
   user.stripeConnectAccountId = account && account.id ? account.id : user.stripeConnectAccountId;
-  user.stripeConnectOnboardingComplete = Boolean(account && account.details_submitted);
-  user.stripeConnectPayoutsEnabled = Boolean(account && account.payouts_enabled);
-  user.stripeConnectDetailsSubmitted = Boolean(account && account.details_submitted);
+  user.stripeConnectAccountVersion = account && account.object === 'v2.core.account' ? 'v2' : (account && account.object ? 'v1' : user.stripeConnectAccountVersion);
+  user.stripeConnectOnboardingComplete = account && account.object === 'v2.core.account'
+    ? Boolean(transfersEnabled && payoutsEnabled && !account.closed)
+    : Boolean(account && account.details_submitted);
+  user.stripeConnectPayoutsEnabled = Boolean(payoutsEnabled);
+  user.stripeConnectTransfersEnabled = Boolean(transfersEnabled);
+  user.stripeConnectDetailsSubmitted = account && account.object === 'v2.core.account'
+    ? Boolean(!(requirements.currently_due || []).length && !account.closed)
+    : Boolean(account && account.details_submitted);
+  user.stripeConnectRequirementsDue = Array.isArray(requirements.currently_due) ? requirements.currently_due : [];
   user.stripeConnectUpdatedAt = new Date().toISOString();
   persist(db);
   return user;
@@ -443,11 +475,7 @@ function setCountryAdmin(userId, countryCode) {
 }
 
 function listUsers() {
-  const db = load();
-  return db.users.filter((user) => {
-    const email = String(user.email || '').trim().toLowerCase();
-    return LIVE_ACCOUNT_EMAILS.has(email);
-  });
+  return load().users;
 }
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -519,14 +547,101 @@ function clearCalendarTokens(userId) {
   return user;
 }
 
+// --- Thread preferences (favorite/archive/pin/mute/hide) and blocking ---
+// Thread keys are `assignment:<id>` or `group:<id>` - scoped to the two
+// thread types /api/conversations and /api/group-chats already expose.
+// No persisted "conversation" entity exists separate from those records, so
+// these preferences live on the viewing user instead (each side of a thread
+// can favorite/archive/mute/pin/hide it independently, same as WhatsApp).
+
+function toggleBlockedUser(userId, targetUserId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!Array.isArray(user.blockedUserIds)) user.blockedUserIds = [];
+  const blocked = user.blockedUserIds.includes(targetUserId);
+  user.blockedUserIds = blocked
+    ? user.blockedUserIds.filter((id) => id !== targetUserId)
+    : [...user.blockedUserIds, targetUserId];
+  persist(db);
+  return !blocked;
+}
+
+function isBlockedPair(userId, otherUserId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  const other = db.users.find((u) => u.id === otherUserId);
+  return Boolean((user && (user.blockedUserIds || []).includes(otherUserId)) || (other && (other.blockedUserIds || []).includes(userId)));
+}
+
+function toggleThreadListField(fieldName) {
+  return (userId, threadKey) => {
+    const db = load();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return null;
+    if (!Array.isArray(user[fieldName])) user[fieldName] = [];
+    const on = user[fieldName].includes(threadKey);
+    user[fieldName] = on ? user[fieldName].filter((key) => key !== threadKey) : [...user[fieldName], threadKey];
+    persist(db);
+    return !on;
+  };
+}
+const toggleFavoriteThread = toggleThreadListField('favoriteThreadIds');
+const toggleArchivedThread = toggleThreadListField('archivedThreadIds');
+const togglePinnedThread = toggleThreadListField('pinnedThreadIds');
+
+const MUTE_DURATIONS = { '8h': 8 * 60 * 60 * 1000, '1w': 7 * 24 * 60 * 60 * 1000 };
+
+function setMutedThread(userId, threadKey, duration) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.mutedThreads) user.mutedThreads = {};
+  if (!duration) {
+    delete user.mutedThreads[threadKey];
+  } else {
+    const until = duration === 'always' ? null : new Date(Date.now() + (MUTE_DURATIONS[duration] || 0)).toISOString();
+    user.mutedThreads[threadKey] = { until };
+  }
+  persist(db);
+  return user.mutedThreads[threadKey] || null;
+}
+
+function hideThread(userId, threadKey) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!user.hiddenThreads) user.hiddenThreads = {};
+  user.hiddenThreads[threadKey] = new Date().toISOString();
+  persist(db);
+  return user.hiddenThreads[threadKey];
+}
+
+// One read for every route/list that needs to annotate threads with the
+// caller's own preferences, instead of five separate lookups per row.
+function getThreadPrefs(userId) {
+  const user = findById(userId);
+  if (!user) return { favoriteThreadIds: [], archivedThreadIds: [], pinnedThreadIds: [], mutedThreads: {}, hiddenThreads: {}, blockedUserIds: [] };
+  return {
+    favoriteThreadIds: user.favoriteThreadIds || [],
+    archivedThreadIds: user.archivedThreadIds || [],
+    pinnedThreadIds: user.pinnedThreadIds || [],
+    mutedThreads: user.mutedThreads || {},
+    hiddenThreads: user.hiddenThreads || {},
+    blockedUserIds: user.blockedUserIds || [],
+  };
+}
+
 module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, getBadges, addNotification, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setRole, setCountryAdmin, setPayoutDetails, listUsers,
+  markActive, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
+  toggleBlockedUser, isBlockedPair, toggleFavoriteThread, toggleArchivedThread, togglePinnedThread,
+  setMutedThread, hideThread, getThreadPrefs,
 };
 
 // expose slug helpers for public routes

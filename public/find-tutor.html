@@ -456,6 +456,8 @@
                 <a href="/find-tutor" class="active">Find a Tutor</a>
                 <a href="/become-tutor">Become a Tutor</a>
                 <a href="/become-sponsor">Sponsors</a>
+                <a href="/store">Store</a>
+                <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
                 <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
@@ -571,6 +573,13 @@
                         <input id="match-city" type="text" placeholder="e.g. Lagos, Nigeria" class="w-full field-underline">
                     </div>
                 </div>
+                <div class="mb-2 max-w-xs">
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Suggested rate you're willing to pay (optional)</label>
+                    <div class="relative">
+                        <span id="match-amount-symbol" class="absolute left-0 top-1/2 -translate-y-1/2 text-sm text-[#9C9384]">$</span>
+                        <input id="match-suggested-amount" type="number" min="0" step="0.5" placeholder="e.g. 15" class="w-full field-underline pl-4">
+                    </div>
+                </div>
                 <button type="button" id="match-use-location-btn" class="inline-flex items-center gap-2 text-xs font-semibold text-primary-red mt-4 mb-4 hover:underline">
                     <i class="fa-solid fa-location-crosshairs"></i> Use my current location
                 </button>
@@ -583,9 +592,20 @@
                 <div id="candidates-section" class="hidden mt-8">
                     <div id="candidates-grid"></div>
                     <p id="no-candidates" class="hidden text-[#9C9384] mb-6">No approved tutors match yet - browse the full roster above instead.</p>
+                    <div id="broadcast-request-box" class="hidden mt-2 rounded-xl p-5" style="background:#FBF6EE;border:1px solid #E7DFD3;">
+                        <p class="text-sm font-semibold text-[#17130F] mb-1">Can't decide? Send one request to every tutor above.</p>
+                        <p class="text-xs text-[#7A7266] mb-3">They'll each see your suggested rate and can accept it, counter with their own, or pass - you review every response and pick who to go with.</p>
+                        <button type="button" id="broadcast-request-btn" class="row-btn-primary px-5 py-2.5">Send request to all matching tutors</button>
+                    </div>
                 </div>
             </div>
             </div>
+        </div>
+
+        <div id="negotiate-section" class="hidden mt-10">
+            <h2 class="serif text-xl font-bold text-[#17130F] mb-1">My negotiate requests</h2>
+            <p class="text-[#7A7266] text-sm mb-4">Requests you sent to matching tutors - review who responded and pick one.</p>
+            <div id="negotiate-list" class="space-y-6"></div>
         </div>
     </main>
 
@@ -605,6 +625,10 @@
         }
         function escapeHtml(text) {
             return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+        // Matches data/tutors.js's slugify() exactly, so /tutor/:slug resolves.
+        function tutorSlug(name) {
+            return String(name || '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         }
         function initials(name) {
             return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -677,7 +701,7 @@
                         <div class="mt-1.5">${locationLine(t)}</div>
                         <p class="text-sm text-[#5B5449] mt-2 max-w-2xl">${t.bio ? escapeHtml(t.bio) : `${t.experienceYears || 0} years experience`}</p>
                         <div class="flex gap-2 mt-4">
-                            <a href="/tutors/${t.id}" class="row-btn-outline">View Profile</a>
+                            <a href="/tutor/${tutorSlug(t.name)}" class="row-btn-outline">View Profile</a>
                             ${isAssigned ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${t.id}">${continueLabel}</button>` : isRequested ? `<button class="row-btn-outline" disabled>Requested — awaiting tutor</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${t.id}">Request</button>`}
                         </div>
                     </div>
@@ -782,6 +806,12 @@
                     <select name="lessonType" class="w-full field-underline mb-5">
                         ${options.map((lt) => `<option value="${lt}">${lessonTypeLabels[lt]}</option>`).join('')}
                     </select>
+                    <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Suggested rate (optional)</label>
+                    <div class="relative mb-1">
+                        <span class="absolute left-0 top-1/2 -translate-y-1/2 text-sm text-[#9C9384]">${myCurrencySymbol}</span>
+                        <input type="number" name="suggestedAmountUsd" min="0" step="0.5" placeholder="${tutor.hourlyRateUsd || ''}" class="w-full field-underline pl-4">
+                    </div>
+                    <p class="text-xs text-[#9C9384] mb-5">Listed rate is $${tutor.hourlyRateUsd}/hr. Suggest a different rate and your tutor can accept it or keep their listed rate.</p>
                     <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Note for your tutor (optional)</label>
                     <textarea name="notes" rows="3" placeholder="Your goals, schedule, experience level..." class="w-full field-underline mb-5"></textarea>
                     <div class="flex gap-2">
@@ -794,6 +824,7 @@
                 e.preventDefault();
                 const fd = new FormData(e.target);
                 const lessonType = fd.get('lessonType');
+                const suggestedAmountUsd = fd.get('suggestedAmountUsd');
                 const res = await fetch('/api/tutor-requests', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -804,6 +835,7 @@
                         city: lessonType !== 'online' ? (tutor.fullAddress || tutor.city || '') : '',
                         notes: fd.get('notes').trim(),
                         preferredTutorIds: [tutor.id],
+                        suggestedAmountUsd: suggestedAmountUsd ? Number(suggestedAmountUsd) : null,
                     }),
                 });
                 const data = await res.json();
@@ -864,6 +896,7 @@
         });
 
         let candidates = [];
+        let myCurrencySymbol = '$';
         const venueLabels = { student_location: 'Tutor travels to you', tutor_studio: "At tutor's studio", either: 'Your place or theirs' };
 
         function candidateRowHtml(c, i) {
@@ -879,14 +912,14 @@
                     <div class="min-w-0 flex-1">
                         <div class="flex items-start justify-between gap-3 flex-wrap">
                             <h3 class="row-name">${escapeHtml(c.name)}</h3>
-                            <span class="row-price">$${c.hourlyRateUsd}<span class="unit">/hr</span></span>
+                            <span class="row-price">${myCurrencySymbol}${c.hourlyRateLocal != null ? c.hourlyRateLocal : c.hourlyRateUsd}<span class="unit">/hr</span></span>
                         </div>
                         <div class="flex items-center gap-2 flex-wrap mt-1">${rating} ${distance} ${locality}</div>
                         ${venue}
                         <div class="mt-1">${locationLine(c)}</div>
                         <p class="text-sm text-[#5B5449] mt-2 max-w-2xl">${c.bio ? escapeHtml(c.bio) : `${c.experienceYears || 0} years experience`}</p>
                         <div class="flex gap-2 mt-4">
-                            <a href="/tutors/${c.id}" target="_blank" class="row-btn-outline">Profile</a>
+                            <a href="/tutor/${tutorSlug(c.name)}" class="row-btn-outline">Profile</a>
                             ${myAssignedTutorIds.has(c.id) ? `<button class="continue-tutor-btn row-btn-primary" data-tutor-id="${c.id}">Continue with ${escapeHtml((c.name||'').split(' ')[0] || c.name)}</button>` : `<button class="request-tutor-btn row-btn-primary" data-tutor-id="${c.id}">Request</button>`}
                         </div>
                     </div>
@@ -911,22 +944,130 @@
             const res = await fetch(`/api/tutor-requests/candidates?${params}`);
             const data = await res.json();
             candidates = data.candidates || [];
+            myCurrencySymbol = data.symbol || '$';
+            document.getElementById('match-amount-symbol').textContent = myCurrencySymbol;
             const section = document.getElementById('candidates-section');
             section.classList.remove('hidden');
             const grid = document.getElementById('candidates-grid');
             const empty = document.getElementById('no-candidates');
+            const broadcastBox = document.getElementById('broadcast-request-box');
             if (!candidates.length) {
                 grid.innerHTML = '';
                 empty.classList.remove('hidden');
+                broadcastBox.classList.add('hidden');
             } else {
                 empty.classList.add('hidden');
                 grid.innerHTML = candidates.map(candidateRowHtml).join('');
                 wireRequestButtons(grid);
+                broadcastBox.classList.toggle('hidden', !currentUser);
             }
             section.scrollIntoView({ behavior: 'smooth' });
         }
 
         document.getElementById('find-matches-btn').addEventListener('click', findMatches);
+
+        // InDrive-style broadcast: one request, sent to every matching tutor
+        // from the shortlist above, instead of picking a single tutor first.
+        document.getElementById('broadcast-request-btn').addEventListener('click', async () => {
+            if (!currentUser) {
+                window.location.href = `/login?redirect=${encodeURIComponent('/find-tutor')}`;
+                return;
+            }
+            const category = document.getElementById('match-category').value;
+            if (!category) { showAlert('Choose a subject first.', 'error'); return; }
+            const lessonType = document.getElementById('match-lesson-type').value;
+            const city = document.getElementById('match-city').value.trim();
+            if (lessonType !== 'online' && !city) { showAlert('Provide your city for in-person lessons.', 'error'); return; }
+            const suggestedAmountUsd = document.getElementById('match-suggested-amount').value;
+            const btn = document.getElementById('broadcast-request-btn');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                const res = await fetch('/api/tutor-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category,
+                        lessonType,
+                        city,
+                        genre: document.getElementById('match-genre').value,
+                        ageGroup: document.getElementById('match-age-group').value,
+                        desiredLevel: document.getElementById('match-level').value,
+                        suggestedAmountUsd: suggestedAmountUsd ? Number(suggestedAmountUsd) : null,
+                    }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert(`Sent to ${candidates.length} matching tutor${candidates.length === 1 ? '' : 's'}. You'll be notified as they respond.`, 'success');
+                    loadNegotiateRequests();
+                    document.getElementById('negotiate-section').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showAlert(data.error || 'Could not send request.', 'error');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send request to all matching tutors';
+            }
+        });
+
+        // --- Negotiate requests: review every tutor's response, pick one ---
+        const offerStatusLabels = {
+            invited: 'Waiting to respond', accepted: 'Accepted your rate', countered: 'Sent a counter-offer',
+            declined: 'Passed', expired: 'No response', selected: 'You picked this tutor', not_selected: 'Not picked',
+        };
+        function negotiateRequestHtml(r) {
+            const respondedOffers = (r.offers || []).filter((o) => ['accepted', 'countered', 'selected', 'not_selected'].includes(o.status));
+            const waitingCount = (r.offers || []).filter((o) => o.status === 'invited').length;
+            const offerRows = respondedOffers.length ? respondedOffers.map((o) => {
+                const canPick = r.status === 'pending' && ['accepted', 'countered'].includes(o.status);
+                const amountLine = o.amountLocal != null ? `${myCurrencySymbol}${o.amountLocal}/hr${o.status === 'countered' ? ' (their counter)' : ' (your suggested rate)'}` : '';
+                return `
+                    <div class="flex items-center gap-3 rounded-xl border border-[#E7DFD3] p-3">
+                        ${o.tutorPhotoUrl ? `<img src="${escapeHtml(o.tutorPhotoUrl)}" class="h-12 w-12 rounded-full object-cover" alt="">` : `<div class="h-12 w-12 rounded-full bg-red-50 text-primary-red flex items-center justify-center font-bold">${escapeHtml((o.tutorName || '?').slice(0, 1))}</div>`}
+                        <div class="min-w-0 flex-1">
+                            <p class="font-semibold text-[#17130F] truncate">${escapeHtml(o.tutorName)}</p>
+                            <p class="text-xs text-[#9C9384]">${amountLine}${o.avgRating != null ? ` &middot; <i class="fa-solid fa-star text-amber-500"></i> ${o.avgRating.toFixed(1)}` : ''}${o.distanceKm != null ? ` &middot; ${o.distanceKm} km` : ''}</p>
+                            ${o.counterNote ? `<p class="text-xs text-[#5B5449] mt-1">"${escapeHtml(o.counterNote)}"</p>` : ''}
+                            <p class="text-xs font-semibold ${o.status === 'selected' ? 'text-emerald-700' : o.status === 'not_selected' ? 'text-[#9C9384]' : 'text-[#cc0000]'} mt-1">${offerStatusLabels[o.status] || o.status}</p>
+                        </div>
+                        <a href="/tutor/${tutorSlug(o.tutorName)}" target="_blank" rel="noopener" class="row-btn-outline text-xs shrink-0">Profile</a>
+                        ${canPick ? `<button type="button" class="pick-tutor-btn row-btn-primary text-xs shrink-0" data-request-id="${r.id}" data-offer-id="${o.id}">Choose</button>` : ''}
+                    </div>`;
+            }).join('') : '<p class="text-sm text-[#9C9384]">No responses yet.</p>';
+            return `
+                <div class="rounded-2xl border border-[#E7DFD3] p-5">
+                    <div class="flex items-start justify-between gap-3 flex-wrap mb-1">
+                        <h3 class="font-bold text-[#17130F]">${escapeHtml(r.category)} &middot; ${escapeHtml(r.lessonType)}</h3>
+                        <span class="text-xs font-semibold ${r.status === 'active' ? 'text-emerald-700' : 'text-[#9C9384]'}">${r.status === 'active' ? 'Matched' : `${waitingCount} tutor${waitingCount === 1 ? '' : 's'} still deciding`}</span>
+                    </div>
+                    ${r.suggestedAmountUsd != null ? `<p class="text-xs text-[#7A7266] mb-2">You suggested ${myCurrencySymbol}${r.suggestedAmountUsd}/hr</p>` : ''}
+                    ${r.studentFullAddress ? `<p class="text-xs text-[#7A7266] mb-2"><i class="fa-solid fa-location-dot mr-1"></i>${escapeHtml(r.studentFullAddress)}</p>` : ''}
+                    <div class="space-y-2 mt-3">${offerRows}</div>
+                </div>`;
+        }
+        async function loadNegotiateRequests() {
+            if (!currentUser) return;
+            const res = await fetch('/api/tutor-requests/mine');
+            const data = await res.json();
+            if (!data.success) return;
+            const section = document.getElementById('negotiate-section');
+            const list = document.getElementById('negotiate-list');
+            const openRequests = data.requests.filter((r) => r.status === 'pending' || r.status === 'active');
+            if (!openRequests.length) { section.classList.add('hidden'); return; }
+            section.classList.remove('hidden');
+            list.innerHTML = openRequests.map(negotiateRequestHtml).join('');
+            list.querySelectorAll('.pick-tutor-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                if (!window.confirm('Match with this tutor? Your other requests for this subject will close.')) return;
+                btn.disabled = true; btn.textContent = 'Matching...';
+                const res = await fetch(`/api/tutor-requests/${btn.dataset.requestId}/select`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offerId: Number(btn.dataset.offerId) }),
+                });
+                const result = await res.json();
+                if (result.success) { showAlert('Matched! Check your dashboard.', 'success'); loadNegotiateRequests(); }
+                else { showAlert(result.error || 'Could not match with this tutor.', 'error'); btn.disabled = false; btn.textContent = 'Choose'; }
+            }));
+        }
 
         document.getElementById('match-use-location-btn').addEventListener('click', () => {
             const statusEl = document.getElementById('match-location-status');
@@ -1025,16 +1166,20 @@
                 currentUser = data.user || null;
             } catch { currentUser = null; }
 
+            fetch('/api/geo').then((r) => r.json()).then((data) => { if (data.success) myCurrencySymbol = data.symbol || '$'; }).catch(() => {});
+
             await Promise.all([loadCategories(), loadTaxonomy()]);
             await loadTutors();
             loadCityDirectory();
             prefillFromProfile();
             applyDeepLink();
+            loadNegotiateRequests();
         }
         init();
     </script>
     <script src="/assets/nav-auth.js"></script>
     <script src="/assets/mobile-nav.js"></script>
+    <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/geo-location.js"></script>
     <script src="/assets/footer.js"></script>
 </body>

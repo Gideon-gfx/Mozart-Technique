@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Privacy - Mozart Techniques</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        :root {
+            --bg: #fff;
+            --surface: #fff;
+            --surface-soft: #f8f8f8;
+            --text: #333;
+            --text-soft: rgba(50, 50, 50, 0.74);
+            --rule: rgba(204, 0, 0, 0.12);
+            --accent: #cc0000;
+            --accent-dark: #990000;
+            --max-width: 1160px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Montserrat', sans-serif; color: var(--text); background: linear-gradient(135deg, #fff 0%, #f8f8f8 100%); min-height: 100vh; }
+        body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); pointer-events: none; z-index: 0; }
+        .serif { font-family: 'Science Gothic', sans-serif; }
+        .wrap { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: var(--max-width); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+
+        .policy-hero { padding: 72px 0 56px; background: linear-gradient(180deg, rgba(204,0,0,0.08), rgba(255,255,255,0.02)); border-bottom: 2px solid rgba(204,0,0,0.12); }
+        .hero-kicker { font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+        .policy-hero h1 { font-size: clamp(2.8rem, 4.2vw, 4.4rem); line-height: 1.02; font-weight: 800; margin-bottom: 20px; max-width: 16ch; color: #333; }
+        .policy-hero p { font-size: 1rem; line-height: 1.8; color: var(--text-soft); max-width: 68ch; }
+
+        .policy-content { padding: 72px 0; }
+        .policy-section { margin-bottom: 48px; }
+        .policy-section h2 { font-family: 'Science Gothic', sans-serif; font-size: clamp(1.8rem, 3vw, 2.4rem); color: #333; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid rgba(204,0,0,0.15); }
+        .policy-section h3 { font-size: 1.1rem; color: #333; margin-top: 24px; margin-bottom: 12px; font-weight: 700; }
+        .policy-section p { line-height: 1.8; color: var(--text-soft); margin-bottom: 14px; }
+        .policy-section ul { margin-left: 20px; margin-bottom: 14px; color: var(--text-soft); line-height: 1.8; }
+        .policy-section li { margin-bottom: 8px; }
+
+        .last-updated { color: var(--text-soft); font-size: 0.95rem; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid rgba(204,0,0,0.12); }
+        .policy-inline-link { color: var(--accent); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav-container">
+            <div class="logo">
+                <a href="/home">
+                    <img src="/mozartLogo.jpg" alt="Mozart Techniques">
+                    <span>Mozart Techniques</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/store">Store</a>
+                <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
+                <a href="/store-profile">Store Profile</a>
+                <a href="/privacy-policy">Platform Privacy</a>
+                <a href="/contact">Contact</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="policy-hero">
+            <div class="wrap">
+                <div class="hero-kicker">Legal - Store</div>
+                <h1>Store Privacy Policy</h1>
+                <p>How the Mozart Techniques Store collects, uses and protects the information tied to your orders, delivery addresses and payments.</p>
+            </div>
+        </section>
+
+        <section class="policy-content">
+            <div class="wrap">
+                <div class="last-updated">Last updated: September 2026</div>
+
+                <div class="policy-section">
+                    <h2>1. Scope of This Policy</h2>
+                    <p>This Store Privacy Policy covers the Mozart Techniques Store (products, cart, checkout, orders and your store profile). It supplements, and should be read alongside, our general <a href="/privacy-policy" class="policy-inline-link">Platform Privacy Policy</a>, which covers tutoring, messaging and account data.</p>
+                    <p>Every store profile is tied to your existing Mozart Techniques account - there is no separate store signup, and no separate account to manage.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>2. Order &amp; Delivery Information We Collect</h2>
+                    <ul>
+                        <li><strong>Address Book:</strong> Full name, phone number, country, state, city, street address and postal code for each delivery address you save.</li>
+                        <li><strong>Order History:</strong> The products, colors, quantities and prices in each order you place, and the delivery address used for it.</li>
+                        <li><strong>Reviews:</strong> Ratings and written reviews you post on products, shown publicly with your account name.</li>
+                        <li><strong>Browsing Activity:</strong> Products you view, so we can show you a "Recently Viewed" list in your store profile.</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>3. Payment Data</h2>
+                    <p>Card details are never entered into, transmitted to, or stored on Mozart Techniques servers. All checkout payments are processed directly by <strong>Stripe</strong>, our payment processor, on Stripe's own secure checkout page. Mozart Techniques only receives confirmation that a payment succeeded, along with a payment reference used to mark your order paid and generate your order number.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>4. How We Use Order Data</h2>
+                    <ul>
+                        <li>Fulfilling and dispatching your order to the address you provide</li>
+                        <li>Showing you accurate stock and pricing for your country</li>
+                        <li>Sending order status updates (paid, processing, shipped, delivered) to your Inbox and Notifications</li>
+                        <li>Responding to delivery issues or order disputes</li>
+                        <li>Letting Mozart Techniques staff reply to the reviews you leave on products</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>5. Data Sharing</h2>
+                    <p>We share the minimum information necessary with:</p>
+                    <ul>
+                        <li><strong>Stripe:</strong> to process your payment securely</li>
+                        <li><strong>Internal fulfillment staff:</strong> your delivery address and order contents, solely to dispatch your order</li>
+                    </ul>
+                    <p>We do not sell your order or address data to third parties.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>6. Your Rights</h2>
+                    <p>You can view, edit or delete any saved delivery address at any time from your Store Profile's Address Book. You can edit or delete your own product reviews at any time from the Ratings tab. Your order history is retained so you can track past purchases and so Mozart Techniques can honor warranty or dispute claims; contact us if you would like a copy of your data or have it removed where we are not required to keep it for legal or accounting reasons.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>7. Contact Us</h2>
+                    <p>Questions about this Store Privacy Policy can be sent through our <a href="/contact" class="policy-inline-link">Contact page</a>.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/assets/nav-performance.js" defer></script>
+</body>
+</html>

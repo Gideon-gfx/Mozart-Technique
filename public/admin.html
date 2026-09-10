@@ -133,13 +133,31 @@
                 <div class="admin-tab" data-panel="educator"><i class="fa-solid fa-book-open"></i><span class="tab-label">Educator Tools</span></div>
                 <div class="admin-tab" data-panel="activity"><i class="fa-solid fa-flag"></i><span class="tab-label">Activity &amp; Flags</span></div>
                 <div class="admin-tab" data-panel="payouts"><i class="fa-solid fa-money-bill-transfer"></i><span class="tab-label">Tutor Payouts</span></div>
+                <div class="admin-tab" data-panel="products"><i class="fa-solid fa-boxes-stacked"></i><span class="tab-label">Store Products</span></div>
+                <div class="admin-tab" data-panel="store-orders"><i class="fa-solid fa-truck-fast"></i><span class="tab-label">Store Orders</span></div>
+                <div class="admin-tab" data-panel="performers"><i class="fa-solid fa-masks-theater"></i><span class="tab-label">Performers</span></div>
+                <div class="admin-tab" data-panel="marketplace"><i class="fa-solid fa-calendar-check"></i><span class="tab-label">Marketplace</span></div>
                 <div class="admin-tab" data-panel="analytics"><i class="fa-solid fa-chart-line"></i><span class="tab-label">Analytics</span></div>
             </nav>
         </aside>
 
         <main class="admin-main">
         <section class="admin-card mb-6 p-4" aria-label="Region filter">
-            <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-gray-700 mr-2"><i class="fa-solid fa-globe mr-1 text-primary-red"></i>Region</span><div id="region-tabs" class="flex flex-wrap gap-2"></div></div>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-bold text-gray-700 mr-2"><i class="fa-solid fa-globe mr-1 text-primary-red"></i>Region</span>
+                <div class="relative inline-block" id="region-filter-wrap">
+                    <button type="button" id="region-filter-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+                        <span id="region-filter-label">All countries</span>
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                    </button>
+                    <div id="region-filter-dropdown" class="hidden absolute left-0 z-30 mt-2 w-64 max-h-80 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg p-2">
+                        <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 font-semibold border-b border-gray-100 mb-1 cursor-pointer">
+                            <input type="checkbox" id="region-filter-all"> All countries
+                        </label>
+                        <div id="region-filter-options"></div>
+                    </div>
+                </div>
+            </div>
         </section>
         <!-- Tutors & matching panel -->
         <div id="panel-tutors" class="space-y-6">
@@ -366,6 +384,17 @@
             </div>
 
             <div class="admin-card p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">User Reports</h1>
+                <p class="text-gray-500 mb-4">Reports submitted by a chat participant against another user, from the chat "more" menu.</p>
+                <div class="overflow-x-auto">
+                    <table>
+                        <thead><tr><th>Reported</th><th>Reported by</th><th>Reason</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody id="reports-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="admin-card p-6 sm:p-8">
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">All Lesson Activity</h1>
                 <p class="text-gray-500 mb-4">Every lesson logged across every tutor/student pairing, newest first - including escrow status.</p>
                 <div class="overflow-x-auto">
@@ -411,6 +440,139 @@
             <h1 class="text-2xl font-bold text-gray-800 mb-1">Tutor payout requests</h1>
             <p class="text-gray-500 mb-5">Review the bank details, send the transfer outside the platform, then mark the request processed.</p>
             <div class="overflow-x-auto"><table><thead><tr><th>Tutor</th><th>Amount</th><th>Bank details</th><th>Requested</th><th>Status</th><th>Action</th></tr></thead><tbody id="payouts-tbody"></tbody></table></div>
+        </div>
+
+        <!-- Store Products panel -->
+        <div id="panel-products" class="hidden space-y-6">
+            <div class="admin-card p-6 sm:p-8">
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800 mb-1">Store products</h1>
+                        <p class="text-gray-500">Upload and manage everything sold in the store.</p>
+                    </div>
+                    <button type="button" id="add-product-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold"><i class="fa-solid fa-plus mr-1"></i>Add Product</button>
+                </div>
+
+                <div id="product-form-wrap" class="hidden border border-gray-200 rounded-lg p-5 bg-gray-50 mb-6">
+                    <h2 id="product-form-title" class="font-bold text-gray-800 mb-4">Add a product</h2>
+                    <input type="hidden" id="product-form-id" value="">
+                    <div class="grid md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Name</label>
+                            <input type="text" id="product-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Category</label>
+                            <select id="product-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="scripts-scores">Sheet Music &amp; Scores</option>
+                                <option value="instruments">Instruments</option>
+                                <option value="accessories">Accessories</option>
+                                <option value="digital-products">Digital Products</option>
+                                <option value="books-learning">Books &amp; Learning</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Price (USD)</label>
+                            <input type="number" id="product-price" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                            <select id="product-status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="active">Active (visible in store)</option>
+                                <option value="draft">Draft (hidden)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+                        <textarea id="product-description" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Cover image</label>
+                        <input type="file" id="product-cover-input" accept="image/*" class="text-sm">
+                        <div id="product-cover-preview" class="mt-2"></div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-xs font-semibold text-gray-600">Additional images</label>
+                            <button type="button" id="add-image-btn" class="text-xs font-semibold text-primary-red">+ Add image</button>
+                        </div>
+                        <div id="product-images-list" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-xs font-semibold text-gray-600">Colors &amp; stock by country</label>
+                            <button type="button" id="add-color-btn" class="text-xs font-semibold text-primary-red">+ Add color</button>
+                        </div>
+                        <div id="color-blocks" class="space-y-3"></div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="button" id="save-product-btn" class="px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold">Save product</button>
+                        <button type="button" id="cancel-product-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold">Cancel</button>
+                    </div>
+                </div>
+
+                <div id="products-list" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- Store Orders panel -->
+        <div id="panel-store-orders" class="hidden admin-card p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Store orders</h1>
+            <p class="text-gray-500 mb-5">Track dispatch status for every paid order.</p>
+            <div class="overflow-x-auto"><table><thead><tr><th>Order #</th><th>Buyer</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th><th>Action</th></tr></thead><tbody id="store-orders-tbody"></tbody></table></div>
+        </div>
+
+        <!-- Performers panel -->
+        <div id="panel-performers" class="hidden admin-card p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">Performance Marketplace - Performers</h1>
+            <p class="text-gray-500 mb-5">Review performer applications and manage activation status.</p>
+            <div class="overflow-x-auto"><table><thead><tr><th>Performer</th><th>Categories</th><th>Location</th><th>Rate</th><th>Media</th><th>Activation</th><th>Status</th><th>Action</th></tr></thead><tbody id="performers-tbody"></tbody></table></div>
+        </div>
+
+        <!-- Marketplace panel -->
+        <div id="panel-marketplace" class="hidden space-y-6">
+            <div class="admin-card p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Marketplace requests</h1>
+                <p class="text-gray-500 mb-5">Oversight of every event booking request and its responses.</p>
+                <div class="overflow-x-auto"><table><thead><tr><th>Requester</th><th>Event</th><th>Location / Radius</th><th>Proposed</th><th>Offers</th><th>Status</th></tr></thead><tbody id="marketplace-requests-tbody"></tbody></table></div>
+            </div>
+
+            <div class="admin-card p-6 sm:p-8">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Settings</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-700 mb-2">Performer Categories</h3>
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" id="new-performer-category-input" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="e.g. Puppeteer">
+                            <button type="button" id="add-performer-category-btn" class="px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold">Add</button>
+                        </div>
+                        <div id="performer-categories-list" class="flex flex-wrap gap-1"></div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-700 mb-2">Event Types</h3>
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" id="new-event-type-input" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="e.g. Anniversary">
+                            <button type="button" id="add-event-type-btn" class="px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold">Add</button>
+                        </div>
+                        <div id="event-types-list" class="flex flex-wrap gap-1"></div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-700 mb-2">Benchmark Rates (USD)</h3>
+                        <div class="grid grid-cols-3 gap-1 mb-2">
+                            <select id="benchmark-category-select" class="px-2 py-2 border border-gray-300 rounded-lg text-xs"></select>
+                            <input type="text" id="benchmark-country-input" class="px-2 py-2 border border-gray-300 rounded-lg text-xs" placeholder="Country (optional)">
+                            <input type="number" id="benchmark-amount-input" class="px-2 py-2 border border-gray-300 rounded-lg text-xs" placeholder="Amount">
+                        </div>
+                        <button type="button" id="save-benchmark-rate-btn" class="w-full px-3 py-2 bg-primary-red text-white rounded-lg text-xs font-semibold mb-2">Save Rate</button>
+                        <div id="benchmark-rates-list" class="space-y-1 text-xs"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Analytics panel -->
@@ -499,20 +661,98 @@
         if (localStorage.getItem('mt-admin-sidebar-collapsed') === '1') setSidebarCollapsed(true);
 
         // --- Tabs ---
-        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'payouts', 'analytics'];
-        let selectedRegion = 'All';
-        const preferredRegions = ['All', 'Nigeria', 'Ghana', 'Canada'];
+        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'payouts', 'products', 'store-orders', 'performers', 'marketplace', 'analytics'];
+        // Was a single-select pill row - with enough countries in play that
+        // became an unbounded, ever-growing row of buttons. Now "Region" is
+        // one dropdown with a checkbox per country, multi-select, so admin
+        // can narrow to exactly the countries they want to see instead of
+        // switching one at a time.
+        let selectedRegions = new Set(['All']);
+        let knownRegions = ['All'];
+        // Seed with every country the platform recognizes (not just the
+        // ones present in whichever panel happens to be loaded) so the
+        // filter always lists the full set - previously knownRegions was
+        // replaced per-panel from that panel's own records, so a country
+        // with e.g. tutors but no activity yet would vanish from the list
+        // while viewing the Activity tab.
+        (async () => {
+            try {
+                if (!window.mtCountries) {
+                    const geoRes = await fetch('/api/geo');
+                    const geoData = await geoRes.json();
+                    if (geoData.success) { window.mtCountries = geoData.countries; window.mtDefaultCountry = geoData.countryCode; }
+                }
+                const allCountryNames = (window.mtCountries || []).map((c) => c.name).filter(Boolean);
+                knownRegions = [...new Set([...knownRegions, ...allCountryNames])];
+                renderRegionDropdown();
+            } catch { /* falls back to per-panel discovery below */ }
+        })();
         function recordCountry(record) {
-            return String((record && ((record.locality && record.locality.country) || record.studentCountry || record.country || record.locationCountry)) || '').trim();
+            return String((record && (
+                (record.locality && record.locality.country)
+                || (record.studentProfile && record.studentProfile.locality && record.studentProfile.locality.country)
+                || record.studentCountry || record.country || record.locationCountry
+            )) || '').trim();
         }
-        function inSelectedRegion(record) { return selectedRegion === 'All' || recordCountry(record).toLowerCase() === selectedRegion.toLowerCase(); }
+        function inSelectedRegion(record) {
+            if (selectedRegions.has('All')) return true;
+            const country = recordCountry(record).toLowerCase();
+            return [...selectedRegions].some((region) => region.toLowerCase() === country);
+        }
+        // Comma-joined list of the selected countries for server-filtered
+        // panels (payouts/activity/analytics) - empty string means "All".
+        function regionQueryParam() {
+            return selectedRegions.has('All') ? '' : [...selectedRegions].join(',');
+        }
         function renderRegionTabs(records = []) {
-            const countries = [...new Set(records.map(recordCountry).filter(Boolean))].sort();
-            const regions = [...new Set([...preferredRegions, ...countries])];
-            if (!regions.includes(selectedRegion)) selectedRegion = 'All';
-            document.getElementById('region-tabs').innerHTML = regions.map((region) => `<button type="button" class="region-tab px-3 py-1.5 rounded-full text-xs font-semibold ${region === selectedRegion ? 'bg-primary-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}" data-region="${escapeHtml(region)}">${escapeHtml(region)}</button>`).join('');
-            document.querySelectorAll('.region-tab').forEach((button) => button.addEventListener('click', () => { selectedRegion = button.dataset.region; const active = document.querySelector('.admin-tab.active'); if (active) active.click(); }));
+            const countries = [...new Set(records.map(recordCountry).filter(Boolean))];
+            // Merge into the existing list rather than replacing it, so
+            // switching tabs only ever adds countries, never hides ones
+            // seeded from the full platform list or found on another tab.
+            knownRegions = [...new Set(['All', ...knownRegions, ...countries])];
+            if (!selectedRegions.has('All')) {
+                selectedRegions = new Set([...selectedRegions].filter((region) => knownRegions.includes(region)));
+                if (!selectedRegions.size) selectedRegions = new Set(['All']);
+            }
+            renderRegionDropdown();
         }
+        function renderRegionDropdown() {
+            const optionsHost = document.getElementById('region-filter-options');
+            const countries = knownRegions.filter((region) => region !== 'All').sort();
+            optionsHost.innerHTML = countries.length
+                ? countries.map((country) => `<label class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 text-sm cursor-pointer"><input type="checkbox" class="region-filter-option" value="${escapeHtml(country)}" ${selectedRegions.has(country) ? 'checked' : ''}> ${escapeHtml(country)}</label>`).join('')
+                : '<p class="text-xs text-gray-400 p-2">No countries in this data yet.</p>';
+            document.getElementById('region-filter-all').checked = selectedRegions.has('All');
+            const label = document.getElementById('region-filter-label');
+            const chosen = [...selectedRegions];
+            label.textContent = selectedRegions.has('All') ? 'All countries' : (chosen.length === 1 ? chosen[0] : `${chosen.length} countries`);
+        }
+        document.getElementById('region-filter-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('region-filter-dropdown').classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#region-filter-wrap')) document.getElementById('region-filter-dropdown').classList.add('hidden');
+        });
+        function reloadCurrentAdminPanel() {
+            const active = document.querySelector('.admin-tab.active');
+            if (active) active.click();
+        }
+        document.getElementById('region-filter-all').addEventListener('change', (e) => {
+            if (!e.target.checked) { e.target.checked = true; return; } // "All" only turns off by picking a specific country
+            selectedRegions = new Set(['All']);
+            renderRegionDropdown();
+            reloadCurrentAdminPanel();
+        });
+        document.getElementById('region-filter-options').addEventListener('change', (e) => {
+            const checkbox = e.target.closest('.region-filter-option');
+            if (!checkbox) return;
+            selectedRegions.delete('All');
+            if (checkbox.checked) selectedRegions.add(checkbox.value); else selectedRegions.delete(checkbox.value);
+            if (!selectedRegions.size) selectedRegions = new Set(['All']);
+            renderRegionDropdown();
+            reloadCurrentAdminPanel();
+        });
         document.querySelectorAll('.admin-tab').forEach((tab) => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.admin-tab').forEach((t) => t.classList.remove('active'));
@@ -525,6 +765,10 @@
                 if (tab.dataset.panel === 'educator') loadEducatorTools();
                 if (tab.dataset.panel === 'activity') loadActivityAndFlags();
                 if (tab.dataset.panel === 'payouts') loadPayouts();
+                if (tab.dataset.panel === 'products') loadProducts();
+                if (tab.dataset.panel === 'store-orders') loadStoreOrders();
+                if (tab.dataset.panel === 'performers') loadPerformers();
+                if (tab.dataset.panel === 'marketplace') loadMarketplaceRequests();
                 if (tab.dataset.panel === 'analytics') loadAnalytics();
             });
         });
@@ -788,11 +1032,12 @@
             const res = await fetch('/api/admin/organizations');
             const data = await res.json();
             if (!data.success) return;
-            renderRegionTabs(data.organizations);
-            const regionalOrganizations = data.organizations.filter(inSelectedRegion);
+            const individualSponsors = data.organizations.filter((org) => org.sponsorType === 'individual');
+            renderRegionTabs(individualSponsors);
+            const regionalOrganizations = individualSponsors.filter(inSelectedRegion);
             document.getElementById('ngos-tbody').innerHTML = regionalOrganizations.length
                 ? regionalOrganizations.map(orgRowHtml).join('')
-                : '<tr><td colspan="9" class="text-gray-400 text-center py-4">No organization applications yet.</td></tr>';
+                : '<tr><td colspan="9" class="text-gray-400 text-center py-4">No individual sponsor applications yet.</td></tr>';
 
             document.querySelectorAll('.org-status-btn').forEach((btn) => {
                 btn.addEventListener('click', async () => {
@@ -882,7 +1127,7 @@
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-2">Monthly Amount (₦)</label>
+                                <label class="block text-xs font-semibold text-gray-600 mb-2">Monthly Amount (USD $)</label>
                                 <input type="number" class="monthly-amount-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
                                        data-org-id="${org.id}" value="${org.monthlyAmount || 0}" min="0" step="1000">
                             </div>
@@ -1380,7 +1625,7 @@
             return `<tr><td class="font-semibold">${escapeHtml(payout.tutorName || '')}</td><td>$${Number(payout.amountUsd || 0).toFixed(2)}</td><td>${escapeHtml(details.accountName || '')}<br><span class="text-xs text-gray-500">${escapeHtml(details.bankName || '')} · ${escapeHtml(details.accountNumber || '')}</span></td><td>${new Date(payout.requestedAt).toLocaleString()}</td><td>${escapeHtml(payout.status || '')}</td><td>${action}</td></tr>`;
         }
         async function loadPayouts() {
-            const response = await fetch(`/api/admin/payouts${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`);
+            const response = await fetch(`/api/admin/payouts${regionQueryParam() ? `?regions=${encodeURIComponent(regionQueryParam())}` : ''}`);
             const data = await response.json();
             const tbody = document.getElementById('payouts-tbody');
             if (!data.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-red-600">Could not load payout requests.</td></tr>'; return; }
@@ -1394,15 +1639,31 @@
             }));
         }
 
+        function reportRowHtml(report) {
+            const statusBadge = report.status === 'open'
+                ? '<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">Open</span>'
+                : '<span class="px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">Resolved</span>';
+            return `<tr>
+                <td>${escapeHtml(report.reportedUserName || 'User #' + report.reportedUserId)}</td>
+                <td>${escapeHtml(report.reporterName || 'User #' + report.reporterId)}</td>
+                <td class="max-w-xs truncate" title="${escapeHtml(report.reason)}">${escapeHtml(report.reason)}</td>
+                <td>${new Date(report.createdAt).toLocaleDateString()}</td>
+                <td>${statusBadge}</td>
+                <td>${report.status === 'open' ? `<button type="button" class="resolve-report-btn text-xs font-semibold text-primary-red" data-id="${report.id}">Mark resolved</button>` : ''}</td>
+            </tr>`;
+        }
+
         async function loadActivityAndFlags() {
-            const [flaggedRes, activityRes, chatRes] = await Promise.all([
+            const [flaggedRes, activityRes, chatRes, reportsRes] = await Promise.all([
                 fetch('/api/admin/flagged'),
-                fetch(`/api/admin/activity${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`),
-                fetch(`/api/admin/chat-activity${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`),
+                fetch(`/api/admin/activity${regionQueryParam() ? `?regions=${encodeURIComponent(regionQueryParam())}` : ''}`),
+                fetch(`/api/admin/chat-activity${regionQueryParam() ? `?regions=${encodeURIComponent(regionQueryParam())}` : ''}`),
+                fetch('/api/admin/reports'),
             ]);
             const flaggedData = await flaggedRes.json();
             const activityData = await activityRes.json();
             const chatData = await chatRes.json();
+            const reportsData = await reportsRes.json();
 
             document.getElementById('flagged-tutors-tbody').innerHTML = flaggedData.tutors.length
                 ? flaggedData.tutors.map(flaggedTutorRowHtml).join('')
@@ -1410,6 +1671,16 @@
             document.getElementById('flagged-students-tbody').innerHTML = flaggedData.students.length
                 ? flaggedData.students.map(flaggedStudentRowHtml).join('')
                 : '<tr><td colspan="4" class="text-gray-400 text-center py-3">No flagged students.</td></tr>';
+            document.getElementById('reports-tbody').innerHTML = reportsData.success && reportsData.reports.length
+                ? reportsData.reports.map(reportRowHtml).join('')
+                : '<tr><td colspan="6" class="text-gray-400 text-center py-3">No reports.</td></tr>';
+            document.querySelectorAll('.resolve-report-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/admin/reports/${btn.dataset.id}/resolve`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) { showAlert('Report resolved.', 'success'); loadActivityAndFlags(); }
+                });
+            });
             document.getElementById('activity-tbody').innerHTML = activityData.sessions.length
                 ? activityData.sessions.map(activityRowHtml).join('')
                 : '<tr><td colspan="7" class="text-gray-400 text-center py-3">No lessons logged yet.</td></tr>';
@@ -1590,7 +1861,7 @@
         });
 
         async function loadAnalytics() {
-            const res = await fetch(`/api/admin/analytics${selectedRegion === 'All' ? '' : `?region=${encodeURIComponent(selectedRegion)}`}`);
+            const res = await fetch(`/api/admin/analytics${regionQueryParam() ? `?regions=${encodeURIComponent(regionQueryParam())}` : ''}`);
             const data = await res.json();
             if (!data.success) return;
 
@@ -1609,6 +1880,440 @@
             document.getElementById('revenue-tbody').innerHTML = data.revenueByDay
                 .map((d) => `<tr><td>${d.date}</td><td>${formatUsd(d.amountUsd)}</td></tr>`).join('');
         }
+
+        // --- Store products ---
+        let productFormImages = [];
+        let productFormCover = null;
+        let colorBlockSeq = 0;
+        let allProducts = [];
+
+        function resetProductForm() {
+            document.getElementById('product-form-id').value = '';
+            document.getElementById('product-form-title').textContent = 'Add a product';
+            document.getElementById('product-name').value = '';
+            document.getElementById('product-category').value = 'instruments';
+            document.getElementById('product-price').value = '';
+            document.getElementById('product-status').value = 'active';
+            document.getElementById('product-description').value = '';
+            productFormCover = null;
+            document.getElementById('product-cover-preview').innerHTML = '';
+            productFormImages = [];
+            renderProductImagesList();
+            document.getElementById('color-blocks').innerHTML = '';
+        }
+
+        function renderProductImagesList() {
+            const wrap = document.getElementById('product-images-list');
+            wrap.innerHTML = productFormImages.map((url, i) => `
+                <div class="relative">
+                    <img src="${escapeHtml(url)}" class="w-16 h-16 object-cover rounded border border-gray-300">
+                    <button type="button" class="remove-product-image-btn absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white rounded-full text-xs leading-none" data-index="${i}">&times;</button>
+                </div>
+            `).join('');
+            wrap.querySelectorAll('.remove-product-image-btn').forEach((btn) => btn.addEventListener('click', () => {
+                productFormImages.splice(Number(btn.dataset.index), 1);
+                renderProductImagesList();
+            }));
+        }
+
+        async function uploadProductImage(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            const res = await fetch('/api/admin/products/upload-image', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Upload failed.');
+            return data.url;
+        }
+
+        function countryOptionsHtml(selected) {
+            return (window.mtCountries || []).map((c) => `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+        }
+
+        function addLocationRow(block, entry) {
+            const row = document.createElement('div');
+            row.className = 'location-row flex items-center gap-2';
+            row.innerHTML = `
+                <select class="location-country-select flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs">${countryOptionsHtml(entry && entry.countryCode)}</select>
+                <input type="number" min="0" step="1" class="location-qty-input w-24 px-2 py-1.5 border border-gray-300 rounded text-xs" value="${entry ? entry.quantity : 0}">
+                <button type="button" class="remove-location-btn px-2 py-1 text-gray-400 hover:text-red-600 text-xs">&times;</button>
+            `;
+            row.querySelector('.remove-location-btn').addEventListener('click', () => row.remove());
+            block.querySelector('.location-rows').appendChild(row);
+        }
+
+        function addColorBlock(color) {
+            const uid = 'color-' + (colorBlockSeq++);
+            const wrap = document.getElementById('color-blocks');
+            const block = document.createElement('div');
+            block.className = 'border border-gray-300 rounded-lg p-3 bg-white';
+            block.dataset.uid = uid;
+            block.dataset.colorId = (color && color.id) || '';
+            block.innerHTML = `
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="color" class="color-hex-input w-9 h-9 border border-gray-300 rounded" value="${color && color.hex ? color.hex : '#cc0000'}">
+                    <input type="text" class="color-name-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Color name (e.g. Sunburst)" value="${color ? escapeHtml(color.name || '') : ''}">
+                    <button type="button" class="remove-color-btn px-2 py-1 text-red-600 text-xs font-semibold">Remove color</button>
+                </div>
+                <div class="location-rows space-y-2 mb-2"></div>
+                <button type="button" class="add-location-btn text-xs font-semibold text-primary-red">+ Add location</button>
+            `;
+            wrap.appendChild(block);
+
+            block.querySelector('.remove-color-btn').addEventListener('click', () => block.remove());
+            block.querySelector('.add-location-btn').addEventListener('click', () => addLocationRow(block));
+
+            const stock = (color && color.stock && color.stock.length) ? color.stock : [{ countryCode: window.mtDefaultCountry || 'US', quantity: 0 }];
+            stock.forEach((entry) => addLocationRow(block, entry));
+        }
+
+        function collectColorsFromForm() {
+            return Array.from(document.querySelectorAll('#color-blocks > div')).map((block) => ({
+                id: block.dataset.colorId || undefined,
+                name: block.querySelector('.color-name-input').value.trim(),
+                hex: block.querySelector('.color-hex-input').value,
+                stock: Array.from(block.querySelectorAll('.location-row')).map((row) => ({
+                    countryCode: row.querySelector('.location-country-select').value,
+                    quantity: Number(row.querySelector('.location-qty-input').value) || 0,
+                })),
+            }));
+        }
+
+        async function openProductForm(id) {
+            resetProductForm();
+            document.getElementById('product-form-wrap').classList.remove('hidden');
+            if (!id) return;
+            const res = await fetch(`/api/admin/products/${id}`);
+            const data = await res.json();
+            if (!data.success) return showAlert(data.error || 'Could not load product.', 'error');
+            const p = data.product;
+            document.getElementById('product-form-id').value = p.id;
+            document.getElementById('product-form-title').textContent = `Edit "${p.name}"`;
+            document.getElementById('product-name').value = p.name;
+            document.getElementById('product-category').value = p.category;
+            document.getElementById('product-price').value = p.priceUsd;
+            document.getElementById('product-status').value = p.status === 'archived' ? 'draft' : p.status;
+            document.getElementById('product-description').value = p.description;
+            productFormCover = p.coverImage;
+            document.getElementById('product-cover-preview').innerHTML = p.coverImage ? `<img src="${escapeHtml(p.coverImage)}" class="w-20 h-20 object-cover rounded border border-gray-300">` : '';
+            productFormImages = (p.images || []).slice();
+            renderProductImagesList();
+            (p.colors || []).forEach((color) => addColorBlock(color));
+        }
+
+        function productCardHtml(p) {
+            const statusColor = p.status === 'active' ? 'green' : p.status === 'draft' ? 'yellow' : 'gray';
+            return `
+                <div class="border border-gray-200 rounded-lg overflow-hidden bg-white" data-product-id="${p.id}">
+                    <img src="${escapeHtml(p.coverImage || '')}" class="w-full h-36 object-cover bg-gray-100">
+                    <div class="p-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <div class="font-semibold text-gray-800 text-sm">${escapeHtml(p.name)}</div>
+                                <div class="text-xs text-gray-500">${escapeHtml(p.category)} &middot; $${Number(p.priceUsd || 0).toFixed(2)}</div>
+                            </div>
+                            <span class="px-2 py-0.5 bg-${statusColor}-100 text-${statusColor}-800 text-[10px] font-semibold rounded uppercase">${escapeHtml(p.status)}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">Stock: ${p.totalStock} &middot; <i class="fa-solid fa-star text-amber-500"></i> ${p.avgRating || 0} (${p.reviewCount})</div>
+                        <div class="flex gap-2 mt-3 flex-wrap">
+                            <button class="edit-product-btn px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-semibold" data-id="${p.id}">Edit</button>
+                            <button class="archive-product-btn px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-semibold" data-id="${p.id}" ${p.status === 'archived' ? 'disabled' : ''}>${p.status === 'archived' ? 'Archived' : 'Archive'}</button>
+                            <button class="reviews-product-btn px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-semibold" data-id="${p.id}">Reviews (${p.reviewCount})</button>
+                        </div>
+                        <div class="product-reviews-panel hidden mt-3 border-t border-gray-100 pt-3 space-y-2"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadProductReviewsPanel(btn) {
+            const card = btn.closest('[data-product-id]');
+            const panel = card.querySelector('.product-reviews-panel');
+            const res = await fetch(`/api/admin/products/${btn.dataset.id}/reviews`);
+            const data = await res.json();
+            if (!data.success) return;
+            panel.innerHTML = data.reviews.length ? data.reviews.map((r) => `
+                <div class="border border-gray-100 rounded p-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-xs text-gray-800">${escapeHtml(r.userName)}</span>
+                        <span class="text-amber-500 text-xs"><i class="fa-solid fa-star"></i> ${r.rating}</span>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-1">${escapeHtml(r.text)}</p>
+                    ${r.replies.map((reply) => `<p class="text-xs text-primary-red mt-1 pl-2 border-l-2 border-red-200"><strong>${escapeHtml(reply.adminName)}:</strong> ${escapeHtml(reply.text)}</p>`).join('')}
+                    <div class="flex gap-1 mt-2">
+                        <input type="text" class="reply-review-input flex-1 px-2 py-1 border border-gray-300 rounded text-xs" placeholder="Reply to this review..." data-id="${r.id}">
+                        <button type="button" class="send-review-reply-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${r.id}">Send</button>
+                    </div>
+                </div>
+            `).join('') : '<p class="text-gray-400 text-xs">No reviews yet.</p>';
+            panel.classList.remove('hidden');
+            panel.querySelectorAll('.send-review-reply-btn').forEach((sendBtn) => sendBtn.addEventListener('click', async () => {
+                const input = panel.querySelector(`.reply-review-input[data-id="${sendBtn.dataset.id}"]`);
+                const text = input.value.trim();
+                if (!text) return;
+                const res2 = await fetch(`/api/admin/products/reviews/${sendBtn.dataset.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Reply sent.', 'success'); loadProductReviewsPanel(btn); }
+                else showAlert(data2.error || 'Failed.', 'error');
+            }));
+        }
+
+        function toggleProductReviews(btn) {
+            const card = btn.closest('[data-product-id]');
+            const panel = card.querySelector('.product-reviews-panel');
+            if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+            loadProductReviewsPanel(btn);
+        }
+
+        function wireProductCardEvents() {
+            document.querySelectorAll('.edit-product-btn').forEach((btn) => btn.addEventListener('click', () => openProductForm(btn.dataset.id)));
+            document.querySelectorAll('.archive-product-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                if (btn.disabled) return;
+                if (!window.confirm('Archive this product? It will be hidden from the store but past orders keep referencing it.')) return;
+                const res = await fetch(`/api/admin/products/${btn.dataset.id}`, { method: 'DELETE' });
+                const data = await res.json();
+                showAlert(data.success ? 'Product archived.' : (data.error || 'Failed.'), data.success ? 'success' : 'error');
+                if (data.success) loadProducts();
+            }));
+            document.querySelectorAll('.reviews-product-btn').forEach((btn) => btn.addEventListener('click', () => toggleProductReviews(btn)));
+        }
+
+        async function loadProducts() {
+            if (!window.mtCountries) {
+                const geoRes = await fetch('/api/geo');
+                const geoData = await geoRes.json();
+                if (geoData.success) { window.mtCountries = geoData.countries; window.mtDefaultCountry = geoData.countryCode; }
+            }
+            const res = await fetch('/api/admin/products');
+            const data = await res.json();
+            if (!data.success) return;
+            allProducts = data.products;
+            document.getElementById('products-list').innerHTML = allProducts.length
+                ? allProducts.map(productCardHtml).join('')
+                : '<p class="text-gray-400 col-span-full text-center py-8">No products yet. Add your first one.</p>';
+            wireProductCardEvents();
+        }
+
+        document.getElementById('add-product-btn').addEventListener('click', () => openProductForm(null));
+        document.getElementById('cancel-product-btn').addEventListener('click', () => document.getElementById('product-form-wrap').classList.add('hidden'));
+        document.getElementById('add-color-btn').addEventListener('click', () => addColorBlock(null));
+        document.getElementById('add-image-btn').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*';
+            input.addEventListener('change', async () => {
+                const file = input.files[0];
+                if (!file) return;
+                try {
+                    const url = await uploadProductImage(file);
+                    productFormImages.push(url);
+                    renderProductImagesList();
+                } catch (err) { showAlert(err.message, 'error'); }
+            });
+            input.click();
+        });
+        document.getElementById('product-cover-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                productFormCover = await uploadProductImage(file);
+                document.getElementById('product-cover-preview').innerHTML = `<img src="${escapeHtml(productFormCover)}" class="w-20 h-20 object-cover rounded border border-gray-300">`;
+            } catch (err) { showAlert(err.message, 'error'); }
+            e.target.value = '';
+        });
+        document.getElementById('save-product-btn').addEventListener('click', async () => {
+            const id = document.getElementById('product-form-id').value;
+            const name = document.getElementById('product-name').value.trim();
+            if (!name) return showAlert('Enter a product name.', 'error');
+            if (!productFormCover) return showAlert('Upload a cover image.', 'error');
+            const colors = collectColorsFromForm();
+            const payload = {
+                name,
+                category: document.getElementById('product-category').value,
+                priceUsd: Number(document.getElementById('product-price').value) || 0,
+                status: document.getElementById('product-status').value,
+                description: document.getElementById('product-description').value.trim(),
+                coverImage: productFormCover,
+                images: productFormImages,
+                colors,
+            };
+            const res = await fetch(id ? `/api/admin/products/${id}` : '/api/admin/products', {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!data.success) return showAlert(data.error || 'Could not save product.', 'error');
+            showAlert('Product saved.', 'success');
+            document.getElementById('product-form-wrap').classList.add('hidden');
+            loadProducts();
+        });
+
+        // --- Store orders ---
+        function storeOrderStatusOptions(current) {
+            return ['processing', 'shipped', 'delivered', 'cancelled'].map((s) => `<option value="${s}" ${s === current ? 'selected' : ''}>${s}</option>`).join('');
+        }
+
+        function storeOrderRowHtml(order) {
+            const statusColors = { pending_payment: 'gray', paid: 'blue', processing: 'yellow', shipped: 'sky', delivered: 'green', cancelled: 'red', payment_flagged: 'red' };
+            const color = statusColors[order.status] || 'gray';
+            return `
+                <tr>
+                    <td class="font-mono font-semibold text-xs">${escapeHtml(order.orderNumber)}</td>
+                    <td class="text-xs">${escapeHtml((order.addressSnapshot && order.addressSnapshot.fullName) || '')}</td>
+                    <td class="text-xs">${order.items.length} item${order.items.length === 1 ? '' : 's'}</td>
+                    <td class="text-xs font-semibold">$${Number(order.totalUsd || 0).toFixed(2)}</td>
+                    <td><span class="px-2 py-1 bg-${color}-100 text-${color}-800 text-xs font-semibold rounded">${escapeHtml(order.status.replace('_', ' '))}</span></td>
+                    <td class="text-xs text-gray-500">${new Date(order.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <select class="store-order-status-select border border-gray-300 rounded px-2 py-1 text-xs" data-id="${order.id}">${storeOrderStatusOptions(order.status)}</select>
+                            <button type="button" class="update-order-status-btn px-2 py-1 bg-primary-red text-white rounded text-xs" data-id="${order.id}">Update</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function loadStoreOrders() {
+            const res = await fetch('/api/admin/orders');
+            const data = await res.json();
+            const tbody = document.getElementById('store-orders-tbody');
+            if (!data.success) { tbody.innerHTML = '<tr><td colspan="7" class="text-red-600">Could not load orders.</td></tr>'; return; }
+            tbody.innerHTML = data.orders.length ? data.orders.map(storeOrderRowHtml).join('') : '<tr><td colspan="7" class="text-gray-400 text-center py-4">No orders yet.</td></tr>';
+            tbody.querySelectorAll('.update-order-status-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                const select = tbody.querySelector(`.store-order-status-select[data-id="${btn.dataset.id}"]`);
+                const res2 = await fetch(`/api/admin/orders/${btn.dataset.id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: select.value }) });
+                const data2 = await res2.json();
+                showAlert(data2.success ? 'Order updated.' : (data2.error || 'Failed.'), data2.success ? 'success' : 'error');
+                if (data2.success) loadStoreOrders();
+            }));
+        }
+
+        // --- Performance Marketplace: Performers ---
+        function performerRowHtml(p) {
+            const totalMedia = (p.galleryPhotos ? p.galleryPhotos.length : 0) + (p.videoClips ? p.videoClips.length : 0);
+            const activationBadge = p.activationPaid
+                ? '<span class="px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-semibold">Paid</span>'
+                : '<span class="px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-semibold">Unpaid</span>';
+            const actionCell = p.status === 'pending'
+                ? `<div class="flex gap-1">
+                    <button class="performer-status-btn px-2 py-1 bg-green-600 text-white rounded text-xs" data-id="${p.id}" data-status="approved">Approve</button>
+                    <button class="performer-status-btn px-2 py-1 bg-red-600 text-white rounded text-xs" data-id="${p.id}" data-status="rejected">Reject</button>
+                  </div>`
+                : `<button class="performer-suspend-btn px-2 py-1 border border-red-300 text-red-600 rounded text-xs" data-id="${p.id}" data-action="${p.suspended ? 'unsuspend' : 'suspend'}">${p.suspended ? 'Unsuspend' : 'Suspend'}</button>`;
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(p.name)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(p.email)}${p.phone ? ' &middot; ' + escapeHtml(p.phone) : ''}</span>${p.suspended ? '<br><span class="text-xs text-red-600 font-semibold">Suspended</span>' : ''}</td>
+                    <td class="text-xs">${(p.categories || []).map((c) => escapeHtml(c)).join(', ')}</td>
+                    <td class="text-xs">${escapeHtml(p.city || '')}</td>
+                    <td class="text-xs">$${p.baseRateUsd || 0} / ${p.rateUnit === 'per_hour' ? 'hr' : 'event'}</td>
+                    <td class="text-xs text-center">${totalMedia}</td>
+                    <td>${activationBadge}</td>
+                    <td>${statusBadge(p.status)}</td>
+                    <td>${actionCell}</td>
+                </tr>
+            `;
+        }
+
+        async function loadPerformers() {
+            const res = await fetch('/api/admin/performers');
+            const data = await res.json();
+            if (!data.success) return;
+            document.getElementById('performers-tbody').innerHTML = data.performers.length
+                ? data.performers.map(performerRowHtml).join('')
+                : '<tr><td colspan="8" class="text-gray-400 text-center py-4">No performer applications yet.</td></tr>';
+            document.querySelectorAll('.performer-status-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                const res2 = await fetch(`/api/admin/performers/${btn.dataset.id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: btn.dataset.status }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert(`Application ${btn.dataset.status}.`, 'success'); loadPerformers(); }
+                else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            document.querySelectorAll('.performer-suspend-btn').forEach((btn) => btn.addEventListener('click', async () => {
+                const action = btn.dataset.action;
+                const res2 = await fetch(`/api/admin/performers/${btn.dataset.id}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert(`Performer ${action === 'unsuspend' ? 'unsuspended' : 'suspended'}.`, 'success'); loadPerformers(); }
+                else showAlert(data2.error || 'Failed.', 'error');
+            }));
+        }
+
+        // --- Performance Marketplace: request oversight + settings ---
+        function marketplaceRequestRowHtml(r) {
+            const statusColors = { open: 'bg-blue-50 text-blue-700', closed: 'bg-green-50 text-green-700', cancelled: 'bg-gray-100 text-gray-500' };
+            const counts = r.offerCounts || {};
+            const offersText = `${counts.accepted || 0} accepted, ${counts.countered || 0} countered, ${counts.declined || 0} declined`;
+            return `
+                <tr>
+                    <td class="font-semibold text-gray-800">${escapeHtml(r.requesterName)}<br><span class="text-xs text-gray-400 font-normal">${escapeHtml(r.requesterEmail)}</span></td>
+                    <td class="text-xs">${escapeHtml(r.eventType)}<br><span class="text-xs text-gray-400">${escapeHtml(r.performerCategory)}</span></td>
+                    <td class="text-xs">${escapeHtml(r.eventLocation || '')}<br><span class="text-xs text-gray-400">${r.radiusKm}km radius</span></td>
+                    <td class="text-xs font-semibold">$${r.proposedAmountUsd}</td>
+                    <td class="text-xs">${offersText}</td>
+                    <td><span class="px-2 py-1 rounded text-xs font-semibold ${statusColors[r.status] || ''}">${escapeHtml(r.status)}</span></td>
+                </tr>
+            `;
+        }
+
+        async function loadMarketplaceRequests() {
+            const res = await fetch('/api/admin/marketplace/requests');
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('marketplace-requests-tbody').innerHTML = data.requests.length
+                    ? data.requests.map(marketplaceRequestRowHtml).join('')
+                    : '<tr><td colspan="6" class="text-gray-400 text-center py-4">No marketplace requests yet.</td></tr>';
+            }
+            loadMarketplaceSettings();
+        }
+
+        async function loadMarketplaceSettings() {
+            const [catRes, eventRes, rateRes] = await Promise.all([
+                fetch('/api/performer-categories').then((r) => r.json()),
+                fetch('/api/event-types').then((r) => r.json()),
+                fetch('/api/admin/benchmark-rates').then((r) => r.json()),
+            ]);
+            if (catRes.success) {
+                document.getElementById('performer-categories-list').innerHTML = catRes.categories.map((c) => `<span class="px-2 py-1 bg-gray-100 rounded-full text-xs">${escapeHtml(c)}</span>`).join('');
+                document.getElementById('benchmark-category-select').innerHTML = catRes.categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            }
+            if (eventRes.success) {
+                document.getElementById('event-types-list').innerHTML = eventRes.eventTypes.map((e) => `<span class="px-2 py-1 bg-gray-100 rounded-full text-xs">${escapeHtml(e)}</span>`).join('');
+            }
+            if (rateRes.success) {
+                document.getElementById('benchmark-rates-list').innerHTML = rateRes.rates.length
+                    ? rateRes.rates.map((r) => `<div class="flex justify-between border-b border-gray-100 py-1"><span>${escapeHtml(r.category)}${r.country ? ' (' + escapeHtml(r.country) + ')' : ' (global)'}</span><span class="font-semibold">$${r.amountUsd}</span></div>`).join('')
+                    : '<p class="text-gray-400">No benchmark rates set.</p>';
+            }
+        }
+
+        document.getElementById('add-performer-category-btn').addEventListener('click', async () => {
+            const input = document.getElementById('new-performer-category-input');
+            const category = input.value.trim();
+            if (!category) return;
+            const res = await fetch('/api/admin/performer-categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category }) });
+            const data = await res.json();
+            if (data.success) { input.value = ''; showAlert('Category added.', 'success'); loadMarketplaceSettings(); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        document.getElementById('add-event-type-btn').addEventListener('click', async () => {
+            const input = document.getElementById('new-event-type-input');
+            const eventType = input.value.trim();
+            if (!eventType) return;
+            const res = await fetch('/api/admin/event-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventType }) });
+            const data = await res.json();
+            if (data.success) { input.value = ''; showAlert('Event type added.', 'success'); loadMarketplaceSettings(); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        document.getElementById('save-benchmark-rate-btn').addEventListener('click', async () => {
+            const category = document.getElementById('benchmark-category-select').value;
+            const country = document.getElementById('benchmark-country-input').value.trim();
+            const amountUsd = document.getElementById('benchmark-amount-input').value;
+            if (!category || !amountUsd) return showAlert('Choose a category and amount.', 'error');
+            const res = await fetch('/api/admin/benchmark-rates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category, country: country || null, amountUsd }) });
+            const data = await res.json();
+            if (data.success) { document.getElementById('benchmark-amount-input').value = ''; showAlert('Rate saved.', 'success'); loadMarketplaceSettings(); }
+            else showAlert(data.error || 'Failed.', 'error');
+        });
 
         loadTutorsAndRequests();
     </script>

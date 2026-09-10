@@ -5,13 +5,321 @@
 <title>Group chat - Mozart Techniques</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/chat-kit.css">
+<style>
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+main { flex: 1; min-height: 0; }
+#alert-box { position: fixed; right: 20px; bottom: 20px; z-index: 400; max-width: min(420px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity .3s ease; }
+</style>
 </head>
-<body class="min-h-screen bg-gray-50">
-<header class="border-b bg-white shadow-sm"><nav class="mx-auto flex h-16 max-w-3xl items-center justify-between px-4"><a href="/messages" class="font-bold text-gray-900"><i class="fa-solid fa-arrow-left mr-2 text-red-700"></i>Messages</a><div id="auth-state"></div></nav></header>
-<main class="mx-auto flex h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-5"><section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-lg"><header class="border-b px-5 py-4"><div class="flex items-center gap-3"><img id="group-avatar" src="/mozartLogo.jpg" alt="Group" class="h-11 w-11 rounded-full object-cover"><div><h1 id="group-name" class="font-bold">Group chat</h1><p id="group-meta" class="text-xs text-gray-500"></p></div><button id="group-call" type="button" class="ml-auto rounded-full p-2 text-red-700" title="Group call"><i class="fa-solid fa-video"></i></button></div><button id="members-button" type="button" class="mt-3 text-xs font-semibold text-red-700">View members</button><div id="members" class="mt-3 hidden space-y-2 rounded-xl bg-gray-50 p-3"></div></header><div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gray-50 p-4"></div><form id="message-form" class="flex items-center gap-2 border-t p-3"><button id="attach-button" type="button" class="rounded-full p-2 text-gray-500" title="Attach file"><i class="fa-solid fa-paperclip"></i></button><input id="file-input" type="file" class="hidden" accept="image/*,video/*,.pdf,.doc,.docx,.txt"><input id="message-input" class="min-w-0 flex-1 rounded-xl border px-3 py-2" placeholder="Message the group"><button class="rounded-xl bg-red-700 px-4 text-white" aria-label="Send"><i class="fa-solid fa-paper-plane"></i></button></form></section></main>
+<body class="bg-gray-50">
+<div id="alert-box"></div>
+<header class="border-b bg-white shadow-sm"><nav class="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4"><a href="/messages" class="font-bold text-gray-900"><i class="fa-solid fa-arrow-left mr-2 text-red-700"></i>Messages</a><div id="auth-state"></div></nav></header>
+<main class="mx-auto flex max-w-[1600px] flex-col px-4 py-5 w-full">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-lg">
+    <header class="border-b px-5 py-4">
+      <div class="flex items-center gap-3" id="group-header-row" style="display:flex;align-items:center;width:100%;">
+        <img id="group-avatar" src="/mozartLogo.jpg" alt="Group" class="h-11 w-11 rounded-full object-cover">
+        <div class="min-w-0 flex-1" style="flex:1 1 auto;min-width:0;text-align:left;"><h1 id="group-name" class="font-bold truncate">Group chat</h1><p id="group-meta" class="text-xs text-gray-500"></p></div>
+        <div class="flex items-center gap-1 shrink-0 ml-auto" style="flex:0 0 auto;margin-left:auto;display:flex;align-items:center;">
+          <button id="group-call" type="button" class="rounded-full h-9 w-9 text-red-700 hover:bg-gray-100" title="Group call"><i class="fa-solid fa-video"></i></button>
+          <button id="group-search-btn" type="button" class="rounded-full h-9 w-9 text-gray-500 hover:bg-gray-100" title="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+          <button id="group-more-btn" type="button" class="rounded-full h-9 w-9 text-gray-500 hover:bg-gray-100" title="More options"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+        </div>
+      </div>
+      <button id="members-button" type="button" class="mt-3 text-xs font-semibold text-red-700">View members</button>
+      <div id="members" class="mt-3 hidden space-y-2 rounded-xl bg-gray-50 p-3"></div>
+      <div class="hidden items-center gap-2 py-1 mt-2" id="group-search-bar">
+        <i class="fa-solid fa-magnifying-glass text-gray-400 text-sm"></i>
+        <input type="text" id="group-search-input" placeholder="Search in this conversation" class="flex-1 min-w-0 border-0 border-b border-gray-200 py-1 text-sm focus:outline-none focus:border-primary-red">
+        <span id="group-search-count" class="text-xs text-gray-400 shrink-0"></span>
+        <button type="button" id="group-search-prev" title="Previous match" class="h-7 w-7 rounded-full text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-chevron-up text-xs"></i></button>
+        <button type="button" id="group-search-next" title="Next match" class="h-7 w-7 rounded-full text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-chevron-down text-xs"></i></button>
+        <button type="button" id="group-search-close" title="Close search" class="h-7 w-7 rounded-full text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-xmark text-xs"></i></button>
+      </div>
+      <div class="hidden items-center justify-between gap-2 py-1 mt-2" id="group-select-bar">
+        <span id="group-select-count" class="text-sm font-semibold text-gray-600">0 selected</span>
+        <div class="flex items-center gap-2">
+          <button type="button" id="group-select-delete" class="text-sm font-semibold text-red-600 hover:underline"><i class="fa-solid fa-trash mr-1"></i>Delete for me</button>
+          <button type="button" id="group-select-cancel" class="text-sm font-semibold text-gray-500 hover:underline">Cancel</button>
+        </div>
+      </div>
+    </header>
+    <div id="chat-kit-mount" class="flex min-h-0 flex-1 flex-col"></div>
+  </section>
+</main>
+<div class="ck-popover" id="group-more-menu" hidden style="min-width:220px;">
+  <button type="button" data-more="select"><i class="fa-regular fa-square-check"></i> Select messages</button>
+  <div style="position:relative;">
+    <button type="button" data-more="mute-toggle" id="group-mute-toggle"><i class="fa-solid fa-bell"></i> <span id="group-mute-label">Notifications</span> <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i></button>
+    <div class="ck-popover" id="group-mute-submenu" hidden style="min-width:140px;">
+      <button type="button" data-mute="8h">8 hours</button>
+      <button type="button" data-mute="1w">1 week</button>
+      <button type="button" data-mute="always">Always</button>
+    </div>
+  </div>
+  <button type="button" data-more="favorite"><i class="fa-regular fa-star" id="group-favorite-icon"></i> <span id="group-favorite-label">Add to Favorite</span></button>
+  <button type="button" data-more="export"><i class="fa-solid fa-file-export"></i> Export chat</button>
+  <button type="button" data-more="close"><i class="fa-solid fa-xmark"></i> Close chat</button>
+  <button type="button" data-more="send-call-link"><i class="fa-solid fa-video"></i> Send call links</button>
+  <hr style="margin:6px 0;border-color:#eee;">
+  <button type="button" data-more="clear" class="danger"><i class="fa-solid fa-broom"></i> Clear chat</button>
+  <button type="button" data-more="delete-chat" class="danger"><i class="fa-solid fa-trash"></i> Delete chat</button>
+</div>
+<script src="/assets/chat-kit.js"></script>
 <script>
-let groupId=new URLSearchParams(location.search).get('id')||location.pathname.split('/').pop();let role='';let pendingAttachment=null;const esc=(value)=>String(value??'').replace(/[&<>"']/g,(match)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[match]));
-async function load(){if(!/^\d+$/.test(groupId)){const name=new URLSearchParams(location.search).get('name');const groups=await fetch('/api/group-chats').then((r)=>r.json());const match=(groups.chats||[]).find((item)=>String(item.name||'').toLowerCase()===String(name||'').toLowerCase());if(!match){document.getElementById('messages').innerHTML='<p class="text-center text-red-600">Group chat unavailable.</p>';return;}groupId=match.id;}const response=await fetch('/api/group-chats/'+encodeURIComponent(groupId));const data=await response.json();if(!data.success){document.getElementById('messages').innerHTML='<p class="text-center text-red-600">Group chat unavailable.</p>';return;}role=data.role;const group=data.group||{};const members=data.members||[];document.getElementById('group-name').textContent=group.title||'Group chat';document.getElementById('group-meta').textContent=members.length+' members'+(group.course?' · '+group.course:'');document.getElementById('group-avatar').src=group.photoUrl||group.groupImageUrl||'/mozartLogo.jpg';document.getElementById('group-call').onclick=async()=>{if(group.meetingLink)return location.href=group.meetingLink;if(role!=='tutor')return;const meetingLink=window.prompt('Paste the Google Meet or Zoom link');if(!meetingLink)return;const saved=await fetch('/api/group-chats/'+groupId+'/meeting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({meetingLink})}).then((r)=>r.json());if(saved.success)location.href=meetingLink;};document.getElementById('members').innerHTML=members.map((member)=>'<div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><img src="'+esc(member.photoUrl||'/mozartLogo.jpg')+'" class="h-8 w-8 rounded-full object-cover"><span class="text-sm">'+esc(member.name)+' <small class="text-gray-500">'+esc(member.roleLabel)+'</small></span></div>'+(role==='tutor'&&member.type==='student'?'<button type="button" class="remove-member text-xs font-semibold text-red-700" data-type="student" data-id="'+esc(member.id)+'">Remove</button>':'')+'</div>').join('');document.querySelectorAll('.remove-member').forEach((button)=>button.onclick=async()=>{const result=await fetch('/api/group-chats/'+groupId+'/members/'+button.dataset.type+'/'+button.dataset.id,{method:'DELETE'}).then((r)=>r.json());if(result.success)load();});const box=document.getElementById('messages');box.innerHTML= (data.messages||[]).map((message)=>'<div class="flex '+(message.senderType===role?'justify-end':'justify-start')+'"><div class="max-w-[78%] rounded-2xl px-3 py-2 '+(message.senderType===role?'bg-red-700 text-white':'border bg-white text-gray-800')+'"><p class="text-[11px] font-bold opacity-75">'+esc(message.senderName)+'</p><p class="whitespace-pre-wrap text-sm">'+esc(message.text)+'</p>'+(message.attachment?'<a class="mt-2 block underline" href="'+esc(message.attachment.url)+'" target="_blank">'+esc(message.attachment.name||'Attachment')+'</a>':'')+'</div></div>').join('')||'<p class="text-center text-sm text-gray-400">No messages yet.</p>';box.scrollTop=box.scrollHeight;}
-document.getElementById('members-button').onclick=()=>document.getElementById('members').classList.toggle('hidden');document.getElementById('attach-button').onclick=()=>document.getElementById('file-input').click();document.getElementById('file-input').onchange=async()=>{const form=new FormData();form.append('file',document.getElementById('file-input').files[0]);const result=await fetch('/api/chat/upload',{method:'POST',body:form}).then((r)=>r.json());if(result.success)pendingAttachment=result.attachment;};document.getElementById('message-form').onsubmit=async(event)=>{event.preventDefault();const input=document.getElementById('message-input');const result=await fetch('/api/group-chats/'+groupId+'/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.value.trim(),attachment:pendingAttachment})}).then((r)=>r.json());if(result.success){input.value='';pendingAttachment=null;load();}};load();setInterval(()=>{if(!document.hidden)load();},12000);
-</script><script src="/assets/nav-auth.js"></script></body></html>
+let groupId = new URLSearchParams(location.search).get('id') || location.pathname.split('/').pop();
+let role = '';
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]));
+let currentGroupMessages = [];
+let groupThreadPrefs = { favorite: false, muted: false };
+let selectModeOn = false;
+let selectedGroupMessageIds = new Set();
+let searchModeOn = false;
+let groupSearchMatches = [];
+let groupSearchIndex = -1;
+let groupMeetingLink = null;
+
+let alertTimer;
+function showAlert(message, type) {
+  const box = document.getElementById('alert-box');
+  box.textContent = message;
+  box.style.background = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+  box.style.opacity = '1';
+  clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => { box.style.opacity = '0'; }, 4000);
+}
+
+async function loadGroupInfo() {
+  const response = await fetch('/api/group-chats/' + encodeURIComponent(groupId));
+  const data = await response.json();
+  if (!data.success) { document.querySelector('main').innerHTML = '<p class="text-center text-red-600 py-10">Group chat unavailable.</p>'; return null; }
+  role = data.role;
+  const group = data.group || {};
+  const members = data.members || [];
+  document.getElementById('group-name').textContent = group.title || 'Group chat';
+  document.getElementById('group-meta').textContent = members.length + ' members' + (group.course ? ' · ' + group.course : '');
+  document.getElementById('group-avatar').src = group.photoUrl || group.groupImageUrl || '/mozartLogo.jpg';
+  groupMeetingLink = group.meetingLink || null;
+  const chatRow = (await fetch('/api/group-chats').then((r) => r.json()).catch(() => null));
+  const thisChat = chatRow && chatRow.success ? (chatRow.chats || []).find((c) => String(c.id) === String(groupId)) : null;
+  if (thisChat) { groupThreadPrefs = { favorite: Boolean(thisChat.favorite), muted: Boolean(thisChat.muted) }; refreshGroupMoreMenuState(); }
+  document.getElementById('group-call').onclick = async () => {
+    if (group.meetingLink) return location.href = group.meetingLink;
+    if (role !== 'tutor') return showAlert('Only the tutor can start a group meeting.', 'info');
+    const win = window.open('https://meet.google.com/new', '_blank', 'noopener');
+    if (!win) location.href = 'https://meet.google.com/new';
+  };
+  document.getElementById('members').innerHTML = members.map((member) => '<div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><img src="' + esc(member.photoUrl || '/mozartLogo.jpg') + '" class="h-8 w-8 rounded-full object-cover"><span class="text-sm">' + esc(member.name) + ' <small class="text-gray-500">' + esc(member.roleLabel) + '</small></span></div>' + (role === 'tutor' && member.type === 'student' ? '<button type="button" class="remove-member text-xs font-semibold text-red-700" data-type="student" data-id="' + esc(member.id) + '">Remove</button>' : '') + '</div>').join('');
+  document.querySelectorAll('.remove-member').forEach((button) => button.onclick = async () => {
+    const result = await fetch('/api/group-chats/' + groupId + '/members/' + button.dataset.type + '/' + button.dataset.id, { method: 'DELETE' }).then((r) => r.json());
+    if (result.success) loadGroupInfo(); else showAlert(result.error || 'Could not remove member.', 'error');
+  });
+  return data;
+}
+
+document.getElementById('members-button').onclick = () => document.getElementById('members').classList.toggle('hidden');
+
+async function init() {
+  if (!/^\d+$/.test(groupId)) {
+    const name = new URLSearchParams(location.search).get('name');
+    const groups = await fetch('/api/group-chats').then((r) => r.json());
+    const match = (groups.chats || []).find((item) => String(item.name || '').toLowerCase() === String(name || '').toLowerCase());
+    if (!match) { document.querySelector('main').innerHTML = '<p class="text-center text-red-600 py-10">Group chat unavailable.</p>'; return; }
+    groupId = match.id;
+  }
+  const info = await loadGroupInfo();
+  if (!info) return;
+  const session = await fetch('/api/session').then((r) => r.json());
+  const myUserId = session.user ? session.user.id : null;
+
+  ChatKit.mount(document.getElementById('chat-kit-mount'), {
+    me: { id: myUserId, role },
+    isGroup: true,
+    onAlert: showAlert,
+    onMessages: (messages) => { currentGroupMessages = messages; },
+    api: {
+      list: async () => { const d = await fetch('/api/group-chats/' + groupId).then((r) => r.json()); return { success: d.success, messages: d.messages }; },
+      send: async (payload) => fetch('/api/group-chats/' + groupId + '/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json()),
+      edit: async (id, text) => fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).then((r) => r.json()),
+      del: async (id, mode) => mode === 'me'
+        ? fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id + '/delete-for-me', { method: 'POST' }).then((r) => r.json())
+        : fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id, { method: 'DELETE' }).then((r) => r.json()),
+      react: async (id, emoji) => fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id + '/react', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) }).then((r) => r.json()),
+      pin: async (id) => fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id + '/pin', { method: 'POST' }).then((r) => r.json()),
+      vote: async (id, optionId) => fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id + '/poll-vote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionId }) }).then((r) => r.json()),
+    },
+  });
+
+  setInterval(() => { if (!document.hidden) loadGroupInfo(); }, 20000);
+}
+
+// --- More menu, search, select mode (mirrors chat.html's per-chat menu) ---
+const groupMoreMenu = document.getElementById('group-more-menu');
+const groupMuteSubmenu = document.getElementById('group-mute-submenu');
+function openGroupMoreMenu() {
+  const rect = document.getElementById('group-more-btn').getBoundingClientRect();
+  groupMoreMenu.style.left = Math.max(8, rect.right - 220) + 'px';
+  groupMoreMenu.style.top = (rect.bottom + 6) + 'px';
+  groupMoreMenu.hidden = false;
+}
+function closeGroupMoreMenu() { groupMoreMenu.hidden = true; groupMuteSubmenu.hidden = true; }
+document.getElementById('group-more-btn').addEventListener('click', (e) => { e.stopPropagation(); groupMoreMenu.hidden ? openGroupMoreMenu() : closeGroupMoreMenu(); });
+document.addEventListener('click', (e) => { if (!groupMoreMenu.hidden && !e.target.closest('#group-more-menu') && !e.target.closest('#group-more-btn')) closeGroupMoreMenu(); });
+
+function refreshGroupMoreMenuState() {
+  document.getElementById('group-favorite-icon').className = groupThreadPrefs.favorite ? 'fa-solid fa-star' : 'fa-regular fa-star';
+  document.getElementById('group-favorite-label').textContent = groupThreadPrefs.favorite ? 'Remove from Favorite' : 'Add to Favorite';
+  document.getElementById('group-mute-label').textContent = groupThreadPrefs.muted ? 'Muted (tap to unmute)' : 'Notifications';
+}
+document.getElementById('group-mute-toggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (groupThreadPrefs.muted) { setGroupMute(null); return; }
+  const rect = e.currentTarget.getBoundingClientRect();
+  groupMuteSubmenu.style.left = (rect.right + 4) + 'px';
+  groupMuteSubmenu.style.top = rect.top + 'px';
+  groupMuteSubmenu.hidden = !groupMuteSubmenu.hidden;
+});
+groupMuteSubmenu.addEventListener('click', (e) => { const btn = e.target.closest('button[data-mute]'); if (btn) setGroupMute(btn.dataset.mute); });
+async function setGroupMute(duration) {
+  closeGroupMoreMenu();
+  const res = await fetch('/api/threads/group/' + groupId + '/mute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration }) }).then((r) => r.json());
+  if (!res.success) return showAlert(res.error || 'Could not update notifications.', 'error');
+  groupThreadPrefs.muted = Boolean(res.muted);
+  showAlert(duration ? 'Notifications muted.' : 'Notifications unmuted.', 'success');
+  refreshGroupMoreMenuState();
+}
+
+function groupQuoteSnippet(m) {
+  if (!m || m.deleted) return '';
+  if (m.text) return m.text;
+  if (m.attachment) return '[' + (m.attachment.kind || 'file') + ']';
+  if (m.poll) return '[Poll: ' + m.poll.question + ']';
+  if (m.location) return '[Location]';
+  return '';
+}
+
+groupMoreMenu.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-more]');
+  if (!btn) return;
+  const action = btn.dataset.more;
+  if (action === 'mute-toggle') return;
+  closeGroupMoreMenu();
+  if (action === 'select') { enterGroupSelectMode(); }
+  else if (action === 'favorite') {
+    const res = await fetch('/api/threads/group/' + groupId + '/favorite', { method: 'POST' }).then((r) => r.json());
+    if (!res.success) return showAlert(res.error || 'Could not update favorite.', 'error');
+    groupThreadPrefs.favorite = res.favorite;
+    refreshGroupMoreMenuState();
+    showAlert(res.favorite ? 'Added to favorites.' : 'Removed from favorites.', 'success');
+  } else if (action === 'export') {
+    const lines = currentGroupMessages.map((m) => '[' + new Date(m.createdAt).toLocaleString() + '] ' + (m.senderName || 'Someone') + ': ' + (groupQuoteSnippet(m) || '(no content)'));
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'group-chat-' + groupId + '.txt';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  } else if (action === 'close') {
+    window.location.href = '/messages';
+  } else if (action === 'send-call-link') {
+    if (!groupMeetingLink) return showAlert('Set a meeting link first using the call icon.', 'info');
+    const res = await fetch('/api/group-chats/' + groupId + '/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: '📹 Join our call: ' + groupMeetingLink }) }).then((r) => r.json());
+    if (!res.success) showAlert(res.error || 'Could not send call link.', 'error');
+  } else if (action === 'clear') {
+    if (!confirm('Clear this chat? This removes all messages for you only.')) return;
+    const res = await fetch('/api/threads/group/' + groupId + '/clear', { method: 'POST' }).then((r) => r.json());
+    if (!res.success) return showAlert(res.error || 'Could not clear chat.', 'error');
+  } else if (action === 'delete-chat') {
+    if (!confirm('Delete this chat? It will disappear from your messages list until a new message arrives.')) return;
+    const res = await fetch('/api/threads/group/' + groupId + '/delete', { method: 'POST' }).then((r) => r.json());
+    if (!res.success) return showAlert(res.error || 'Could not delete chat.', 'error');
+    window.location.href = '/messages';
+  }
+});
+
+// Search
+function openGroupSearch() {
+  searchModeOn = true;
+  document.getElementById('group-header-row').classList.add('hidden');
+  document.getElementById('group-search-bar').classList.remove('hidden');
+  document.getElementById('group-search-bar').classList.add('flex');
+  document.getElementById('group-search-input').value = '';
+  document.getElementById('group-search-input').focus();
+  groupSearchMatches = []; groupSearchIndex = -1;
+  document.getElementById('group-search-count').textContent = '';
+}
+function closeGroupSearch() {
+  searchModeOn = false;
+  document.getElementById('group-header-row').classList.remove('hidden');
+  document.getElementById('group-search-bar').classList.add('hidden');
+  document.getElementById('group-search-bar').classList.remove('flex');
+  document.querySelectorAll('.ck-row.search-match').forEach((row) => row.classList.remove('search-match', 'search-current'));
+}
+document.getElementById('group-search-btn').addEventListener('click', openGroupSearch);
+document.getElementById('group-search-close').addEventListener('click', closeGroupSearch);
+function runGroupSearch() {
+  const query = document.getElementById('group-search-input').value.trim().toLowerCase();
+  document.querySelectorAll('.ck-row.search-match').forEach((row) => row.classList.remove('search-match', 'search-current'));
+  if (!query) { groupSearchMatches = []; groupSearchIndex = -1; document.getElementById('group-search-count').textContent = ''; return; }
+  groupSearchMatches = currentGroupMessages.filter((m) => !m.deleted && (m.text || '').toLowerCase().includes(query));
+  groupSearchMatches.forEach((m) => { const row = document.querySelector('.ck-row[data-id="' + m.id + '"]'); if (row) row.classList.add('search-match'); });
+  groupSearchIndex = groupSearchMatches.length ? groupSearchMatches.length - 1 : -1;
+  showGroupSearchMatch();
+}
+function showGroupSearchMatch() {
+  document.querySelectorAll('.ck-row.search-current').forEach((row) => row.classList.remove('search-current'));
+  if (groupSearchIndex < 0 || !groupSearchMatches[groupSearchIndex]) { document.getElementById('group-search-count').textContent = groupSearchMatches.length ? '' : 'No matches'; return; }
+  document.getElementById('group-search-count').textContent = (groupSearchIndex + 1) + ' of ' + groupSearchMatches.length;
+  const row = document.querySelector('.ck-row[data-id="' + groupSearchMatches[groupSearchIndex].id + '"]');
+  if (row) { row.classList.add('search-current'); row.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+}
+document.getElementById('group-search-input').addEventListener('input', runGroupSearch);
+document.getElementById('group-search-prev').addEventListener('click', () => { if (!groupSearchMatches.length) return; groupSearchIndex = (groupSearchIndex - 1 + groupSearchMatches.length) % groupSearchMatches.length; showGroupSearchMatch(); });
+document.getElementById('group-search-next').addEventListener('click', () => { if (!groupSearchMatches.length) return; groupSearchIndex = (groupSearchIndex + 1) % groupSearchMatches.length; showGroupSearchMatch(); });
+
+// Select mode - a capture-phase click handler intercepts row clicks before
+// ChatKit's own handlers, matching the technique used in chat.html.
+function enterGroupSelectMode() {
+  selectModeOn = true;
+  selectedGroupMessageIds = new Set();
+  document.getElementById('group-header-row').classList.add('hidden');
+  document.getElementById('group-select-bar').classList.remove('hidden');
+  document.getElementById('group-select-bar').classList.add('flex');
+  document.getElementById('chat-kit-mount').classList.add('select-mode');
+  document.getElementById('group-select-count').textContent = '0 selected';
+}
+function exitGroupSelectMode() {
+  selectModeOn = false;
+  selectedGroupMessageIds = new Set();
+  document.getElementById('group-header-row').classList.remove('hidden');
+  document.getElementById('group-select-bar').classList.add('hidden');
+  document.getElementById('group-select-bar').classList.remove('flex');
+  document.getElementById('chat-kit-mount').classList.remove('select-mode');
+  document.querySelectorAll('.ck-row.selected').forEach((row) => row.classList.remove('selected'));
+}
+document.getElementById('group-select-cancel').addEventListener('click', exitGroupSelectMode);
+document.getElementById('group-select-delete').addEventListener('click', async () => {
+  if (!selectedGroupMessageIds.size) return;
+  if (!confirm('Delete ' + selectedGroupMessageIds.size + ' message(s) for you?')) return;
+  await Promise.all([...selectedGroupMessageIds].map((id) => fetch('/api/org-chat/conversations/' + groupId + '/messages/' + id + '/delete-for-me', { method: 'POST' })));
+  exitGroupSelectMode();
+});
+document.getElementById('chat-kit-mount').addEventListener('click', (e) => {
+  if (!selectModeOn) return;
+  const row = e.target.closest('.ck-row');
+  if (!row) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = row.dataset.id;
+  if (selectedGroupMessageIds.has(id)) { selectedGroupMessageIds.delete(id); row.classList.remove('selected'); }
+  else { selectedGroupMessageIds.add(id); row.classList.add('selected'); }
+  document.getElementById('group-select-count').textContent = selectedGroupMessageIds.size + ' selected';
+}, true);
+
+init();
+</script>
+<script src="/assets/nav-auth.js"></script>
+</body>
+</html>

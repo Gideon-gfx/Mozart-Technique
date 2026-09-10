@@ -5,6 +5,14 @@
 // plain-CSS ".nav-links" class.
 (function () {
   const STYLE_ID = 'mt-mobile-nav-style';
+  // Was 768px, which only covers phones - anything from a tablet up to a
+  // fairly wide laptop (769-1024px) fell into a dead zone where neither the
+  // hamburger nor Tailwind's own `md:` (768px) utility collapsed the nav,
+  // so the full-width link row and the "Mozart Techniques" wordmark
+  // squeezed/overlapped instead of fitting. 1024px (Tailwind's own `lg:`
+  // breakpoint) closes that gap - only genuinely wide desktop viewports
+  // still get the horizontal nav.
+  const MOBILE_BREAKPOINT = 1024;
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -37,8 +45,16 @@
         transition: background-color .15s ease;
       }
       .mt-mobile-toggle:hover { background: rgba(163,18,26,.08); }
-      @media (max-width: 768px) {
+      @media (max-width: ${MOBILE_BREAKPOINT}px) {
         .mt-mobile-toggle { display: inline-flex; }
+      }
+      /* Forces the identified nav closed below the breakpoint regardless of
+         the page's own markup - covers both a plain ".nav-links" row (which
+         has no responsive hiding of its own) and Tailwind's "hidden
+         md:flex" pattern (whose own 768px breakpoint would otherwise show
+         the full nav again between 768-1024px). */
+      @media (max-width: ${MOBILE_BREAKPOINT}px) {
+        [data-mt-mobile-wired]:not(.mt-mobile-nav-open) { display: none !important; }
       }
       .mt-mobile-nav-open {
         display: flex !important;
@@ -306,7 +322,7 @@
     });
 
     window.addEventListener('resize', () => {
-      if (window.innerWidth > 768 && nav.classList.contains('mt-mobile-nav-open')) {
+      if (window.innerWidth > MOBILE_BREAKPOINT && nav.classList.contains('mt-mobile-nav-open')) {
         closeNav(nav, toggle);
       }
     });

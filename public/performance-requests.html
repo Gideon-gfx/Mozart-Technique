@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Requests - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="/assets/store.css">
+<style>
+body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
+.request-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); padding: 18px; margin-bottom: 16px; }
+.request-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.offer-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--mz-border); flex-wrap: wrap; }
+.offer-row img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.offer-info { display: flex; gap: 10px; align-items: center; }
+.requests-list-spacing { margin-top: 20px; }
+</style>
+</head>
+<body class="market-body">
+
+<nav class="market-navbar">
+  <div class="market-nav-inner">
+    <a href="/find-performer" class="market-home-btn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></a>
+    <a href="/home" class="market-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques"><span>Mozart Techniques</span></a>
+    <div class="market-nav-actions market-nav-actions-end"><div id="auth-state"></div></div>
+  </div>
+</nav>
+
+<div class="market-container">
+  <h1 class="market-page-title">My Performance Requests</h1>
+  <div id="requests-list" class="requests-list-spacing"></div>
+  <div id="requests-empty" class="market-empty" hidden>
+    <i class="fa-solid fa-calendar-check"></i>
+    <h3>No requests yet</h3>
+    <p>Post an event request to start getting performer offers.</p>
+    <a href="/find-performer" class="market-btn market-btn-primary">Find a Performer</a>
+  </div>
+</div>
+
+<div class="market-modal-overlay" id="select-modal" hidden>
+  <div class="market-modal">
+    <i class="fa-solid fa-circle-check modal-icon"></i>
+    <h3>Confirm your selection</h3>
+    <p id="select-modal-text"></p>
+    <div class="market-modal-actions">
+      <button type="button" class="market-btn market-btn-outline" id="select-cancel-btn">Cancel</button>
+      <button type="button" class="market-btn market-btn-primary" id="select-confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="market-toast" id="toast"></div>
+
+<script src="/assets/nav-auth.js" defer></script>
+<script>
+function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let toastTimer;
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'market-toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+const STATUS_BADGE = { open: ['info', 'Open'], closed: ['success', 'Booked'], cancelled: ['danger', 'Cancelled'] };
+const OFFER_BADGE = { invited: ['neutral', 'Awaiting response'], accepted: ['success', 'Accepted'], countered: ['warning', 'Countered'], declined: ['neutral', 'Declined'], expired: ['neutral', 'Expired'], selected: ['success', 'Selected'], not_selected: ['neutral', 'Not selected'] };
+
+function offerRowHtml(o, requestId, requestOpen) {
+  const [variant, label] = OFFER_BADGE[o.status] || ['neutral', o.status];
+  const showAmount = o.status === 'countered' ? `$${o.counterAmountUsd}` : `$${o.proposedAmountUsd}`;
+  const canSelect = requestOpen && (o.status === 'accepted' || o.status === 'countered');
+  return `
+    <div class="offer-row">
+      <div class="offer-info">
+        <img src="${o.performerPhotoUrl || '/mozartLogo.jpg'}" alt="">
+        <div>
+          <div style="font-weight:700; font-size:.88rem;"><a href="/performers/${o.performerId}">${escapeHtml(o.performerName)}</a></div>
+          <div class="market-muted market-small">${o.distanceKm != null ? o.distanceKm + 'km away' : ''}${o.counterNote ? ' &middot; "' + escapeHtml(o.counterNote) + '"' : ''}</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-weight:800;">${showAmount}</span>
+        <span class="market-badge market-badge-${variant}">${label}</span>
+        ${canSelect ? `<button type="button" class="market-btn market-btn-primary market-btn-sm select-offer-btn" data-offer-id="${o.id}" data-request-id="${requestId}" data-performer="${escapeHtml(o.performerName)}" data-amount="${showAmount}">Select</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function requestCardHtml(r) {
+  const [variant, label] = STATUS_BADGE[r.status] || ['neutral', r.status];
+  const offers = (r.offers || []).filter((o) => o.status !== 'invited' || r.status === 'open');
+  return `
+    <div class="market-card request-card">
+      <div class="request-head">
+        <div>
+          <strong>${escapeHtml(r.eventType)}</strong> - ${escapeHtml(r.performerCategory)}
+          <div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || 'Date TBD'} &middot; ${r.radiusKm}km radius &middot; $${r.proposedAmountUsd} proposed</div>
+        </div>
+        <span class="market-badge market-badge-${variant}">${label}</span>
+      </div>
+      ${offers.length ? offers.map((o) => offerRowHtml(o, r.id, r.status === 'open')).join('') : '<p class="market-muted market-small" style="margin-top:12px;">No responses yet.</p>'}
+      ${r.status === 'open' ? `<button type="button" class="market-btn market-btn-outline market-btn-sm cancel-request-btn" data-id="${r.id}" style="margin-top:12px;">Cancel Request</button>` : ''}
+    </div>
+  `;
+}
+
+let pendingSelect = null;
+
+async function loadRequests() {
+  const res = await fetch('/api/marketplace/requests/mine');
+  const data = await res.json();
+  if (!data.success) return;
+  document.getElementById('requests-empty').hidden = data.requests.length > 0;
+  document.getElementById('requests-list').innerHTML = data.requests.map(requestCardHtml).join('');
+
+  document.querySelectorAll('.select-offer-btn').forEach((btn) => btn.addEventListener('click', () => {
+    pendingSelect = { requestId: btn.dataset.requestId, offerId: btn.dataset.offerId };
+    document.getElementById('select-modal-text').textContent = `Select ${btn.dataset.performer} for ${btn.dataset.amount}? This will close the request and notify all responders.`;
+    document.getElementById('select-modal').hidden = false;
+  }));
+  document.querySelectorAll('.cancel-request-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    if (!confirm('Cancel this request?')) return;
+    const res2 = await fetch(`/api/marketplace/requests/${btn.dataset.id}/cancel`, { method: 'POST' });
+    const data2 = await res2.json();
+    if (data2.success) { showToast('Request cancelled.', 'success'); loadRequests(); } else showToast(data2.error || 'Failed.', 'error');
+  }));
+}
+
+document.getElementById('select-cancel-btn').addEventListener('click', () => { document.getElementById('select-modal').hidden = true; pendingSelect = null; });
+document.getElementById('select-confirm-btn').addEventListener('click', async () => {
+  if (!pendingSelect) return;
+  const res = await fetch(`/api/marketplace/requests/${pendingSelect.requestId}/select`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerId: Number(pendingSelect.offerId) }) });
+  const data = await res.json();
+  document.getElementById('select-modal').hidden = true;
+  if (data.success) { showToast('Performer selected!', 'success'); loadRequests(); } else showToast(data.error || 'Failed.', 'error');
+});
+
+loadRequests();
+</script>
+</body>
+</html>

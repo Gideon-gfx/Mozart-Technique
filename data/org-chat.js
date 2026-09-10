@@ -151,7 +151,14 @@ function listForTutor(tutorId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function sendMessage(conversationId, { senderId, senderType, senderName, text, attachment }) {
+function listForStudent(studentId) {
+  return load()
+    .conversations.filter((c) => normalizeConversation(c) && normalizeConversation(c).participants.some((p) => p.type === 'student' && String(p.id) === String(studentId)))
+    .map((conv) => normalizeConversation(conv))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function sendMessage(conversationId, { senderId, senderType, senderName, text, attachment, replyToId, poll, location }) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return null;
@@ -163,11 +170,116 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text, a
     senderName,
     text: text || '',
     attachment: attachment || null,
+    replyToId: replyToId ? Number(replyToId) : null,
+    poll: poll ? { question: poll.question, options: poll.options.map((text2, i) => ({ id: i + 1, text: text2 })), votes: [] } : null,
+    location: location ? { lat: location.lat, lng: location.lng } : null,
+    reactions: [],
+    deletedForUserIds: [],
     createdAt: new Date().toISOString(),
     readByOrg: senderType === 'org',
     readByTutor: senderType === 'tutor',
+    readByStudent: senderType === 'student',
   };
   conv.messages.push(message);
+  persist(db);
+  return message;
+}
+
+// Owner-checked: only the sender can edit their own message.
+function editMessage(conversationId, messageId, userId, text) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId) && m.senderId === userId);
+  if (!message || message.deleted) return null;
+  message.text = String(text || '').trim();
+  message.editedAt = new Date().toISOString();
+  persist(db);
+  return message;
+}
+
+// Soft delete ("delete for everyone") - same shape as data/chat.js: keeps
+// the row so the placeholder shows in place, only the sender can invoke it,
+// and callers must check the recipient's readBy flag first (see the
+// participantRoleFor-driven route in server.js).
+function deleteMessage(conversationId, messageId, userId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId) && m.senderId === userId);
+  if (!message) return null;
+  message.deleted = true;
+  message.text = '';
+  message.attachment = null;
+  message.poll = null;
+  message.location = null;
+  message.pinned = false;
+  message.deletedAt = new Date().toISOString();
+  persist(db);
+  return message;
+}
+
+// "Delete for me" - hides the message only for the caller.
+function deleteForMe(conversationId, messageId, userId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId));
+  if (!message) return null;
+  if (!Array.isArray(message.deletedForUserIds)) message.deletedForUserIds = [];
+  if (!message.deletedForUserIds.includes(userId)) message.deletedForUserIds.push(userId);
+  persist(db);
+  return message;
+}
+
+// One reaction per user per message - reacting with the same emoji again
+// removes it, a different emoji replaces the old one.
+function addReaction(conversationId, messageId, userId, role, emoji) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId));
+  if (!message || message.deleted) return null;
+  if (!Array.isArray(message.reactions)) message.reactions = [];
+  const existing = message.reactions.find((r) => r.userId === userId);
+  if (existing && existing.emoji === emoji) {
+    message.reactions = message.reactions.filter((r) => r.userId !== userId);
+  } else if (existing) {
+    existing.emoji = emoji;
+  } else {
+    message.reactions.push({ userId, role, emoji });
+  }
+  persist(db);
+  return message;
+}
+
+function removeReaction(conversationId, messageId, userId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId));
+  if (!message) return null;
+  message.reactions = (message.reactions || []).filter((r) => r.userId !== userId);
+  persist(db);
+  return message;
+}
+
+function votePoll(conversationId, messageId, userId, optionId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId));
+  if (!message || !message.poll) return null;
+  message.poll.votes = message.poll.votes.filter((v) => v.userId !== userId);
+  message.poll.votes.push({ userId, optionId: Number(optionId) });
+  persist(db);
+  return message;
+}
+
+// Any participant can pin/unpin - a shared bookmark, not a content mutation
+// (mirrors data/chat.js's togglePin - the caller already verified the
+// requester is a participant in this conversation).
+function togglePin(conversationId, messageId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  const message = conv && conv.messages.find((m) => m.id === Number(messageId));
+  if (!message || message.deleted) return null;
+  message.pinned = !message.pinned;
+  message.pinnedAt = message.pinned ? new Date().toISOString() : null;
   persist(db);
   return message;
 }
@@ -202,11 +314,13 @@ function getMessages(conversationId) {
   return conv ? (conv.messages || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : [];
 }
 
+const READ_FIELD_BY_ROLE = { org: 'readByOrg', tutor: 'readByTutor', student: 'readByStudent' };
+
 function markRead(conversationId, role) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return;
-  const field = role === 'org' ? 'readByOrg' : 'readByTutor';
+  const field = READ_FIELD_BY_ROLE[role] || 'readByTutor';
   conv.messages.forEach((m) => { m[field] = true; });
   persist(db);
 }
@@ -215,19 +329,45 @@ function getUnreadCount(conversationId, role) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return 0;
-  const field = role === 'org' ? 'readByOrg' : 'readByTutor';
+  const field = READ_FIELD_BY_ROLE[role] || 'readByTutor';
   return (conv.messages || []).filter((m) => !m[field]).length;
+}
+
+// Inverse of markRead - "mark as unread" from the messages list.
+function markUnread(conversationId, role) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  if (!conv) return;
+  const field = READ_FIELD_BY_ROLE[role] || 'readByTutor';
+  conv.messages.forEach((m) => { m[field] = false; });
+  persist(db);
+}
+
+// Bulk "delete for me" across an entire thread - backs "Clear chat" and
+// "Delete chat" (the latter also hides the thread via store.hideThread).
+function clearForUser(conversationId, userId) {
+  const db = load();
+  const conv = db.conversations.find((c) => c.id === Number(conversationId));
+  if (!conv) return;
+  conv.messages.forEach((m) => {
+    if (!Array.isArray(m.deletedForUserIds)) m.deletedForUserIds = [];
+    if (!m.deletedForUserIds.includes(userId)) m.deletedForUserIds.push(userId);
+  });
+  persist(db);
 }
 
 module.exports = {
   getOrCreateConversation,
   listForOrganization,
   listForTutor,
+  listForStudent,
   getOrCreateTutorGroupConversation,
   sendMessage,
-getMessages,
+  getMessages,
+  editMessage, deleteMessage, deleteForMe,
+  addReaction, removeReaction, votePoll, togglePin,
   setMeetingLink, removeParticipant, findById,
   listAll,
-  markRead,
+  markRead, markUnread, clearForUser,
   getUnreadCount,
 };

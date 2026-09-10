@@ -7,33 +7,168 @@
 	<link rel="shortcut icon" href="/mozartLogo.jpg">
 	<script src="https://cdn.tailwindcss.com"></script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="/assets/site.css">
+	<link rel="stylesheet" href="/assets/chat-kit.css">
+	<style>
+		.thread-row { position: relative; }
+		/* Unlike the hover-reveal used for in-bubble message actions
+		   (chat-kit.css's default), a conversation row's dropdown trigger
+		   stays visible at all times - chat-kit.css's opacity:0-until-hover
+		   and its @media(hover:none){display:none} meant this was
+		   effectively invisible on any touch device, with no fallback way
+		   to open it at all. */
+		.thread-row .ck-trigger { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); opacity: 1; display: flex !important; }
+		.thread-row a[data-thread-link] { padding-right: 28px; }
+		.thread-row.selecting { padding-left: 46px; }
+		.thread-checkbox { display: none; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1; background: #fff; }
+		.thread-row.selecting .thread-checkbox { display: block; }
+		.thread-row.selected .thread-checkbox { background: #cc0000; border-color: #cc0000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+		.unread-badge { background: #cc0000; color: #fff; font-size: 11px; font-weight: 800; border-radius: 999px; min-width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+		.thread-pin-icon { color: #9ca3af; font-size: 11px; margin-right: 4px; }
+	</style>
 </head>
 <body class="min-h-screen bg-gray-50">
 	<header class="sticky top-0 z-20 border-b bg-white shadow-sm">
-		<nav class="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
+		<nav class="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4">
 			<a href="/home" class="flex items-center gap-3 font-bold text-gray-900"><img src="/mozartLogo.jpg" alt="Mozart Techniques" class="h-9 w-9 rounded-full object-cover"><span>Messages</span></a>
 			<div id="auth-state"></div>
 		</nav>
 	</header>
-	<main class="mx-auto max-w-3xl px-4 py-6">
-		<div class="mb-4 flex items-center justify-between"><h1 class="text-2xl font-extrabold text-gray-900">Messages</h1><span id="thread-count" class="text-xs text-gray-500"></span></div>
-		<button id="create-tutor-group-btn" type="button" class="mb-4 grid h-10 w-10 place-items-center rounded-full bg-red-700 text-white shadow" aria-label="Create group chat" title="Create group chat"><i class="fa-solid fa-plus"></i></button>
+	<main class="mx-auto max-w-[1600px] px-4 py-6">
+		<div class="mb-4 flex items-center justify-between">
+			<div><h1 class="text-2xl font-extrabold text-gray-900">Messages</h1><span id="thread-count" class="text-xs text-gray-500"></span></div>
+			<div class="flex items-center gap-2">
+				<button id="create-tutor-group-btn" type="button" class="grid h-10 w-10 place-items-center rounded-full bg-red-700 text-white shadow" aria-label="Create group chat" title="New group"><i class="fa-solid fa-plus"></i></button>
+				<button id="messages-more-btn" type="button" class="grid h-10 w-10 place-items-center rounded-full text-gray-600 hover:bg-gray-100" aria-label="More options" title="More options"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+			</div>
+		</div>
+		<div class="mb-4 flex flex-col items-center gap-2">
+			<div class="relative w-full max-w-lg">
+				<i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+				<input type="text" id="thread-search" placeholder="Search conversations" class="w-full rounded-full border border-gray-200 bg-white py-2.5 pl-11 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+			</div>
+			<button type="button" id="archive-view-link" class="hidden text-xs font-semibold text-gray-500 hover:text-red-700"><i class="fa-solid fa-box-archive mr-1"></i>Archived</button>
+		</div>
+		<div id="select-bar" class="mb-3 hidden items-center justify-between rounded-xl bg-white px-4 py-2.5 shadow-sm">
+			<span id="select-count" class="text-sm font-semibold text-gray-600">0 selected</span>
+			<div class="flex items-center gap-3">
+				<button type="button" id="select-archive" class="text-sm font-semibold text-gray-600 hover:underline"><i class="fa-solid fa-box-archive mr-1"></i>Archive</button>
+				<button type="button" id="select-read" class="text-sm font-semibold text-gray-600 hover:underline"><i class="fa-regular fa-envelope mr-1"></i>Mark unread</button>
+				<button type="button" id="select-delete" class="text-sm font-semibold text-red-600 hover:underline"><i class="fa-solid fa-trash mr-1"></i>Delete</button>
+				<button type="button" id="select-cancel" class="text-sm font-semibold text-gray-500 hover:underline">Cancel</button>
+			</div>
+		</div>
 		<section class="overflow-hidden rounded-2xl bg-white shadow-lg">
 			<div id="thread-list"><p class="p-10 text-center text-sm text-gray-400">Loading conversations...</p></div>
 		</section>
 	</main>
+
+	<div class="ck-popover" id="messages-more-menu" hidden style="min-width:200px;">
+		<button type="button" data-more="new-group"><i class="fa-solid fa-user-group"></i> New group</button>
+		<button type="button" data-more="select"><i class="fa-regular fa-square-check"></i> Select chat</button>
+		<button type="button" data-more="mark-all-read"><i class="fa-solid fa-envelope-open"></i> Mark all as read</button>
+	</div>
+
+	<div class="ck-popover" id="row-menu" hidden style="min-width:210px;">
+		<button type="button" data-row-action="archive"><i class="fa-solid fa-box-archive"></i> <span id="row-archive-label">Archive chat</span></button>
+		<div style="position:relative;">
+			<button type="button" data-row-action="mute-toggle" id="row-mute-toggle"><i class="fa-solid fa-bell"></i> <span id="row-mute-label">Mute notification</span> <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i></button>
+			<div class="ck-popover" id="row-mute-submenu" hidden style="min-width:140px;">
+				<button type="button" data-mute="8h">8 hours</button>
+				<button type="button" data-mute="1w">1 week</button>
+				<button type="button" data-mute="always">Always</button>
+			</div>
+		</div>
+		<button type="button" data-row-action="pin"><i class="fa-solid fa-thumbtack"></i> <span id="row-pin-label">Pin chat</span></button>
+		<button type="button" data-row-action="mark-unread"><i class="fa-regular fa-envelope"></i> Mark as unread</button>
+		<button type="button" data-row-action="favorite"><i class="fa-regular fa-star"></i> <span id="row-favorite-label">Add to Favourite</span></button>
+		<hr style="margin:6px 0;border-color:#eee;">
+		<button type="button" data-row-action="block" class="danger" id="row-block-btn"><i class="fa-solid fa-ban"></i> <span id="row-block-label">Block</span></button>
+		<button type="button" data-row-action="clear" class="danger"><i class="fa-solid fa-broom"></i> Clear chat</button>
+		<button type="button" data-row-action="delete" class="danger"><i class="fa-solid fa-trash"></i> Delete chat</button>
+	</div>
+
 	<script>
 		const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[match]));
 		const initials = (name) => String(name || '?').split(/\s+/).map((part) => part[0] || '').join('').slice(0, 2).toUpperCase();
 		const timeLabel = (value) => value ? new Date(value).toLocaleDateString([], { day: '2-digit', month: 'short' }) : '';
+
+		let allDirect = [];
+		let allGroups = [];
+		let selectMode = false;
+		let selectedRows = new Set(); // "assignment:1" / "group:2"
+		let rowMenuThreadKey = null;
+		let rowMenuIsGroup = false;
+
+		function threadKeyFor(item, isGroup) { return isGroup ? `group:${item.id}` : `assignment:${item.assignmentId}`; }
+
 		function renderThread(item, isGroup = false) {
-			const id = isGroup ? item.id : item.assignmentId;
+			const threadKey = threadKeyFor(item, isGroup);
 			const href = isGroup ? `/messages/group?name=${encodeURIComponent(item.name || '')}` : `/messages/chat?name=${encodeURIComponent(item.name || '')}`;
 			const title = item.name || item.title || 'Conversation';
 			const avatar = item.photoUrl ? `<img src="${escapeHtml(item.photoUrl)}" alt="" class="h-11 w-11 rounded-full object-cover">` : `<div class="grid h-11 w-11 place-items-center rounded-full bg-red-700 font-bold text-white">${isGroup ? '<i class="fa-solid fa-users"></i>' : initials(title)}</div>`;
-			return `<a href="${href}" class="flex items-center gap-3 border-b border-gray-100 p-4 transition hover:bg-red-50"><div class="shrink-0">${avatar}</div><div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-3"><strong class="truncate text-gray-900">${escapeHtml(title)}</strong><span class="shrink-0 text-xs text-gray-400">${timeLabel(item.lastAt)}</span></div><p class="mt-1 truncate text-sm text-gray-500">${escapeHtml(item.lastMessage || (isGroup ? `${item.studentCount || 0} students` : 'No messages yet'))}</p></div></a>`;
+			const unread = Number(item.unread || 0);
+			const pinIcon = item.pinned ? '<i class="fa-solid fa-thumbtack thread-pin-icon"></i>' : '';
+			const muteIcon = item.muted ? '<i class="fa-solid fa-bell-slash text-gray-300 text-xs ml-1"></i>' : '';
+			const favIcon = item.favorite ? '<i class="fa-solid fa-star text-amber-400 text-xs ml-1"></i>' : '';
+			return `
+				<div class="ck-row thread-row flex items-center gap-3 border-b border-gray-100 p-4 transition hover:bg-red-50" data-thread-key="${threadKey}" data-is-group="${isGroup ? '1' : '0'}">
+					<span class="thread-checkbox" data-select-toggle></span>
+					<a href="${href}" class="flex flex-1 min-w-0 items-center gap-3 no-underline text-inherit" data-thread-link>
+						<div class="shrink-0">${avatar}</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center justify-between gap-3">
+								<strong class="truncate text-gray-900">${pinIcon}${escapeHtml(title)}${muteIcon}${favIcon}</strong>
+								<span class="shrink-0 text-xs text-gray-400">${timeLabel(item.lastAt)}</span>
+							</div>
+							<div class="mt-1 flex items-center justify-between gap-2">
+								<p class="truncate text-sm text-gray-500">${escapeHtml(item.lastMessage || (isGroup ? `${item.studentCount || 0} students` : 'No messages yet'))}</p>
+								${unread ? `<span class="unread-badge shrink-0">${unread}</span>` : ''}
+							</div>
+						</div>
+					</a>
+					<button type="button" class="ck-trigger" data-row-trigger aria-label="Chat options"><i class="fa-solid fa-chevron-down"></i></button>
+				</div>
+			`;
 		}
+
+		let archiveView = false;
+		function applyFilter() {
+			const query = document.getElementById('thread-search').value.trim().toLowerCase();
+			// Archived chats never mix into the main list - they only show up
+			// in the dedicated Archived view, matching where "Archive chat"
+			// actually sends a conversation.
+			const scope = archiveView ? { direct: allDirect.filter((i) => i.archived), groups: allGroups.filter((i) => i.archived) }
+				: { direct: allDirect.filter((i) => !i.archived), groups: allGroups.filter((i) => !i.archived) };
+			if (!query) return scope;
+			return {
+				direct: scope.direct.filter((item) => String(item.name || '').toLowerCase().includes(query)),
+				groups: scope.groups.filter((item) => String(item.name || '').toLowerCase().includes(query)),
+			};
+		}
+
+		function renderList() {
+			const list = document.getElementById('thread-list');
+			const { direct, groups } = applyFilter();
+			const archivedCount = allDirect.filter((i) => i.archived).length + allGroups.filter((i) => i.archived).length;
+			const archiveLink = document.getElementById('archive-view-link');
+			archiveLink.textContent = archiveView ? '← Back to Messages' : `Archived (${archivedCount})`;
+			archiveLink.classList.toggle('hidden', !archiveView && !archivedCount);
+			document.getElementById('thread-count').textContent = archiveView
+				? `${direct.length + groups.length} archived`
+				: `${direct.length + groups.length} conversation${direct.length + groups.length === 1 ? '' : 's'}`;
+			if (!direct.length && !groups.length) { list.innerHTML = `<p class="p-10 text-center text-sm text-gray-400">${archiveView ? 'No archived chats.' : 'No conversations found.'}</p>`; return; }
+			list.innerHTML = (groups.length ? `<div class="border-b bg-gray-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">Groups</div>${groups.map((item) => renderThread(item, true)).join('')}` : '')
+				+ (direct.length ? direct.map((item) => renderThread(item)).join('') : '');
+			document.querySelectorAll('.thread-row').forEach((row) => {
+				row.classList.toggle('selecting', selectMode);
+				row.classList.toggle('selected', selectedRows.has(row.dataset.threadKey));
+			});
+		}
+		document.getElementById('archive-view-link').addEventListener('click', () => { archiveView = !archiveView; renderList(); });
+
 		async function load() {
 			const list = document.getElementById('thread-list');
 			try {
@@ -42,14 +177,167 @@
 				const groupData = await groupResponse.json();
 				const direct = directData.success ? (directData.conversations || []) : [];
 				const groups = groupData.success ? (groupData.chats || []) : [];
-				const uniqueDirect = direct.filter((item, index, list) => list.findIndex((candidate) => String(candidate.name || '').toLowerCase() === String(item.name || '').toLowerCase()) === index);
-				document.getElementById('thread-count').textContent = `${uniqueDirect.length + groups.length} conversation${uniqueDirect.length + groups.length === 1 ? '' : 's'}`;
-				if (!uniqueDirect.length && !groups.length) { list.innerHTML = '<p class="p-10 text-center text-sm text-gray-400">No conversations yet.</p>'; return; }
-				list.innerHTML = (groups.length ? `<div class="border-b bg-gray-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">Groups</div>${groups.map((item) => renderThread(item, true)).join('')}` : '') + uniqueDirect.map((item) => renderThread(item)).join('');
+				allDirect = direct.filter((item, index, arr) => arr.findIndex((candidate) => String(candidate.name || '').toLowerCase() === String(item.name || '').toLowerCase()) === index);
+				allGroups = groups;
+				renderList();
 				const name = new URLSearchParams(location.search).get('name');
-				if (name) { const target = uniqueDirect.find((item) => String(item.name || '').toLowerCase() === name.toLowerCase()); if (target && location.pathname === '/messages') location.href = `/messages/chat?name=${encodeURIComponent(target.name || '')}`; }
+				if (name) { const target = allDirect.find((item) => String(item.name || '').toLowerCase() === name.toLowerCase()); if (target && location.pathname === '/messages') location.href = `/messages/chat?name=${encodeURIComponent(target.name || '')}`; }
 			} catch (error) { list.innerHTML = '<p class="p-10 text-center text-sm text-red-600">Could not load messages. Please refresh.</p>'; }
 		}
+
+		document.getElementById('thread-search').addEventListener('input', renderList);
+
+		// --- Row hover menu (archive/mute/pin/mark-unread/favorite/block/clear/delete) ---
+		const rowMenu = document.getElementById('row-menu');
+		const rowMuteSubmenu = document.getElementById('row-mute-submenu');
+		function findThreadItem(threadKey, isGroup) {
+			return isGroup ? allGroups.find((g) => `group:${g.id}` === threadKey) : allDirect.find((d) => `assignment:${d.assignmentId}` === threadKey);
+		}
+		function closeRowMenu() { rowMenu.hidden = true; rowMuteSubmenu.hidden = true; rowMenuThreadKey = null; }
+		document.getElementById('thread-list').addEventListener('click', (e) => {
+			const trigger = e.target.closest('[data-row-trigger]');
+			if (trigger) {
+				e.preventDefault(); e.stopPropagation();
+				const row = trigger.closest('.thread-row');
+				rowMenuThreadKey = row.dataset.threadKey;
+				rowMenuIsGroup = row.dataset.isGroup === '1';
+				const item = findThreadItem(rowMenuThreadKey, rowMenuIsGroup);
+				document.getElementById('row-block-btn').classList.toggle('hidden', rowMenuIsGroup);
+				document.getElementById('row-archive-label').textContent = item && item.archived ? 'Unarchive chat' : 'Archive chat';
+				document.getElementById('row-pin-label').textContent = item && item.pinned ? 'Unpin chat' : 'Pin chat';
+				document.getElementById('row-favorite-label').textContent = item && item.favorite ? 'Remove Favourite' : 'Add to Favourite';
+				document.getElementById('row-mute-label').textContent = item && item.muted ? 'Muted (tap to unmute)' : 'Mute notification';
+				document.getElementById('row-block-label').textContent = item && item.blocked ? 'Unblock' : 'Block';
+				const rect = trigger.getBoundingClientRect();
+				rowMenu.style.left = `${Math.max(8, rect.right - 210)}px`;
+				rowMenu.style.top = `${rect.bottom + 4}px`;
+				rowMenu.hidden = false;
+				return;
+			}
+			const select = e.target.closest('[data-select-toggle]');
+			if (select && selectMode) {
+				e.preventDefault(); e.stopPropagation();
+				const row = select.closest('.thread-row');
+				const key = row.dataset.threadKey;
+				if (selectedRows.has(key)) selectedRows.delete(key); else selectedRows.add(key);
+				row.classList.toggle('selected', selectedRows.has(key));
+				document.getElementById('select-count').textContent = `${selectedRows.size} selected`;
+				return;
+			}
+			if (selectMode) {
+				const link = e.target.closest('[data-thread-link]');
+				if (link) {
+					e.preventDefault();
+					const row = link.closest('.thread-row');
+					row.querySelector('[data-select-toggle]').click();
+				}
+			}
+		});
+		document.addEventListener('click', (e) => { if (!rowMenu.hidden && !e.target.closest('#row-menu')) closeRowMenu(); });
+
+		function threadRouteFor(threadKey, isGroup) { return isGroup ? `/api/threads/group/${threadKey.split(':')[1]}` : `/api/threads/assignment/${threadKey.split(':')[1]}`; }
+
+		document.getElementById('row-mute-toggle').addEventListener('click', (e) => {
+			e.stopPropagation();
+			const item = findThreadItem(rowMenuThreadKey, rowMenuIsGroup);
+			if (item && item.muted) { setRowMute(null); return; }
+			const rect = e.currentTarget.getBoundingClientRect();
+			rowMuteSubmenu.style.left = `${rect.right + 4}px`;
+			rowMuteSubmenu.style.top = `${rect.top}px`;
+			rowMuteSubmenu.hidden = !rowMuteSubmenu.hidden;
+		});
+		rowMuteSubmenu.addEventListener('click', (e) => {
+			const btn = e.target.closest('button[data-mute]');
+			if (!btn) return;
+			setRowMute(btn.dataset.mute);
+		});
+		async function setRowMute(duration) {
+			const key = rowMenuThreadKey, isGroup = rowMenuIsGroup;
+			closeRowMenu();
+			await fetch(`${threadRouteFor(key, isGroup)}/mute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration }) });
+			load();
+		}
+
+		rowMenu.addEventListener('click', async (e) => {
+			const btn = e.target.closest('button[data-row-action]');
+			if (!btn) return;
+			const action = btn.dataset.rowAction;
+			if (action === 'mute-toggle') return;
+			const key = rowMenuThreadKey, isGroup = rowMenuIsGroup;
+			closeRowMenu();
+			if (!key) return;
+			if (action === 'archive') { await fetch(`${threadRouteFor(key, isGroup)}/archive`, { method: 'POST' }); load(); }
+			else if (action === 'pin') { await fetch(`${threadRouteFor(key, isGroup)}/pin`, { method: 'POST' }); load(); }
+			else if (action === 'mark-unread') { await fetch(`${threadRouteFor(key, isGroup)}/mark-unread`, { method: 'POST' }); load(); }
+			else if (action === 'favorite') { await fetch(`${threadRouteFor(key, isGroup)}/favorite`, { method: 'POST' }); load(); }
+			else if (action === 'block') {
+				if (!confirm('Change block status for this person?')) return;
+				await fetch(`${threadRouteFor(key, isGroup)}/block`, { method: 'POST' });
+				load();
+			} else if (action === 'clear') {
+				if (!confirm('Clear this chat? This removes all messages for you only.')) return;
+				await fetch(`${threadRouteFor(key, isGroup)}/clear`, { method: 'POST' });
+				load();
+			} else if (action === 'delete') {
+				if (!confirm('Delete this chat? It will disappear until a new message arrives.')) return;
+				await fetch(`${threadRouteFor(key, isGroup)}/delete`, { method: 'POST' });
+				load();
+			}
+		});
+
+		// --- Header "..." menu: New group / Select chat / Mark all as read ---
+		const moreMenu = document.getElementById('messages-more-menu');
+		document.getElementById('messages-more-btn').addEventListener('click', (e) => {
+			e.stopPropagation();
+			if (moreMenu.hidden) {
+				const rect = e.currentTarget.getBoundingClientRect();
+				moreMenu.style.left = `${Math.max(8, rect.right - 200)}px`;
+				moreMenu.style.top = `${rect.bottom + 6}px`;
+			}
+			moreMenu.hidden = !moreMenu.hidden;
+		});
+		document.addEventListener('click', (e) => { if (!moreMenu.hidden && !e.target.closest('#messages-more-menu') && !e.target.closest('#messages-more-btn')) moreMenu.hidden = true; });
+		moreMenu.addEventListener('click', (e) => {
+			const btn = e.target.closest('button[data-more]');
+			if (!btn) return;
+			moreMenu.hidden = true;
+			if (btn.dataset.more === 'new-group') document.getElementById('create-tutor-group-btn').click();
+			else if (btn.dataset.more === 'select') enterSelectMode();
+			else if (btn.dataset.more === 'mark-all-read') { fetch('/api/threads/mark-all-read', { method: 'POST' }).then(load); }
+		});
+
+		// --- Select chat mode --------------------------------------------------
+		function enterSelectMode() {
+			selectMode = true;
+			selectedRows = new Set();
+			document.getElementById('select-bar').classList.remove('hidden');
+			document.getElementById('select-bar').classList.add('flex');
+			document.getElementById('select-count').textContent = '0 selected';
+			renderList();
+		}
+		function exitSelectMode() {
+			selectMode = false;
+			selectedRows = new Set();
+			document.getElementById('select-bar').classList.add('hidden');
+			document.getElementById('select-bar').classList.remove('flex');
+			renderList();
+		}
+		document.getElementById('select-cancel').addEventListener('click', exitSelectMode);
+		document.getElementById('select-archive').addEventListener('click', async () => {
+			await Promise.all([...selectedRows].map((key) => fetch(`${threadRouteFor(key, key.startsWith('group:'))}/archive`, { method: 'POST' })));
+			exitSelectMode(); load();
+		});
+		document.getElementById('select-read').addEventListener('click', async () => {
+			await Promise.all([...selectedRows].map((key) => fetch(`${threadRouteFor(key, key.startsWith('group:'))}/mark-unread`, { method: 'POST' })));
+			exitSelectMode(); load();
+		});
+		document.getElementById('select-delete').addEventListener('click', async () => {
+			if (!selectedRows.size) return;
+			if (!confirm(`Delete ${selectedRows.size} chat(s)?`)) return;
+			await Promise.all([...selectedRows].map((key) => fetch(`${threadRouteFor(key, key.startsWith('group:'))}/delete`, { method: 'POST' })));
+			exitSelectMode(); load();
+		});
+
 		document.getElementById('create-tutor-group-btn').addEventListener('click', async () => {
 			const data = await fetch('/api/my-assignments').then((response) => response.json());
 			const records = (data.asTutor || []).filter((item) => item.status === 'active');
