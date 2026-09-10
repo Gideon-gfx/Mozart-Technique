@@ -73,9 +73,21 @@
           color: #17130F !important; font-size: 1rem !important; font-weight: 600 !important;
         }
         .mt-mobile-nav-open .mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-toggle i { transform: rotate(180deg); }
+        /* !important on every property here, not just the ones that looked
+           contested: ".mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-menu"
+           (the desktop open-state rule, 4 classes = higher specificity than
+           this 2-class selector) sets transform: translateX(-50%) - that
+           rule matches regardless of viewport (both mobile and desktop
+           dropdowns share the .mt-perf-open class), so on mobile its
+           translateX kept winning over this rule's "transform: none" and
+           dragging the whole menu sideways off-screen even though display
+           and position here were correctly applying. Proven with an actual
+           headless-Chrome run of this exact page (getComputedStyle showed
+           transform still resolving to translateX(-167.5px) before this
+           fix) - not guessed from reading the CSS again. */
         .mt-mobile-nav-open .mt-perf-dropdown-menu {
-          position: static; transform: none; box-shadow: none; border: none; opacity: 1;
-          visibility: visible; display: none; padding: 0; margin: 0;
+          position: static !important; transform: none !important; box-shadow: none !important; border: none !important;
+          opacity: 1 !important; visibility: visible !important; display: none; padding: 0 !important; margin: 0 !important;
         }
         .mt-mobile-nav-open .mt-perf-dropdown.mt-perf-open .mt-perf-dropdown-menu { display: block; }
         /* No left-indent here (unlike the old 16px) - the border-bottom
