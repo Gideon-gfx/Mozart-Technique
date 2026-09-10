@@ -304,9 +304,26 @@
   // nothing for someone actively using the app right now, which is what
   // was actually missing.
   let audioCtx = null;
+  function getAudioCtx() {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  // Browsers block audio.resume() unless it's called synchronously from
+  // within a real user gesture (a click/tap) - the notification poll that
+  // actually wants to play a chime later runs on a timer, which doesn't
+  // count, so a context only ever created/resumed there stays silently
+  // suspended forever. Unlocking it here, on the page's first genuine
+  // interaction (whatever it's for), means it's already running by the
+  // time a notification needs it.
+  ['pointerdown', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, () => {
+      try { if (getAudioCtx().state === 'suspended') getAudioCtx().resume().catch(() => {}); } catch (e) { /* Web Audio unavailable */ }
+    }, { once: true, passive: true });
+  });
+
   function playNotificationChime() {
     try {
-      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getAudioCtx();
       if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
       const now = audioCtx.currentTime;
       // Two quick sine notes (a rising fifth) rather than one flat tone -
