@@ -128,12 +128,20 @@ function contentCardHtml(item) {
     : item.type === 'photo' && (item.fileUrl || item.url)
       ? `<img src="${escapeHtml(item.fileUrl || item.url)}" alt="">`
       : '';
+  // A document/other file type (a PDF announcement, etc.) has no inline
+  // media to show, but its fileUrl still needs a real clickable way to
+  // open it - previously only item.url (a pasted link) got that treatment,
+  // leaving an uploaded document with no way to open it from this card.
+  const fileLink = !media && item.fileUrl
+    ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener" class="market-section-link"><i class="fa-solid fa-file-arrow-down"></i> Open attachment</a>`
+    : '';
   return `
     <div class="content-card">
       ${media}
       <div class="content-card-body">
         <p class="content-card-title">${escapeHtml(item.title)}</p>
         ${item.text ? `<p class="content-card-text">${escapeHtml(item.text)}</p>` : ''}
+        ${fileLink}
         ${item.url && item.type !== 'photo' ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="market-section-link">Open link</a>` : ''}
       </div>
     </div>

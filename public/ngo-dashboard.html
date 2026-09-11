@@ -1433,11 +1433,31 @@
       const feed = document.getElementById('classroom-feed-list');
       const announcements = document.getElementById('classroom-announcements');
       const learningTypes = new Set(['feed', 'announcement']);
+      // The attachment kind is sniffed from the file's extension rather
+      // than trusting item.type alone - an 'announcement' or 'feed' item
+      // can carry any uploaded file (including a document/PDF), and that
+      // wasn't being rendered as a clickable link at all before, leaving
+      // no way to open it short of copying the raw URL out of the network
+      // tab.
+      const contentAttachmentHtml = (item) => {
+        if (item.fileUrl && /\.(png|jpe?g|gif|webp|heic)(\?|$)/i.test(item.fileUrl)) {
+          return `<img src="${escapeHtml(item.fileUrl)}" alt="${escapeHtml(item.title)}" class="mt-3 max-h-80 w-full rounded-lg object-cover">`;
+        }
+        if (item.fileUrl && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(item.fileUrl)) {
+          return `<video src="${escapeHtml(item.fileUrl)}" controls preload="metadata" class="mt-3 max-h-80 w-full rounded-lg bg-black"></video>`;
+        }
+        if (item.fileUrl) {
+          return `<a href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-red-700 underline"><i class="fa-solid fa-file-arrow-down"></i>Open attachment</a>`;
+        }
+        if (item.url) {
+          return `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-red-700 underline"><i class="fa-solid fa-arrow-up-right-from-square"></i>Open link</a>`;
+        }
+        return '';
+      };
       const renderItem = (item) => `<article class="rounded-xl border border-red-100 bg-red-50 p-4">
         <div class="flex items-center justify-between gap-3"><strong>${escapeHtml(item.title)}</strong><span class="text-xs text-gray-500">${new Date(item.createdAt).toLocaleString()}</span></div>
         ${item.text ? `<p class="mt-2 whitespace-pre-wrap text-sm text-gray-700">${escapeHtml(item.text)}</p>` : ''}
-        ${item.fileUrl && item.type === 'photo' ? `<img src="${escapeHtml(item.fileUrl)}" alt="${escapeHtml(item.title)}" class="mt-3 max-h-80 w-full rounded-lg object-cover">` : ''}
-        ${item.fileUrl && item.type === 'video' ? `<video src="${escapeHtml(item.fileUrl)}" controls preload="metadata" class="mt-3 max-h-80 w-full rounded-lg bg-black"></video>` : ''}
+        ${contentAttachmentHtml(item)}
         <div class="mt-2 text-xs text-gray-500">${escapeHtml(item.createdByName || 'Organization')}</div>
       </article>`;
       const feedItems = items.filter((item) => ['feed', 'photo', 'video'].includes(item.type));
