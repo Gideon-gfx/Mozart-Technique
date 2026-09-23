@@ -913,16 +913,30 @@
     window.activateDashboardTab = activateDashboardTab;
 
     // A Stripe checkout (subscription/bill/top-up) redirects back here with
-    // ?payment=success|pending|error - surface it, then drop it from the URL
-    // so a refresh doesn't re-show a stale message.
-    const paymentParam = new URLSearchParams(window.location.search).get('payment');
+    // ?payment=success|pending|error|cancelled - surface it, then drop it
+    // from the URL so a refresh doesn't re-show a stale message. A
+    // cancelled wallet top-up also carries ?topupSession= (from that
+    // checkout's cancel_url) - report it to the server so it can send a
+    // "top-up unsuccessful" email, since a plain browser redirect back here
+    // is the only signal the backend ever gets for that case.
+    const paymentQuery = new URLSearchParams(window.location.search);
+    const paymentParam = paymentQuery.get('payment');
     if (paymentParam) {
       showAlert(
-        paymentParam === 'success' ? 'Payment confirmed.' : paymentParam === 'pending' ? 'Payment is still processing.' : 'Payment could not be completed.',
+        paymentParam === 'success' ? 'Payment confirmed.' : paymentParam === 'pending' ? 'Payment is still processing.' : paymentParam === 'cancelled' ? 'Checkout was cancelled - nothing was charged.' : 'Payment could not be completed.',
         paymentParam === 'success' ? 'success' : paymentParam === 'pending' ? 'info' : 'error'
       );
+      const topupSession = paymentQuery.get('topupSession');
+      if (paymentParam === 'cancelled' && topupSession) {
+        fetch('/api/organizations/wallet/topup-cancel-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: topupSession }),
+        }).catch(() => {});
+      }
       const url = new URL(window.location.href);
       url.searchParams.delete('payment');
+      url.searchParams.delete('topupSession');
       history.replaceState(null, '', url.pathname + url.search + url.hash);
     }
 

@@ -4571,7 +4571,11 @@ app.post('/api/organizations/wallet/topup-checkout', requireAuthApi, async (req,
     line_items: [{ price_data: { currency: 'usd', product_data: { name: `Wallet top-up for ${org.name || org.contactName}` }, unit_amount: Math.round(amountUsd * 100) }, quantity: 1 }],
     customer_email: org.email,
     success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}`,
+    // Includes the session id (unlike a plain cancel) so the dashboard can
+    // report the cancellation back to topup-cancel-notify below and get a
+    // "your top-up didn't go through" email - Stripe's cancel_url is a pure
+    // client-side redirect otherwise, with no server-side hook of its own.
+    cancel_url: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}?payment=cancelled&topupSession={CHECKOUT_SESSION_ID}`,
     metadata: { type: 'wallet-topup', orgId: String(org.id), amountUsd: String(amountUsd) },
   });
   res.json({ success: true, url: checkout.url, sessionId: checkout.id });
@@ -4592,7 +4596,25 @@ app.post('/api/organizations/wallet/topup-verify', requireAuthApi, async (req, r
   if (!sessionId) return res.status(400).json({ success: false, error: 'Missing session id.' });
   try {
     const session = await client.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status !== 'paid' || !session.metadata || session.metadata.type !== 'wallet-topup' || Number(session.metadata.orgId) !== org.id) {
+    const isOwnTopup = session.metadata && session.metadata.type === 'wallet-topup' && Number(session.metadata.orgId) === org.id;
+    if (session.payment_status !== 'paid' || !isOwnTopup) {
+      // The mobile app always calls this once its checkout browser closes,
+      // whether the payment went through or the user backed out - so this
+      // branch is where a genuine cancellation/failure surfaces for mobile
+      // (the web flow's equivalent is topup-cancel-notify below, since a
+      // browser redirect never hits the server on its own).
+      if (isOwnTopup) {
+        const amountUsd = Number(session.metadata.amountUsd);
+        mailer.sendStatusUpdateEmail(
+          { email: org.email, name: org.contactName || org.name },
+          {
+            subject: 'Wallet top-up unsuccessful',
+            heading: 'Wallet top-up unsuccessful',
+            approved: false,
+            message: [`We couldn't complete your $${amountUsd.toFixed(2)} wallet top-up.`, 'The checkout was closed before the payment finished, so your wallet was not charged.'],
+          }
+        ).catch(() => {});
+      }
       return res.status(400).json({ success: false, error: 'That checkout has not been paid yet.' });
     }
     const amountUsd = Number(session.metadata.amountUsd);
@@ -4602,11 +4624,52 @@ app.post('/api/organizations/wallet/topup-verify', requireAuthApi, async (req, r
         type: 'organization',
         message: `Your wallet was topped up with $${amountUsd.toFixed(2)}. New balance: $${updated.walletBalanceUsd.toFixed(2)}.`,
       });
+      mailer.sendStatusUpdateEmail(
+        { email: org.email, name: org.contactName || org.name },
+        {
+          subject: 'Wallet top-up successful',
+          heading: 'Wallet top-up successful',
+          approved: true,
+          message: [`Your wallet was topped up with $${amountUsd.toFixed(2)}.`, `New balance: $${updated.walletBalanceUsd.toFixed(2)}.`],
+          ctaLabel: 'View your dashboard',
+          ctaHref: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}`,
+        }
+      ).catch(() => {});
     }
     res.json({ success: true, walletBalanceUsd: updated.walletBalanceUsd });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
+});
+
+// The web wallet-topup checkout's cancel_url includes the session id so the
+// dashboard can report a cancellation back here once it detects
+// ?payment=cancelled - see the comment on that cancel_url above. Best
+// effort: any failure here just means no email goes out, nothing else
+// depends on this route.
+app.post('/api/organizations/wallet/topup-cancel-notify', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  const org = organizations.findByUserId(currentUser(req).id);
+  const sessionId = req.body && req.body.sessionId;
+  if (!client || !org || !sessionId) return res.json({ success: true });
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId);
+    if (session.metadata && session.metadata.type === 'wallet-topup' && Number(session.metadata.orgId) === org.id && session.payment_status !== 'paid') {
+      const amountUsd = Number(session.metadata.amountUsd);
+      mailer.sendStatusUpdateEmail(
+        { email: org.email, name: org.contactName || org.name },
+        {
+          subject: 'Wallet top-up unsuccessful',
+          heading: 'Wallet top-up unsuccessful',
+          approved: false,
+          message: [`We couldn't complete your $${amountUsd.toFixed(2)} wallet top-up.`, 'The checkout was closed before the payment finished, so your wallet was not charged.'],
+        }
+      ).catch(() => {});
+    }
+  } catch (err) {
+    // Best-effort notification only - ignore.
+  }
+  res.json({ success: true });
 });
 
 app.get('/api/organizations/checkout/success', async (req, res) => {
@@ -4656,6 +4719,19 @@ app.get('/api/organizations/checkout/success', async (req, res) => {
         type: 'organization',
         message: `Your wallet was topped up with $${amountUsd.toFixed(2)}. New balance: $${updated.walletBalanceUsd.toFixed(2)}.`,
       });
+      if (metaOrg) {
+        mailer.sendStatusUpdateEmail(
+          { email: metaOrg.email, name: metaOrg.contactName || metaOrg.name },
+          {
+            subject: 'Wallet top-up successful',
+            heading: 'Wallet top-up successful',
+            approved: true,
+            message: [`Your wallet was topped up with $${amountUsd.toFixed(2)}.`, `New balance: $${updated.walletBalanceUsd.toFixed(2)}.`],
+            ctaLabel: 'View your dashboard',
+            ctaHref: `${publicAppUrl(req)}${dest}`,
+          }
+        ).catch(() => {});
+      }
       return res.redirect(`${dest}?payment=success`);
     }
 
