@@ -124,6 +124,7 @@
 .ck-att-video { max-width: 220px; border-radius: 9px; display: block; margin-top: 3px; }
 .ck-att-audio { height: 34px; margin-top: 3px; max-width: 210px; }
 .ck-att-file { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.07); font-size: 12px; text-decoration: none; }
+.ck-library-clip-link { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
 
 .ck-clip-menu { position: fixed; z-index: 300; background: #fff; border-radius: 14px; box-shadow: 0 14px 34px rgba(0,0,0,.2); border: 1px solid #eee; padding: 8px; min-width: 224px; }
 .ck-clip-menu[hidden] { display: none; }

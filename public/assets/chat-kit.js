@@ -133,6 +133,7 @@
     let reactPickerMessageId = null;
     let deletePopoverMessageId = null;
     let pendingAttachment = null;
+    let pendingLibraryItem = null;
 
     const EDIT_WINDOW_MS = 30 * 60 * 1000;
     const DELETE_EVERYONE_WINDOW_MS = 10 * 60 * 1000;
@@ -153,6 +154,7 @@
       if (m.deleted) return 'This message was deleted';
       if (m.text) return m.text;
       if (m.attachment) return ({ image: 'Photo', video: 'Video', audio: 'Voice note' }[m.attachment.kind] || m.attachment.name || 'Attachment');
+      if (m.libraryItem) return `Clip: ${m.libraryItem.title}`;
       if (m.poll) return `Poll: ${m.poll.question}`;
       if (m.location) return 'Location';
       return 'Message';
@@ -210,15 +212,22 @@
         else if (a.kind === 'audio') attachmentHtml = `<audio src="${url}" controls preload="metadata" class="ck-att-audio"></audio>`;
         else attachmentHtml = `<a href="${url}" download class="ck-att-file">${'<i class="fa-regular fa-file-lines"></i>'}${name}</a>`;
       }
+      const libraryHtml = m.libraryItem ? (() => {
+        const clipUrl = escapeHtml(m.libraryItem.url);
+        const isVideo = /\.(mp4|webm|ogg|mov|m4v)(?:[?#]|$)/i.test(m.libraryItem.url || '');
+        return isVideo
+          ? `<video src="${clipUrl}" controls preload="metadata" class="ck-att-video"></video><a href="${clipUrl}" target="_blank" rel="noreferrer" class="ck-library-clip-link"><i class="fa-solid fa-clapperboard mr-1"></i>${escapeHtml(m.libraryItem.title)}</a>`
+          : `<a href="${clipUrl}" target="_blank" rel="noreferrer" class="ck-library-clip-link"><i class="fa-solid fa-clapperboard mr-1"></i>${escapeHtml(m.libraryItem.title)}</a>`;
+      })() : '';
       const stamp = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const editedTag = m.editedAt ? '<span class="ck-edited-tag">(edited)</span>' : '';
       const pinBadge = m.pinned ? '<i class="fa-solid fa-thumbtack ck-pin-badge"></i>' : '';
       const senderLabel = (!mine && cfg.isGroup && m.senderName) ? `<span class="ck-sender">${escapeHtml(m.senderName)}</span>` : '';
       const trigger = `<button type="button" class="ck-trigger" data-msg-trigger data-id="${m.id}" aria-label="Message options"><i class="fa-solid fa-ellipsis-vertical"></i></button>`;
       const reactTrigger = `<button type="button" class="ck-react-trigger" data-react-trigger data-id="${m.id}" aria-label="React"><i class="fa-regular fa-face-smile"></i></button>`;
-      const hasBody = m.text || attachmentHtml || m.poll || m.location;
+      const hasBody = m.text || attachmentHtml || libraryHtml || m.poll || m.location;
       const bubble = `<div class="ck-bubble ${mine ? 'mine' : 'theirs'}" data-bubble>
-        ${senderLabel}${quoteHtml}${attachmentHtml}${pollHtml(m)}${locationHtml(m)}
+        ${senderLabel}${quoteHtml}${attachmentHtml}${libraryHtml}${pollHtml(m)}${locationHtml(m)}
         ${m.text ? `<p class="whitespace-pre-wrap">${pinBadge}${linkifyHtml(m.text)}${editedTag}<span class="ck-stamp">${stamp}</span></p>` : hasBody ? `<span class="ck-stamp" style="float:none;top:0;display:block;margin:2px 0 0">${pinBadge}${editedTag} ${stamp}</span>` : ''}
         ${reactionsHtml(m)}
       </div>`;
@@ -340,12 +349,18 @@
     function cancelReplying() { replyingToId = null; el('[data-ck-reply-banner]').hidden = true; }
 
     function refreshSendButton() {
-      const hasContent = Boolean(input.value.trim()) || Boolean(pendingAttachment);
+      const hasContent = Boolean(input.value.trim()) || Boolean(pendingAttachment) || Boolean(pendingLibraryItem);
       sendIcon.className = hasContent ? 'fa-solid fa-paper-plane' : 'fa-solid fa-microphone';
       sendBtn.title = hasContent ? 'Send' : 'Record a voice note';
     }
     function autoGrow() { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 96)}px`; }
     function showAttachPreview() {
+      if (pendingLibraryItem) {
+        attachPreview.innerHTML = `<i class="fa-solid fa-clapperboard text-gray-400"></i><span>${escapeHtml(pendingLibraryItem.title || 'Clip')}</span><button type="button" class="ck-drop" title="Remove clip"><i class="fa-solid fa-xmark"></i></button>`;
+        attachPreview.hidden = false;
+        attachPreview.querySelector('.ck-drop').addEventListener('click', () => { pendingLibraryItem = null; showAttachPreview(); refreshSendButton(); });
+        return;
+      }
       if (!pendingAttachment) { attachPreview.hidden = true; attachPreview.innerHTML = ''; return; }
       const thumb = pendingAttachment.kind === 'image' ? `<img src="${escapeHtml(pendingAttachment.url)}" alt="">` : `<i class="fa-solid ${pendingAttachment.kind === 'video' ? 'fa-film' : pendingAttachment.kind === 'audio' ? 'fa-microphone' : 'fa-file-lines'} text-gray-400"></i>`;
       attachPreview.innerHTML = `${thumb}<span>${escapeHtml(pendingAttachment.name || 'Attachment')}</span><button type="button" class="ck-drop" title="Remove attachment"><i class="fa-solid fa-xmark"></i></button>`;
@@ -359,6 +374,7 @@
         const res = await fetch(cfg.uploadUrl, { method: 'POST', body: fd });
         const data = await res.json();
         if (!data.success) return cfg.onAlert(data.error || 'Upload failed.', 'error');
+        pendingLibraryItem = null;
         pendingAttachment = data.attachment;
         showAttachPreview(); refreshSendButton();
       } catch { cfg.onAlert('Upload failed.', 'error'); }
@@ -387,7 +403,7 @@
       else if (clip === 'media') el('[data-ck-media-input]').click();
       else if (clip === 'audio') el('[data-ck-audio-input]').click();
       else if (clip === 'camera') el('[data-ck-camera-input]').click();
-      else if (clip === 'library' && cfg.library) cfg.library.onOpen();
+      else if (clip === 'library' && cfg.library) cfg.library.onOpen((item) => { pendingAttachment = null; pendingLibraryItem = item; showAttachPreview(); refreshSendButton(); });
       else if (clip === 'poll') openPollModal();
       else if (clip === 'location') shareLocation();
     });
@@ -446,10 +462,10 @@
         if (res && res.success) { cancelEditing(); refresh(false); } else cfg.onAlert((res && res.error) || 'Could not save the edit.', 'error');
         return;
       }
-      if (!text && !pendingAttachment) { if (recorder) return finishRecording(true); return startRecording(); }
-      const res = await cfg.api.send({ text, attachment: pendingAttachment, replyToId: replyingToId || undefined });
+      if (!text && !pendingAttachment && !pendingLibraryItem) { if (recorder) return finishRecording(true); return startRecording(); }
+      const res = await cfg.api.send({ text, attachment: pendingAttachment, libraryItem: pendingLibraryItem, replyToId: replyingToId || undefined });
       if (res && res.success) {
-        input.value = ''; input.style.height = 'auto'; pendingAttachment = null;
+        input.value = ''; input.style.height = 'auto'; pendingAttachment = null; pendingLibraryItem = null;
         cancelReplying(); showAttachPreview(); refreshSendButton(); emojiPanel.hidden = true;
         refresh();
       } else cfg.onAlert((res && res.error) || 'Could not send message.', 'error');

@@ -280,6 +280,24 @@ function markNotificationRead(userId, notificationId) {
   return user;
 }
 
+// Org Tutor's bell mixes real user.notifications with content/event rows
+// synthesized fresh on every request from org content and org.events (see
+// GET /api/organizations/tutor-workspace) - those synthetic rows have no
+// `read` field of their own for markNotificationsRead to flip, so "Mark all
+// as read" there never stuck. This records a per-org read cursor instead:
+// any synthetic row created at or before it counts as read, without needing
+// to persist a read flag per content/event item.
+function markOrgTutorNotificationsRead(userId, orgId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  (user.notifications || []).forEach((n) => { if (String(n.href || '').startsWith('/org-tutor')) n.read = true; });
+  if (!user.orgTutorNotificationsReadAt) user.orgTutorNotificationsReadAt = {};
+  user.orgTutorNotificationsReadAt[orgId] = new Date().toISOString();
+  persist(db);
+  return user;
+}
+
 function setCountry(userId, countryCode) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
@@ -768,7 +786,7 @@ function getThreadPrefs(userId) {
 module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setProfileDisplayRole, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, markSeen, markReengagementEmailSent, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setExpoPushToken, removeExpoPushToken, markAppOnboardingSeen, markMobileWelcomeEmailSent, markTourSeen, setRole, setCountryAdmin, setPayoutDetails, listUsers,
+  markActive, markSeen, markReengagementEmailSent, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, markOrgTutorNotificationsRead, setPushSubscription, removePushSubscription, setExpoPushToken, removeExpoPushToken, markAppOnboardingSeen, markMobileWelcomeEmailSent, markTourSeen, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   getStripePaymentMethod, setStripePaymentMethod, clearStripePaymentMethod, clearStripeCustomer, setStripeConnectAccount,

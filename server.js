@@ -167,7 +167,12 @@ function diskOrMemoryStorage(diskDir) {
 async function resolveUploadedFileUrl(file, folder) {
   if (!file) return null;
   if (!USE_CLOUDINARY) return `/uploads/${folder}/${file.filename}`;
-  const resourceType = file.mimetype.startsWith('image/') ? 'image' : file.mimetype.startsWith('video/') ? 'video' : 'raw';
+  // Cloudinary has no separate "audio" resource type - audio (voice notes,
+  // music clips) has to go up as 'video', the same as clips, or it lands in
+  // 'raw' storage instead: no transcoding, no correct audio Content-Type, no
+  // range-request streaming, which is why a voice note uploaded that way
+  // would fail to play back even though the upload itself "succeeded".
+  const resourceType = file.mimetype.startsWith('image/') ? 'image' : (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/')) ? 'video' : 'raw';
   const result = await cloudinaryClient.uploadBuffer(file.buffer, { folder, resourceType });
   return result.secure_url;
 }
@@ -2894,18 +2899,21 @@ app.delete('/api/group-chats/:id/members/:type/:memberId', requireAuthApi, (req,
 });
 app.post('/api/group-chats/:id/messages', requireAuthApi, (req, res) => {
   const access = tutorGroupAccess(currentUser(req), req.params.id);
-  const { text: rawText, attachment, replyToId, poll, location } = req.body || {};
+  const { text: rawText, attachment, replyToId, poll, location, libraryItem } = req.body || {};
   const text = String(rawText || '').trim();
   if (!access) return res.status(404).json({ success: false, error: 'Group chat not found.' });
-  if (!text && !attachment && !poll && !location) return res.status(400).json({ success: false, error: 'Write a message, attach a file, a poll, or a location.' });
+  if (!text && !attachment && !poll && !location && !libraryItem) return res.status(400).json({ success: false, error: 'Write a message, attach a file, a poll, a location, or a library clip.' });
   if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
   const { poll: safePoll, error: pollError } = validatePollInput(poll);
   if (pollError) return res.status(400).json({ success: false, error: pollError });
   const { location: safeLocation, error: locationError } = validateLocationInput(location);
   if (locationError) return res.status(400).json({ success: false, error: locationError });
+  const safeLibraryItem = libraryItem && libraryItem.title && libraryItem.url
+    ? { title: String(libraryItem.title).trim().slice(0, 200), url: String(libraryItem.url).trim() }
+    : null;
   const message = orgChat.sendMessage(access.conversation.id, {
     senderId: currentUser(req).id, senderType: access.role, senderName: access.name, text, attachment,
-    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation, libraryItem: safeLibraryItem,
   });
   res.json({ success: true, message });
 });
@@ -5424,9 +5432,25 @@ app.get('/api/organizations/mine/conversations', requireAuthApi, (req, res) => {
   if (!tutorProfile) return res.status(404).json({ success: false, error: 'No tutor profile found.' });
   const org = resolveOrgForUser(user);
   if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  const prefs = store.getThreadPrefs(user.id);
   const direct = orgChat.getOrCreateConversation(org.id, { type: 'tutor', tutorId: tutorProfile.id, name: tutorProfile.name });
   const groups = orgChat.listForOrganization(org.id).filter((c) => c.type === 'group' && c.participants.some((p) => p.type === 'tutor' && Number(p.id) === tutorProfile.id));
-  const conversations = [direct, ...groups].map((c) => ({ ...c, unreadCount: orgChat.getUnreadCount(c.id, 'tutor') }));
+  const conversations = [direct, ...groups].map((c) => {
+    const threadKey = `org:${c.id}`;
+    const muted = prefs.mutedThreads[threadKey];
+    const stillMuted = muted && (muted.until === null || new Date(muted.until) > new Date());
+    return {
+      ...c,
+      unreadCount: orgChat.getUnreadCount(c.id, 'tutor'),
+      threadKey,
+      hiddenAt: prefs.hiddenThreads[threadKey] || null,
+      favorite: prefs.favoriteThreadIds.includes(threadKey),
+      archived: prefs.archivedThreadIds.includes(threadKey),
+      pinned: prefs.pinnedThreadIds.includes(threadKey),
+      muted: Boolean(stillMuted),
+      mutedUntil: stillMuted && muted.until ? muted.until : null,
+    };
+  }).filter((c) => !(c.hiddenAt && new Date((c.messages || []).slice(-1)[0]?.createdAt || c.createdAt) <= new Date(c.hiddenAt)));
   res.json({ success: true, conversations, organizationName: org.name || org.contactName });
 });
 
@@ -5500,12 +5524,28 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   // held both relationships to an org. Only an explicit /org-tutor href
   // (nothing currently sets one) should ever qualify.
   const orgNotifications = (user.notifications || []).filter((item) => String(item.href || '').startsWith('/org-tutor'));
+  // content/events below are regenerated fresh on every request, not read
+  // from user.notifications, so their `read` state has to come from this
+  // per-org cursor rather than a per-item flag - see markOrgTutorNotificationsRead.
+  const orgReadAt = user.orgTutorNotificationsReadAt && user.orgTutorNotificationsReadAt[org.id] ? new Date(user.orgTutorNotificationsReadAt[org.id]) : null;
+  const isReadByCursor = (createdAt) => Boolean(orgReadAt && createdAt && new Date(createdAt) <= orgReadAt);
   const notifications = [
     ...orgNotifications.map((item) => ({ ...item })),
-    ...content.map((item) => ({ id: `content-${item.id}`, type: item.type, message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, href: `/org-tutor?orgId=${org.id}#feeds` })),
-    ...(org.events || []).map((item) => ({ id: `event-${item.id}`, type: 'event', message: `Event scheduled: ${item.title}`, createdAt: item.createdAt || item.scheduledAt, href: `/org-tutor?orgId=${org.id}#classes` })),
+    ...content.map((item) => ({ id: `content-${item.id}`, type: item.type, message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, href: `/org-tutor?orgId=${org.id}#feeds`, read: isReadByCursor(item.createdAt) })),
+    ...(org.events || []).map((item) => ({ id: `event-${item.id}`, type: 'event', message: `Event scheduled: ${item.title}`, createdAt: item.createdAt || item.scheduledAt, href: `/org-tutor?orgId=${org.id}#schedules`, read: isReadByCursor(item.createdAt || item.scheduledAt) })),
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   res.json({ success: true, organization: { id: org.id, name: org.name || org.contactName, logoUrl: org.logoUrl || null, address: org.address || null }, organizations: orgs.map((item) => ({ id: item.id, name: item.name || item.contactName, logoUrl: item.logoUrl || null, address: item.address || null })), students, assignments: assignmentsForOrg, requests, content, events: org.events || [], notifications, isOrgOwner });
+});
+
+app.post('/api/organizations/tutor-workspace/notifications/read-all', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const tutor = tutors.findByUserId(user.id);
+  const orgs = organizationMembershipsForUser(user);
+  const requestedOrgId = req.query.orgId ? Number(req.query.orgId) : null;
+  const org = (requestedOrgId && orgs.find((item) => item.id === requestedOrgId)) || orgs[0];
+  if (!tutor || !org) return res.status(403).json({ success: false, error: 'Organization tutor access required.' });
+  store.markOrgTutorNotificationsRead(user.id, org.id);
+  res.json({ success: true });
 });
 
 // A tutor or student reacts to an organization's feed/announcement post -
@@ -7614,18 +7654,28 @@ app.post('/api/threads/:type/:id/block', requireAuthApi, (req, res) => {
   res.json({ success: true, blocked: store.toggleBlockedUser(ctx.user.id, ctx.otherPartyUserId) });
 });
 
-// Marks every direct + group thread this user is part of as read in one
-// call, backing "Mark all as read" in the messages-list "..." menu.
+// Marks every direct + group + org-chat thread this user is part of as read
+// in one call, backing "Mark all as read" in the messages-list "..." menu
+// (and the same menu on the Org Tutor dashboard's Messages panel).
 app.post('/api/threads/mark-all-read', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const tutorProfile = tutors.findByUserId(user.id);
+  const org = organizations.findByUserId(user.id);
   assignments.listAll().forEach((record) => {
     const role = record.studentId === user.id ? 'student' : (tutorProfile && record.tutorId === tutorProfile.id ? 'tutor' : null);
     if (role) chat.markRead(record.id, role);
   });
-  const groups = (tutorProfile ? orgChat.listForTutor(tutorProfile.id) : orgChat.listAll())
-    .filter((item) => item.type === 'tutor-group' && (tutorProfile ? Number(item.tutorId) === Number(tutorProfile.id) : (item.participants || []).some((p) => p.type === 'student' && Number(p.id) === Number(user.id))));
-  groups.forEach((group) => orgChat.markRead(group.id, tutorProfile ? 'tutor' : 'student'));
+  // Any org-chat conversation this account has a role in - org owner,
+  // tutor participant (course groups + org-created groups + the tutor's own
+  // channel with the org), or student participant - not just tutor-group,
+  // which used to leave every other org-chat type permanently unread.
+  orgChat.listAll().forEach((conv) => {
+    let role = null;
+    if (org && org.id === conv.orgId) role = 'org';
+    else if (tutorProfile && conv.participants.some((p) => p.type === 'tutor' && Number(p.id) === tutorProfile.id)) role = 'tutor';
+    else if (conv.participants.some((p) => p.type === 'student' && Number(p.id) === user.id)) role = 'student';
+    if (role) orgChat.markRead(conv.id, role);
+  });
   res.json({ success: true });
 });
 

@@ -18,7 +18,7 @@ main { flex: 1; min-height: 0; }
 </head>
 <body class="bg-gray-50">
 <div id="alert-box"></div>
-<header class="border-b bg-white shadow-sm"><nav class="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4"><a href="/messages" class="font-bold text-gray-900"><i class="fa-solid fa-arrow-left mr-2 text-red-700"></i>Messages</a><div id="auth-state"></div></nav></header>
+<header class="border-b bg-white shadow-sm"><nav class="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4"><a href="/messages" id="group-back-link" class="font-bold text-gray-900"><i class="fa-solid fa-arrow-left mr-2 text-red-700"></i>Messages</a><div id="auth-state"></div></nav></header>
 <main class="mx-auto flex max-w-[1600px] flex-col px-4 py-5 w-full">
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-lg">
     <header class="border-b px-5 py-4">
@@ -74,6 +74,9 @@ main { flex: 1; min-height: 0; }
 <script src="/assets/teaching-tools-launcher.js"></script>
 <script>
 let groupId = new URLSearchParams(location.search).get('id') || location.pathname.split('/').pop();
+// A caller can send "back" somewhere other than /messages, e.g. the Org
+// Tutor dashboard's Messages panel (?back=/org-tutor) - see chat.html.
+(() => { const back = new URLSearchParams(location.search).get('back'); if (back && back.startsWith('/')) { const link = document.getElementById('group-back-link'); link.href = back; link.innerHTML = '<i class="fa-solid fa-arrow-left mr-2 text-red-700"></i>Back'; } })();
 let role = '';
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]));
 let currentGroupMessages = [];
@@ -125,6 +128,42 @@ async function loadGroupInfo() {
 
 document.getElementById('members-button').onclick = () => document.getElementById('members').classList.toggle('hidden');
 
+// Same tutor-library clip picker chat.html offers in 1:1 lesson chat - the
+// group chat's clip menu never wired one up, so a tutor here had no way to
+// share their own or the Mozart library's videos with the whole group.
+// ChatKit hands back an `attach` callback; calling it with {title, url}
+// stages the clip in the composer exactly like a normal attachment.
+async function openGroupLibraryPicker(attach) {
+  const [mineRes, mozartRes] = await Promise.all([
+    fetch('/api/tutor-library/mine').then((r) => r.json()).catch(() => ({ success: false })),
+    fetch('/api/library').then((r) => r.json()).catch(() => ({ success: false })),
+  ]);
+  const items = { mine: mineRes.success ? (mineRes.items || []) : [], mozart: mozartRes.success ? (mozartRes.items || []) : [] };
+  let tab = 'mine';
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  modal.innerHTML = '<div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"><div class="mb-3 flex items-center justify-between"><h2 class="text-lg font-bold">Choose a video to send</h2><button type="button" data-close class="p-2 text-gray-500"><i class="fa-solid fa-xmark"></i></button></div><div class="mb-3 flex gap-1"><button type="button" class="lib-tab rounded-md bg-red-700 px-2 py-1 text-xs font-semibold text-white" data-tab="mine">My library</button><button type="button" class="lib-tab rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600" data-tab="mozart">Mozart library</button></div><div id="lib-picker-items" class="grid max-h-72 gap-2 overflow-y-auto"></div></div>';
+  document.body.appendChild(modal);
+  const list = modal.querySelector('#lib-picker-items');
+  function renderTab() {
+    const rows = items[tab] || [];
+    list.innerHTML = rows.length ? rows.map((item) => '<button type="button" class="lib-item text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-red-600" data-id="' + item.id + '"><strong class="block text-sm">' + esc(item.title) + '</strong><span class="text-xs text-gray-500">' + esc(item.category || 'All courses') + '</span></button>').join('') : '<p class="text-xs text-gray-400">No videos here yet.</p>';
+    list.querySelectorAll('.lib-item').forEach((btn) => btn.addEventListener('click', () => {
+      const item = rows.find((r) => String(r.id) === btn.dataset.id);
+      if (item) attach({ title: item.title, url: item.url });
+      modal.remove();
+    }));
+  }
+  modal.querySelectorAll('.lib-tab').forEach((btn) => btn.addEventListener('click', () => {
+    tab = btn.dataset.tab;
+    modal.querySelectorAll('.lib-tab').forEach((b) => { b.className = 'lib-tab rounded-md px-2 py-1 text-xs font-semibold ' + (b === btn ? 'bg-red-700 text-white' : 'border border-gray-200 bg-white text-gray-600'); });
+    renderTab();
+  }));
+  modal.querySelector('[data-close]').onclick = () => modal.remove();
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  renderTab();
+}
+
 async function init() {
   if (!/^\d+$/.test(groupId)) {
     const name = new URLSearchParams(location.search).get('name');
@@ -143,6 +182,7 @@ async function init() {
     isGroup: true,
     onAlert: showAlert,
     onMessages: (messages) => { currentGroupMessages = messages; },
+    library: role === 'tutor' ? { label: 'Tutor library', onOpen: openGroupLibraryPicker } : null,
     api: {
       list: async () => { const d = await fetch('/api/group-chats/' + groupId).then((r) => r.json()); return { success: d.success, messages: d.messages }; },
       send: async (payload) => fetch('/api/group-chats/' + groupId + '/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json()),

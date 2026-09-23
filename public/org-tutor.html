@@ -16,14 +16,23 @@
   <link rel="stylesheet" href="/assets/chat-kit.css">
   <script src="/assets/teaching-tools-launcher.js" defer></script>
   <style>
-    .org-tutor-roster{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;height:32rem}
-    .org-tutor-roster-list{border:1px solid #eaded8;border-radius:14px;background:#fff8f6;padding:12px;overflow-y:auto}
-    .org-tutor-roster-item{display:block;width:100%;text-align:left;border:1px solid #eaded8;border-radius:10px;background:#fff;padding:10px 12px;margin-bottom:8px;font-size:.85rem;font-weight:600;cursor:pointer}
-    .org-tutor-roster-item.active{background:#cc0000;color:#fff;border-color:#cc0000}
-    .org-tutor-roster-item small{display:block;font-weight:500;opacity:.7;font-size:.72rem;margin-top:2px}
     .org-tutor-thread{border:1px solid #eaded8;border-radius:14px;background:#fff;display:flex;flex-direction:column;overflow:hidden}
-    .org-tutor-thread-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eaded8}
-    .org-tutor-call-btn{border:none;background:#fff0ec;color:#cc0000;width:32px;height:32px;border-radius:999px;cursor:pointer}
+    .org-tutor-thread-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eaded8;gap:8px}
+    .org-tutor-call-btn{border:none;background:#fff0ec;color:#cc0000;width:32px;height:32px;border-radius:999px;cursor:pointer;flex-shrink:0}
+    /* Thread list rows, matching messages.html's own copy of this pattern -
+       the trigger stays visible at all times (chat-kit.css's default is
+       opacity:0-until-hover, invisible with no fallback on touch), and
+       long-pressing the row itself opens the same menu on mobile. */
+    .thread-row{position:relative}
+    .thread-row .ck-trigger{opacity:1!important;display:flex!important}
+    .unread-badge{background:#cc0000;color:#fff;font-size:11px;font-weight:800;border-radius:999px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+    .thread-pin-icon{color:#9ca3af;font-size:11px;margin-right:4px}
+    .cal-day{min-height:40px;border-radius:8px;padding:4px 0 0;font-size:.72rem;font-weight:600;position:relative;cursor:pointer;background:#f8f5f1;border:none;color:#241f1c}
+    .cal-day:hover{background:#f1e8e3}
+    .cal-day.other-month{opacity:.35}
+    .cal-day.today{box-shadow:inset 0 0 0 2px #cc0000}
+    .cal-day.selected{background:#ffe1de}
+    .cal-day .cal-dot{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:999px;background:#cc0000}
     body{font-family:'Science Gothic',Montserrat,system-ui,sans-serif;font-size:.8125rem;background:linear-gradient(135deg,#fff,#f8f5f1);color:#241f1c}
     .org-tutor-shell{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:calc(100vh - 72px)}
     .org-tutor-sidebar{position:sticky;top:72px;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 72px);height:calc(100dvh - 72px);overflow:hidden;background:#fff;border-right:1px solid #eaded8}
@@ -50,7 +59,6 @@
     .edit-library-btn,.delete-library-btn{transition:all .2s ease;font-size:.75rem;padding:.375rem .75rem;border-radius:.5rem;border:none;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.25rem;box-shadow:0 2px 4px rgba(0,0,0,.1)}
     .edit-library-btn{background:#2563eb;color:#fff}
     .delete-library-btn{background:#dc2626;color:#fff}
-    #create-group-chat{bottom:6rem}
     /* The "Create group" popup (built in JS, appended to document.body) is
        styled with these two classes but this page never defined them -
        ngo-dashboard.html/sponsor-dashboard.html do, this page just never
@@ -99,50 +107,299 @@
   <div class="org-tutor-shell">
     <aside id="org-tutor-sidebar" class="org-tutor-sidebar p-4">
       <div class="org-tutor-sidebar-head"><strong id="org-tutor-sidebar-name">Organization</strong><button id="org-tutor-mobile" class="org-tutor-mobile hidden text-red-700" aria-label="Open sidebar" aria-controls="org-tutor-sidebar" aria-expanded="false" title="Open sidebar"><i id="org-tutor-mobile-icon" class="fa-solid fa-angles-right" aria-hidden="true"></i></button></div>
-      <nav class="org-tutor-nav grid gap-2"><button class="active rounded-lg px-3 py-2 text-left font-semibold" data-panel="requests"><i class="fa-solid fa-envelope-open-text mr-2"></i>Requests</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="students"><i class="fa-solid fa-users mr-2"></i>Students</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="classes"><i class="fa-solid fa-calendar-days mr-2"></i>Classes</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="messages"><i class="fa-solid fa-comments mr-2"></i>Messages</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="announcements"><i class="fa-solid fa-newspaper mr-2"></i>Announcements</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="feeds"><i class="fa-solid fa-rss mr-2"></i>Feeds</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="library"><i class="fa-solid fa-folder-open mr-2"></i>Uploads & Library</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="notifications"><i class="fa-solid fa-bell mr-2"></i>Notifications</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="settings"><i class="fa-solid fa-gear mr-2"></i>Settings</button></nav>
+      <nav class="org-tutor-nav grid gap-2"><button class="active rounded-lg px-3 py-2 text-left font-semibold" data-panel="requests"><i class="fa-solid fa-envelope-open-text mr-2"></i>Requests</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="messages"><i class="fa-solid fa-comments mr-2"></i>Messages</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="schedules"><i class="fa-solid fa-calendar-days mr-2"></i>Schedules</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="announcements"><i class="fa-solid fa-newspaper mr-2"></i>Announcements</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="feeds"><i class="fa-solid fa-rss mr-2"></i>Feeds</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="library"><i class="fa-solid fa-folder-open mr-2"></i>Uploads & Library</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="notifications"><i class="fa-solid fa-bell mr-2"></i>Notifications</button><button class="rounded-lg px-3 py-2 text-left font-semibold" data-panel="settings"><i class="fa-solid fa-gear mr-2"></i>Settings</button></nav>
     </aside>
-    <main class="org-tutor-main mx-auto w-full max-w-6xl p-8"><section id="panel-requests" class="org-tutor-panel active"><h2 class="text-2xl font-extrabold">Requests</h2><div id="requests-list" class="mt-5 grid gap-3"></div></section><section id="panel-students" class="org-tutor-panel"><div class="flex items-center justify-between gap-3"><h2 class="text-2xl font-extrabold">Students</h2><button id="create-group-chat" class="fixed bottom-6 right-6 grid h-12 w-12 place-items-center rounded-full bg-red-700 text-xl text-white shadow-xl" aria-label="Create group chat" title="Create group chat"><i class="fa-solid fa-plus"></i></button></div><div id="students-list" class="mt-5 grid gap-3"></div></section><section id="panel-classes" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Classes</h2><button id="schedule-class" class="mt-4 rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"><i class="fa-solid fa-calendar-plus mr-2"></i>Schedule meeting</button><div id="classes-list" class="mt-5 grid gap-3"></div></section><section id="panel-messages" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Messages</h2><p class="mt-1 text-sm text-gray-500">Talk directly with your organization and any classroom groups you're part of.</p><div class="org-tutor-roster mt-5"><div class="org-tutor-roster-list" id="org-tutor-roster"></div><div class="org-tutor-thread"><div class="org-tutor-thread-head"><h3 id="org-tutor-thread-title" class="font-bold text-sm">Select a conversation</h3><button type="button" id="org-tutor-call-btn" class="org-tutor-call-btn" title="Start a call"><i class="fa-solid fa-video"></i></button></div><div id="org-tutor-chat-mount" class="flex min-h-0 flex-1 flex-col"></div></div></div></section><section id="panel-announcements" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Announcements</h2><div id="announcements-list" class="mt-5 grid gap-3"></div></section><section id="panel-feeds" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Organization Feeds</h2><div id="feeds-list" class="mt-5 grid gap-3"></div></section><section id="panel-library" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Uploads & Library</h2><div class="mt-4 flex gap-2 border-b border-gray-200"><button class="library-view-tab active pb-3 px-3 font-semibold text-red-700 border-b-2 border-red-700" data-library-view="general">General</button><button class="library-view-tab pb-3 px-3 font-semibold text-gray-600 hover:text-gray-800" data-library-view="shared">Shared</button><button class="library-view-tab pb-3 px-3 font-semibold text-gray-600 hover:text-gray-800" data-library-view="mine">My Uploads</button></div><div id="org-library-grid" class="mt-5 grid gap-4"></div></section><section id="panel-notifications" class="org-tutor-panel"><div class="flex items-center justify-between gap-3"><h2 class="text-2xl font-extrabold">Notifications</h2><button id="mark-read" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold">Mark all as read</button></div><div id="notifications-list" class="mt-5 grid gap-3"></div></section><section id="panel-settings" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Edit Profile</h2><form id="settings-form" class="mt-5 max-w-xl space-y-3"><input id="settings-name" required class="w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Name"><input id="settings-phone" class="w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Phone"><button class="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">Save changes</button></form></section></main>
+    <main class="org-tutor-main mx-auto w-full max-w-6xl p-8">
+      <section id="panel-requests" class="org-tutor-panel active"><h2 class="text-2xl font-extrabold">Requests</h2><div id="requests-list" class="mt-5 grid gap-3"></div></section>
+
+      <section id="panel-messages" class="org-tutor-panel">
+        <div id="org-tutor-messages-list-view">
+          <div class="mb-4 flex items-center justify-between gap-3"><div><h2 class="text-2xl font-extrabold">Messages</h2><span id="org-tutor-thread-count" class="text-xs text-gray-500"></span></div><div class="flex items-center gap-2"><button id="org-tutor-new-group-btn" type="button" class="grid h-10 w-10 place-items-center rounded-full bg-red-700 text-white shadow" aria-label="Create group chat" title="New group"><i class="fa-solid fa-plus"></i></button><button id="org-tutor-messages-more-btn" type="button" class="grid h-10 w-10 place-items-center rounded-full text-gray-600 hover:bg-gray-100" aria-label="More options" title="More options"><i class="fa-solid fa-ellipsis-vertical"></i></button></div></div>
+          <div class="mb-4 flex flex-col items-start gap-2"><div class="relative w-full max-w-lg"><i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i><input type="text" id="org-tutor-thread-search" placeholder="Search conversations" class="w-full rounded-full border border-gray-200 bg-white py-2.5 pl-11 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-200"></div><button type="button" id="org-tutor-archive-view-link" class="hidden text-xs font-semibold text-gray-500 hover:text-red-700"><i class="fa-solid fa-box-archive mr-1"></i>Archived</button></div>
+          <section class="overflow-hidden rounded-2xl bg-white shadow-lg"><div id="org-tutor-thread-list"><p class="p-10 text-center text-sm text-gray-400">Loading conversations...</p></div></section>
+        </div>
+        <div id="org-tutor-chat-view" class="hidden org-tutor-thread" style="height:calc(100vh - 220px);min-height:26rem">
+          <div class="org-tutor-thread-head"><div class="flex min-w-0 items-center gap-2"><button type="button" id="org-tutor-chat-back" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Back"><i class="fa-solid fa-arrow-left"></i></button><h3 id="org-tutor-thread-title" class="truncate font-bold text-sm">Select a conversation</h3></div><button type="button" id="org-tutor-call-btn" class="org-tutor-call-btn" title="Start a call"><i class="fa-solid fa-video"></i></button></div>
+          <div id="org-tutor-chat-mount" class="flex min-h-0 flex-1 flex-col"></div>
+        </div>
+      </section>
+
+      <section id="panel-schedules" class="org-tutor-panel">
+        <div class="flex items-center justify-between gap-3 flex-wrap"><h2 class="text-2xl font-extrabold">Schedules</h2><button id="schedule-class" class="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"><i class="fa-solid fa-calendar-plus mr-2"></i>Schedule meeting</button></div>
+        <div class="mt-5 grid gap-5" style="grid-template-columns:minmax(0,320px) minmax(0,1fr)">
+          <div class="rounded-xl border border-gray-200 bg-white p-4 self-start">
+            <div class="mb-3 flex items-center justify-between"><button type="button" id="cal-prev" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button><strong id="cal-label" class="text-sm"></strong><button type="button" id="cal-next" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button></div>
+            <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-400"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+            <div id="cal-grid" class="grid grid-cols-7 gap-1"></div>
+          </div>
+          <div>
+            <div class="mb-3 flex gap-2 border-b border-gray-200"><button class="schedule-tab active pb-2 px-3 font-semibold text-red-700 border-b-2 border-red-700" data-schedule-tab="upcoming">Upcoming</button><button class="schedule-tab pb-2 px-3 font-semibold text-gray-600 hover:text-gray-800" data-schedule-tab="today">Today</button><button class="schedule-tab pb-2 px-3 font-semibold text-gray-600 hover:text-gray-800" data-schedule-tab="past">Past</button></div>
+            <div id="schedule-list" class="grid gap-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-announcements" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Announcements</h2><div id="announcements-list" class="mt-5 grid gap-3"></div></section>
+      <section id="panel-feeds" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Organization Feeds</h2><div id="feeds-list" class="mt-5 grid gap-3"></div></section>
+      <section id="panel-library" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Uploads & Library</h2><div class="mt-4 flex gap-2 border-b border-gray-200"><button class="library-view-tab active pb-3 px-3 font-semibold text-red-700 border-b-2 border-red-700" data-library-view="general">General</button><button class="library-view-tab pb-3 px-3 font-semibold text-gray-600 hover:text-gray-800" data-library-view="shared">Shared</button><button class="library-view-tab pb-3 px-3 font-semibold text-gray-600 hover:text-gray-800" data-library-view="mine">My Uploads</button></div><div id="org-library-grid" class="mt-5 grid gap-4"></div></section>
+      <section id="panel-notifications" class="org-tutor-panel"><div class="flex items-center justify-between gap-3"><h2 class="text-2xl font-extrabold">Notifications</h2><button id="mark-read" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold">Mark all as read</button></div><div id="notifications-list" class="mt-5 grid gap-3"></div></section>
+      <section id="panel-settings" class="org-tutor-panel"><h2 class="text-2xl font-extrabold">Edit Profile</h2><form id="settings-form" class="mt-5 max-w-xl space-y-3"><input id="settings-name" required class="w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Name"><input id="settings-phone" class="w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Phone"><button class="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">Save changes</button></form></section>
+    </main>
+
+    <div class="ck-popover" id="org-messages-more-menu" hidden style="min-width:200px;">
+      <button type="button" data-more="new-group"><i class="fa-solid fa-user-group"></i> New group</button>
+      <button type="button" data-more="mark-all-read"><i class="fa-solid fa-envelope-open"></i> Mark all as read</button>
+    </div>
+    <div class="ck-popover" id="org-row-menu" hidden style="min-width:210px;">
+      <button type="button" data-row-action="archive"><i class="fa-solid fa-box-archive"></i> <span id="org-row-archive-label">Archive chat</span></button>
+      <div style="position:relative;">
+        <button type="button" data-row-action="mute-toggle" id="org-row-mute-toggle"><i class="fa-solid fa-bell"></i> <span id="org-row-mute-label">Mute notification</span> <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i></button>
+        <div class="ck-popover" id="org-row-mute-submenu" hidden style="min-width:140px;"><button type="button" data-mute="8h">8 hours</button><button type="button" data-mute="1w">1 week</button><button type="button" data-mute="always">Always</button></div>
+      </div>
+      <button type="button" data-row-action="pin"><i class="fa-solid fa-thumbtack"></i> <span id="org-row-pin-label">Pin chat</span></button>
+      <button type="button" data-row-action="mark-unread"><i class="fa-regular fa-envelope"></i> Mark as unread</button>
+      <button type="button" data-row-action="favorite"><i class="fa-regular fa-star"></i> <span id="org-row-favorite-label">Add to Favourite</span></button>
+      <hr style="margin:6px 0;border-color:#eee;">
+      <button type="button" data-row-action="block" class="danger" id="org-row-block-btn"><i class="fa-solid fa-ban"></i> <span id="org-row-block-label">Block</span></button>
+      <button type="button" data-row-action="clear" class="danger"><i class="fa-solid fa-broom"></i> Clear chat</button>
+      <button type="button" data-row-action="delete" class="danger"><i class="fa-solid fa-trash"></i> Delete chat</button>
+    </div>
   </div>
   <script src="/assets/nav-auth.js"></script><script src="/assets/chat-kit.js"></script><script>
-    const state={data:null}; const esc=(v)=>String(v||'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    let myUserId=null, tutorConversations=[], tutorChatController=null, tutorActiveConvId=null;
-    function orgChatActionUrls(getConvId){return{edit:async(id,text)=>fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})}).then((r)=>r.json()),del:async(id,mode)=>mode==='me'?fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/delete-for-me`,{method:'POST'}).then((r)=>r.json()):fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`,{method:'DELETE'}).then((r)=>r.json()),react:async(id,emoji)=>fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/react`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({emoji})}).then((r)=>r.json()),pin:async(id)=>fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/pin`,{method:'POST'}).then((r)=>r.json()),vote:async(id,optionId)=>fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/poll-vote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({optionId})}).then((r)=>r.json())};}
-    async function loadTutorMessages(){
-      const res=await fetch('/api/organizations/mine/conversations');
-      const data=await res.json();
-      const list=document.getElementById('org-tutor-roster');
-      if(!data.success){list.innerHTML='<p class="text-sm text-gray-500 p-2">Not linked to an organization.</p>';return;}
-      tutorConversations=data.conversations||[];
-      list.innerHTML=tutorConversations.map((c)=>`<button type="button" class="org-tutor-roster-item${c.id===tutorActiveConvId?' active':''}" data-conv-id="${c.id}">${esc(c.title||(c.type==='group'?'Group chat':data.organizationName||'Organization'))}${c.unreadCount?`<small>${c.unreadCount} unread</small>`:''}</button>`).join('')||'<p class="text-sm text-gray-500 p-2">No conversations yet.</p>';
-      list.querySelectorAll('[data-conv-id]').forEach((btn)=>btn.addEventListener('click',()=>openTutorConversation(Number(btn.dataset.convId))));
-      if(tutorActiveConvId==null&&tutorConversations.length)openTutorConversation(tutorConversations[0].id);
+    const state={data:null, tutorProfile:null}; const esc=(v)=>String(v||'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    const initials=(name)=>String(name||'?').split(/\s+/).map((part)=>part[0]||'').join('').slice(0,2).toUpperCase();
+    const timeLabel=(value)=>value?new Date(value).toLocaleDateString([],{day:'2-digit',month:'short'}):'';
+    let myUserId=null, tutorChatController=null;
+    let orgMessageRows=[]; // merged roster: assigned-org-students (real assignment threads) + tutor's course groups + this org's own channel/groups
+    let activeEmbeddedRow=null; // the currently open row when it has no dedicated page (org channel / org-created group)
+    function orgChatActionUrls(convId){return{edit:async(id,text)=>fetch(`/api/org-chat/conversations/${convId}/messages/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})}).then((r)=>r.json()),del:async(id,mode)=>mode==='me'?fetch(`/api/org-chat/conversations/${convId}/messages/${id}/delete-for-me`,{method:'POST'}).then((r)=>r.json()):fetch(`/api/org-chat/conversations/${convId}/messages/${id}`,{method:'DELETE'}).then((r)=>r.json()),react:async(id,emoji)=>fetch(`/api/org-chat/conversations/${convId}/messages/${id}/react`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({emoji})}).then((r)=>r.json()),pin:async(id)=>fetch(`/api/org-chat/conversations/${convId}/messages/${id}/pin`,{method:'POST'}).then((r)=>r.json()),vote:async(id,optionId)=>fetch(`/api/org-chat/conversations/${convId}/messages/${id}/poll-vote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({optionId})}).then((r)=>r.json())};}
+
+    // A row's "type" segment for the shared /api/threads/:type/:id/... prefs
+    // routes (archive/pin/mute/favorite/mark-unread/clear/delete/block) -
+    // these already exist for every kind of thread this dashboard shows.
+    function rowThreadType(row){return row.kind==='assignment'?'assignment':row.kind==='tutorGroup'?'group':'org';}
+
+    async function loadOrgMessages(){
+      const list=document.getElementById('org-tutor-thread-list');
+      const orgStudentIds=new Set((state.data?.students||[]).map((s)=>Number(s.studentId)));
+      try{
+        const [convRes,groupRes,orgRes]=await Promise.all([
+          fetch('/api/conversations').then((r)=>r.json()),
+          fetch('/api/group-chats').then((r)=>r.json()),
+          fetch('/api/organizations/mine/conversations').then((r)=>r.json()),
+        ]);
+        const studentRows=(convRes.success?convRes.conversations:[])
+          .filter((c)=>c.role==='tutor'&&orgStudentIds.has(Number(c.otherPartyUserId)))
+          .map((c)=>({kind:'assignment',key:`assignment:${c.assignmentId}`,apiId:c.assignmentId,otherPartyUserId:c.otherPartyUserId,title:c.name,subtitle:c.lastMessage||'No messages yet',lastAt:c.lastAt,unread:c.unread,photoUrl:c.photoUrl,pinned:c.pinned,muted:c.muted,favorite:c.favorite,blocked:c.blocked,archived:c.archived,href:`/messages/chat?name=${encodeURIComponent(c.name||'')}&back=${encodeURIComponent('/org-tutor')}`}));
+        const groupRows=(groupRes.success?groupRes.chats:[])
+          .map((g)=>({kind:'tutorGroup',key:`group:${g.id}`,apiId:g.id,title:g.name,subtitle:g.lastMessage||`${g.studentCount||0} students`,lastAt:g.lastAt,unread:0,photoUrl:g.photoUrl,pinned:g.pinned,muted:g.muted,favorite:g.favorite,archived:g.archived,isGroup:true,href:`/messages/group?name=${encodeURIComponent(g.name||'')}&back=${encodeURIComponent('/org-tutor')}`}));
+        const orgRows=(orgRes.success?orgRes.conversations:[])
+          .map((c)=>{const last=(c.messages||[]).slice(-1)[0];return {kind:'org',key:`org:${c.id}`,apiId:c.id,title:c.title||(c.type==='group'?'Group chat':orgRes.organizationName||'Organization'),subtitle:last?(last.text||'Attachment'):(c.type==='group'?`${(c.participants||[]).filter((p)=>p.type==='student').length} students`:'No messages yet'),lastAt:last?last.createdAt:c.createdAt,unread:c.unreadCount,photoUrl:c.groupImageUrl||null,pinned:c.pinned,muted:c.muted,favorite:c.favorite,archived:c.archived,isGroup:c.type==='group',href:null};});
+        orgMessageRows=[...orgRows,...groupRows,...studentRows].sort((a,b)=>(b.pinned-a.pinned)||(new Date(b.lastAt||0)-new Date(a.lastAt||0)));
+        renderOrgMessageList();
+      }catch(e){list.innerHTML='<p class="p-10 text-center text-sm text-red-600">Could not load messages. Please refresh.</p>';}
     }
-    function openTutorConversation(convId){
-      tutorActiveConvId=convId;
-      document.querySelectorAll('.org-tutor-roster-item').forEach((btn)=>btn.classList.toggle('active',Number(btn.dataset.convId)===convId));
-      const conv=tutorConversations.find((c)=>c.id===convId);
-      document.getElementById('org-tutor-thread-title').textContent=(conv&&conv.title)||'Conversation';
+    let orgArchiveView=false;
+    function renderOrgMessageList(){
+      const query=(document.getElementById('org-tutor-thread-search').value||'').trim().toLowerCase();
+      const archivedCount=orgMessageRows.filter((r)=>r.archived).length;
+      const archiveLink=document.getElementById('org-tutor-archive-view-link');
+      archiveLink.innerHTML=orgArchiveView?'<i class="fa-solid fa-arrow-left mr-1"></i>Back to Messages':`<i class="fa-solid fa-box-archive mr-1"></i>Archived (${archivedCount})`;
+      archiveLink.classList.toggle('hidden',!orgArchiveView&&!archivedCount);
+      let rows=orgMessageRows.filter((r)=>Boolean(r.archived)===orgArchiveView);
+      if(query)rows=rows.filter((r)=>String(r.title||'').toLowerCase().includes(query));
+      document.getElementById('org-tutor-thread-count').textContent=orgArchiveView?`${rows.length} archived`:`${rows.length} conversation${rows.length===1?'':'s'}`;
+      const list=document.getElementById('org-tutor-thread-list');
+      if(!rows.length){list.innerHTML=`<p class="p-10 text-center text-sm text-gray-400">${orgArchiveView?'No archived chats.':query?'No conversations found.':'No conversations yet.'}</p>`;return;}
+      list.innerHTML=rows.map((item)=>{
+        const avatar=item.photoUrl?`<img src="${esc(item.photoUrl)}" alt="" class="h-11 w-11 rounded-full object-cover">`:`<div class="grid h-11 w-11 place-items-center rounded-full bg-red-700 font-bold text-white">${item.isGroup?'<i class="fa-solid fa-users"></i>':initials(item.title)}</div>`;
+        const pinIcon=item.pinned?'<i class="fa-solid fa-thumbtack thread-pin-icon"></i>':'';
+        const muteIcon=item.muted?'<i class="fa-solid fa-bell-slash text-gray-300 text-xs ml-1"></i>':'';
+        const favIcon=item.favorite?'<i class="fa-solid fa-star text-amber-400 text-xs ml-1"></i>':'';
+        const unread=Number(item.unread||0);
+        return `<div class="ck-row thread-row flex items-center gap-3 border-b border-gray-100 p-4 transition hover:bg-red-50" data-key="${esc(item.key)}">
+          <div class="shrink-0">${avatar}</div>
+          <div class="min-w-0 flex-1 cursor-pointer" data-open>
+            <div class="flex items-center justify-between gap-3"><strong class="truncate text-gray-900">${pinIcon}${esc(item.title)}${muteIcon}${favIcon}</strong><span class="shrink-0 text-xs text-gray-400">${timeLabel(item.lastAt)}</span></div>
+            <div class="mt-1 flex items-center justify-between gap-2"><p class="truncate text-sm text-gray-500">${esc(item.subtitle||'')}</p>${unread?`<span class="unread-badge shrink-0">${unread}</span>`:''}</div>
+          </div>
+          <button type="button" class="ck-trigger" data-row-trigger aria-label="Chat options"><i class="fa-solid fa-chevron-down"></i></button>
+        </div>`;
+      }).join('');
+      list.querySelectorAll('.thread-row').forEach((row)=>{
+        const key=row.dataset.key;
+        row.querySelector('[data-open]').addEventListener('click',()=>openOrgThreadRow(key));
+        let pressTimer=null;
+        row.addEventListener('touchstart',()=>{pressTimer=setTimeout(()=>openOrgRowMenu(key,row),500);},{passive:true});
+        ['touchend','touchmove','touchcancel'].forEach((evt)=>row.addEventListener(evt,()=>clearTimeout(pressTimer)));
+        row.querySelector('[data-row-trigger]').addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();openOrgRowMenu(key,e.currentTarget);});
+      });
+    }
+    document.getElementById('org-tutor-thread-search').addEventListener('input',renderOrgMessageList);
+    document.getElementById('org-tutor-archive-view-link').addEventListener('click',()=>{orgArchiveView=!orgArchiveView;renderOrgMessageList();});
+
+    function openOrgThreadRow(key){
+      const item=orgMessageRows.find((r)=>r.key===key);
+      if(!item)return;
+      if(item.href){window.location.href=item.href;return;}
+      openEmbeddedOrgThread(item);
+    }
+    function openEmbeddedOrgThread(item){
+      activeEmbeddedRow=item;
+      document.getElementById('org-tutor-messages-list-view').classList.add('hidden');
+      document.getElementById('org-tutor-chat-view').classList.remove('hidden');
+      document.getElementById('org-tutor-thread-title').textContent=item.title||'Conversation';
       if(tutorChatController){tutorChatController.destroy();tutorChatController=null;}
-      const actions=orgChatActionUrls(()=>tutorActiveConvId);
+      const actions=orgChatActionUrls(item.apiId);
       tutorChatController=ChatKit.mount(document.getElementById('org-tutor-chat-mount'),{
-        me:{id:myUserId,role:'tutor'}, isGroup:Boolean(conv&&conv.type==='group'||conv&&conv.type==='tutor-group'), onAlert:(m)=>alert(m),
+        me:{id:myUserId,role:'tutor'}, isGroup:Boolean(item.isGroup), onAlert:(m)=>alert(m),
         api:{
-          list:async()=>{const d=await fetch(`/api/org-chat/conversations/${convId}/messages`).then((r)=>r.json());return{success:d.success,messages:d.messages||[]};},
-          send:async(payload)=>fetch(`/api/org-chat/conversations/${convId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then((r)=>r.json()),
+          list:async()=>{const d=await fetch(`/api/org-chat/conversations/${item.apiId}/messages`).then((r)=>r.json());return{success:d.success,messages:d.messages||[]};},
+          send:async(payload)=>fetch(`/api/org-chat/conversations/${item.apiId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then((r)=>r.json()),
           ...actions,
         },
       });
     }
+    document.getElementById('org-tutor-chat-back').addEventListener('click',()=>{
+      if(tutorChatController){tutorChatController.destroy();tutorChatController=null;}
+      activeEmbeddedRow=null;
+      document.getElementById('org-tutor-chat-view').classList.add('hidden');
+      document.getElementById('org-tutor-messages-list-view').classList.remove('hidden');
+      loadOrgMessages();
+    });
     document.getElementById('org-tutor-call-btn').addEventListener('click',async()=>{
-      if(!tutorActiveConvId)return;
-      const existing=await fetch(`/api/org-chat/conversations/${tutorActiveConvId}/messages`).then((r)=>r.json()).catch(()=>null);
+      if(!activeEmbeddedRow)return;
+      const existing=await fetch(`/api/org-chat/conversations/${activeEmbeddedRow.apiId}/messages`).then((r)=>r.json()).catch(()=>null);
       if(existing&&existing.success&&existing.conversation&&existing.conversation.meetingLink){window.location.href=existing.conversation.meetingLink;return;}
       const win=window.open('https://meet.google.com/new','_blank','noopener');
       if(!win)window.location.href='https://meet.google.com/new';
     });
-    function activate(panel){document.querySelectorAll('.org-tutor-panel').forEach((node)=>node.classList.toggle('active',node.id==='panel-'+panel));document.querySelectorAll('.org-tutor-nav button').forEach((node)=>node.classList.toggle('active',node.dataset.panel===panel));document.getElementById('org-tutor-sidebar').classList.remove('open');if(panel==='messages')loadTutorMessages();}
-    function render(){const d=state.data; document.getElementById('org-tutor-org-name').textContent=d.organization.name;document.getElementById('org-tutor-sidebar-name').textContent=d.organization.name; document.getElementById('org-tutor-logo').innerHTML=d.organization.logoUrl?`<img src="${esc(d.organization.logoUrl)}" alt="" class="h-full w-full object-cover">`:esc((d.organization.name||'O').trim().charAt(0).toUpperCase());document.getElementById('requests-list').innerHTML=(d.requests||[]).map((r)=>`<article class="rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>${esc(r.studentName||'Student')}</strong><p class="mt-1 text-sm">${esc(r.category)} · ${esc(r.lessonType)}</p></article>`).join('')||'<p class="text-gray-500">No organization requests.</p>';document.getElementById('students-list').innerHTML=(d.students||[]).map((s)=>{const name=s.studentName||s.name||'Student';return `<article class="flex items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><strong>${esc(name)}</strong><p class="text-xs text-gray-500">${esc(s.email||'')}</p></div><a class="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white" href="/messages/chat?name=${encodeURIComponent(name)}">Chat</a></article>`}).join('')||'<p class="text-gray-500">No students linked.</p>';const events=d.events||[];document.getElementById('classes-list').innerHTML=events.map((e)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(e.title)}</strong><p class="text-sm text-gray-500">${new Date(e.scheduledAt).toLocaleString()}</p>${e.meetLink?`<a class="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white" href="${esc(e.meetLink)}" target="_blank" rel="noopener">Join meeting</a>`:''}</article>`).join('')||'<p class="text-gray-500">No classes scheduled.</p>';const content=d.content||[];document.getElementById('announcements-list').innerHTML=content.filter((i)=>i.type==='announcement').map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No announcements.</p>';document.getElementById('feeds-list').innerHTML=content.filter((i)=>['feed','photo','video'].includes(i.type)).map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No feeds.</p>';wireReactionButtons(content,render);document.getElementById('notifications-list').innerHTML=(d.notifications||[]).map((n,index)=>`<button class="org-notification rounded-xl border bg-white p-4 text-left ${n.read?'':'border-l-4 border-l-red-700'}" data-index="${index}"><strong>${esc(n.type||'Update')}</strong><p class="mt-1 text-sm text-gray-600">${esc(n.message)}</p></button>`).join('')||'<p class="text-gray-500">No notifications.</p>';document.querySelectorAll('.org-notification').forEach((button)=>button.addEventListener('click',async()=>{const item=d.notifications[Number(button.dataset.index)];if(item&&item.id&&!item.read)await fetch(`/api/notifications/${encodeURIComponent(item.id)}/read`,{method:'POST'});button.classList.remove('border-l-4','border-l-red-700');}));document.getElementById('settings-name').value=d.organization.name;}
-    async function load(){const params=new URLSearchParams(location.search);const [r,sessionRes]=await Promise.all([fetch('/api/organizations/tutor-workspace?orgId='+encodeURIComponent(params.get('orgId')||'')),fetch('/api/session')]);const d=await r.json();const session=await sessionRes.json();if(session.user)myUserId=session.user.id;if(!d.success){location.href='/tutor';return}state.data=d;render();const unread=(d.notifications||[]).filter((n)=>!n.read).length;const badge=document.getElementById('org-tutor-badge');badge.textContent=unread;badge.classList.toggle('hidden',!unread);}
+
+    // --- Row menu (archive/mute/pin/mark-unread/favorite/block/clear/delete) - same routes and behavior as messages.html's row-menu ---
+    const orgRowMenu=document.getElementById('org-row-menu');
+    const orgRowMuteSubmenu=document.getElementById('org-row-mute-submenu');
+    let orgRowMenuKey=null;
+    function closeOrgRowMenu(){orgRowMenu.hidden=true;orgRowMuteSubmenu.hidden=true;orgRowMenuKey=null;}
+    function openOrgRowMenu(key,anchor){
+      orgRowMenuKey=key;
+      const item=orgMessageRows.find((r)=>r.key===key);
+      if(!item)return;
+      document.getElementById('org-row-block-btn').classList.toggle('hidden',item.kind!=='assignment');
+      document.getElementById('org-row-archive-label').textContent=item.archived?'Unarchive chat':'Archive chat';
+      document.getElementById('org-row-pin-label').textContent=item.pinned?'Unpin chat':'Pin chat';
+      document.getElementById('org-row-favorite-label').textContent=item.favorite?'Remove Favourite':'Add to Favourite';
+      document.getElementById('org-row-mute-label').textContent=item.muted?'Muted (tap to unmute)':'Mute notification';
+      document.getElementById('org-row-block-label').textContent=item.blocked?'Unblock':'Block';
+      const rect=anchor.getBoundingClientRect();
+      orgRowMenu.style.left=`${Math.max(8,rect.right-210)}px`;
+      orgRowMenu.style.top=`${rect.bottom+4}px`;
+      orgRowMenu.hidden=false;
+    }
+    document.addEventListener('click',(e)=>{if(!orgRowMenu.hidden&&!e.target.closest('#org-row-menu'))closeOrgRowMenu();});
+    document.getElementById('org-row-mute-toggle').addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const item=orgMessageRows.find((r)=>r.key===orgRowMenuKey);
+      if(item&&item.muted){setOrgRowMute(null);return;}
+      const rect=e.currentTarget.getBoundingClientRect();
+      orgRowMuteSubmenu.style.left=`${rect.right+4}px`;
+      orgRowMuteSubmenu.style.top=`${rect.top}px`;
+      orgRowMuteSubmenu.hidden=!orgRowMuteSubmenu.hidden;
+    });
+    orgRowMuteSubmenu.addEventListener('click',(e)=>{const btn=e.target.closest('button[data-mute]');if(btn)setOrgRowMute(btn.dataset.mute);});
+    async function setOrgRowMute(duration){
+      const item=orgMessageRows.find((r)=>r.key===orgRowMenuKey);
+      closeOrgRowMenu();
+      if(!item)return;
+      await fetch(`/api/threads/${rowThreadType(item)}/${item.apiId}/mute`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration})});
+      loadOrgMessages();
+    }
+    orgRowMenu.addEventListener('click',async(e)=>{
+      const btn=e.target.closest('button[data-row-action]');
+      if(!btn)return;
+      const action=btn.dataset.rowAction;
+      if(action==='mute-toggle')return;
+      const item=orgMessageRows.find((r)=>r.key===orgRowMenuKey);
+      closeOrgRowMenu();
+      if(!item)return;
+      const base=`/api/threads/${rowThreadType(item)}/${item.apiId}`;
+      if(action==='archive'){await fetch(`${base}/archive`,{method:'POST'});loadOrgMessages();}
+      else if(action==='pin'){await fetch(`${base}/pin`,{method:'POST'});loadOrgMessages();}
+      else if(action==='mark-unread'){await fetch(`${base}/mark-unread`,{method:'POST'});loadOrgMessages();}
+      else if(action==='favorite'){await fetch(`${base}/favorite`,{method:'POST'});loadOrgMessages();}
+      else if(action==='block'){if(!confirm('Change block status for this person?'))return;await fetch(`${base}/block`,{method:'POST'});loadOrgMessages();}
+      else if(action==='clear'){if(!confirm('Clear this chat? This removes all messages for you only.'))return;await fetch(`${base}/clear`,{method:'POST'});loadOrgMessages();}
+      else if(action==='delete'){if(!confirm('Delete this chat? It will disappear until a new message arrives.'))return;await fetch(`${base}/delete`,{method:'POST'});loadOrgMessages();}
+    });
+
+    // --- Header "..." menu: New group / Mark all as read ---
+    const orgMessagesMoreMenu=document.getElementById('org-messages-more-menu');
+    document.getElementById('org-tutor-messages-more-btn').addEventListener('click',(e)=>{
+      e.stopPropagation();
+      if(orgMessagesMoreMenu.hidden){const rect=e.currentTarget.getBoundingClientRect();orgMessagesMoreMenu.style.left=`${Math.max(8,rect.right-200)}px`;orgMessagesMoreMenu.style.top=`${rect.bottom+6}px`;}
+      orgMessagesMoreMenu.hidden=!orgMessagesMoreMenu.hidden;
+    });
+    document.addEventListener('click',(e)=>{if(!orgMessagesMoreMenu.hidden&&!e.target.closest('#org-messages-more-menu')&&!e.target.closest('#org-tutor-messages-more-btn'))orgMessagesMoreMenu.hidden=true;});
+    orgMessagesMoreMenu.addEventListener('click',(e)=>{
+      const btn=e.target.closest('button[data-more]');
+      if(!btn)return;
+      orgMessagesMoreMenu.hidden=true;
+      if(btn.dataset.more==='new-group')document.getElementById('org-tutor-new-group-btn').click();
+      else if(btn.dataset.more==='mark-all-read'){fetch('/api/threads/mark-all-read',{method:'POST'}).then(loadOrgMessages);}
+    });
+
+    // --- Calendar / Schedules ---
+    let calMonth=new Date(); calMonth.setDate(1);
+    let scheduleTab='upcoming';
+    function eventsForOrg(){return state.data?.events||[];}
+    function renderCalendar(){
+      const grid=document.getElementById('cal-grid');
+      document.getElementById('cal-label').textContent=calMonth.toLocaleDateString([],{month:'long',year:'numeric'});
+      const year=calMonth.getFullYear(), month=calMonth.getMonth();
+      const startOffset=new Date(year,month,1).getDay();
+      const daysInMonth=new Date(year,month+1,0).getDate();
+      const cells=[];
+      for(let i=startOffset;i>0;i--)cells.push(new Date(year,month,1-i));
+      for(let d=1;d<=daysInMonth;d++)cells.push(new Date(year,month,d));
+      while(cells.length%7!==0)cells.push(new Date(year,month,daysInMonth+(cells.length-startOffset-daysInMonth+1)));
+      const today=new Date();
+      grid.innerHTML=cells.map((date)=>{
+        const otherMonth=date.getMonth()!==month;
+        const isToday=date.toDateString()===today.toDateString();
+        const hasEvents=eventsForOrg().some((ev)=>new Date(ev.scheduledAt).toDateString()===date.toDateString());
+        return `<button type="button" class="cal-day${otherMonth?' other-month':''}${isToday?' today':''}" data-date="${date.toISOString()}">${date.getDate()}${hasEvents?'<span class="cal-dot"></span>':''}</button>`;
+      }).join('');
+      grid.querySelectorAll('.cal-day').forEach((btn)=>btn.addEventListener('click',()=>{
+        grid.querySelectorAll('.cal-day').forEach((b)=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        renderScheduleList(new Date(btn.dataset.date));
+      }));
+    }
+    document.getElementById('cal-prev').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCalendar();});
+    document.getElementById('cal-next').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCalendar();});
+    function renderScheduleList(dayFilter){
+      const now=new Date();
+      let items=eventsForOrg().slice().sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt));
+      if(dayFilter instanceof Date)items=items.filter((e)=>new Date(e.scheduledAt).toDateString()===dayFilter.toDateString());
+      else if(scheduleTab==='upcoming')items=items.filter((e)=>new Date(e.scheduledAt)>=now);
+      else if(scheduleTab==='today')items=items.filter((e)=>new Date(e.scheduledAt).toDateString()===now.toDateString());
+      else if(scheduleTab==='past')items=items.filter((e)=>new Date(e.scheduledAt)<now).reverse();
+      const list=document.getElementById('schedule-list');
+      list.innerHTML=items.map((e)=>{
+        const when=new Date(e.scheduledAt);
+        const isPast=when<now;
+        return `<article class="rounded-xl border bg-white p-4"><strong>${esc(e.title)}</strong><p class="text-sm text-gray-500">${when.toLocaleString()}</p>${e.meetLink&&!isPast?`<a class="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white" href="${esc(e.meetLink)}" target="_blank" rel="noopener">Join meeting</a>`:isPast?'<span class="mt-2 inline-block text-xs font-semibold text-gray-400">Past</span>':''}</article>`;
+      }).join('')||'<p class="text-gray-500">No meetings.</p>';
+    }
+    document.querySelectorAll('.schedule-tab').forEach((btn)=>btn.addEventListener('click',()=>{
+      document.querySelectorAll('.schedule-tab').forEach((b)=>b.classList.remove('active','border-b-2','border-red-700','text-red-700'));
+      btn.classList.add('active','border-b-2','border-red-700','text-red-700');
+      document.querySelectorAll('#cal-grid .cal-day').forEach((b)=>b.classList.remove('selected'));
+      scheduleTab=btn.dataset.scheduleTab;
+      renderScheduleList();
+    }));
+    function activate(panel){document.querySelectorAll('.org-tutor-panel').forEach((node)=>node.classList.toggle('active',node.id==='panel-'+panel));document.querySelectorAll('.org-tutor-nav button').forEach((node)=>node.classList.toggle('active',node.dataset.panel===panel));document.getElementById('org-tutor-sidebar').classList.remove('open');if(panel==='messages')loadOrgMessages();else if(panel==='schedules'){renderCalendar();renderScheduleList();}}
+    function render(){const d=state.data; document.getElementById('org-tutor-org-name').textContent=d.organization.name;document.getElementById('org-tutor-sidebar-name').textContent=d.organization.name; document.getElementById('org-tutor-logo').innerHTML=d.organization.logoUrl?`<img src="${esc(d.organization.logoUrl)}" alt="" class="h-full w-full object-cover">`:esc((d.organization.name||'O').trim().charAt(0).toUpperCase());document.getElementById('requests-list').innerHTML=(d.requests||[]).map((r)=>`<article class="rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>${esc(r.studentName||'Student')}</strong><p class="mt-1 text-sm">${esc(r.category)} · ${esc(r.lessonType)}</p></article>`).join('')||'<p class="text-gray-500">No organization requests.</p>';const content=d.content||[];document.getElementById('announcements-list').innerHTML=content.filter((i)=>i.type==='announcement').map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No announcements.</p>';document.getElementById('feeds-list').innerHTML=content.filter((i)=>['feed','photo','video'].includes(i.type)).map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No feeds.</p>';wireReactionButtons(content,render);document.getElementById('notifications-list').innerHTML=(d.notifications||[]).map((n,index)=>`<button class="org-notification rounded-xl border bg-white p-4 text-left ${n.read?'':'border-l-4 border-l-red-700'}" data-index="${index}"><strong>${esc(n.type||'Update')}</strong><p class="mt-1 text-sm text-gray-600">${esc(n.message)}</p></button>`).join('')||'<p class="text-gray-500">No notifications.</p>';document.querySelectorAll('.org-notification').forEach((button)=>button.addEventListener('click',async()=>{const item=d.notifications[Number(button.dataset.index)];if(item&&item.id&&!item.read)await fetch(`/api/notifications/${encodeURIComponent(item.id)}/read`,{method:'POST'});button.classList.remove('border-l-4','border-l-red-700');}));document.getElementById('settings-name').value=(state.tutorProfile&&state.tutorProfile.name)||'';document.getElementById('settings-phone').value=(state.tutorProfile&&state.tutorProfile.phone)||'';}
+    async function load(){const params=new URLSearchParams(location.search);const [r,sessionRes,tutorRes]=await Promise.all([fetch('/api/organizations/tutor-workspace?orgId='+encodeURIComponent(params.get('orgId')||'')),fetch('/api/session'),fetch('/api/tutors/me')]);const d=await r.json();const session=await sessionRes.json();const tutorData=await tutorRes.json().catch(()=>null);if(session.user)myUserId=session.user.id;if(tutorData&&tutorData.success)state.tutorProfile=tutorData.profile;if(!d.success){location.href='/tutor';return}state.data=d;render();const unread=(d.notifications||[]).filter((n)=>!n.read).length;const badge=document.getElementById('org-tutor-badge');badge.textContent=unread;badge.classList.toggle('hidden',!unread);}
     document.querySelectorAll('.org-tutor-nav button').forEach((b)=>b.addEventListener('click',()=>activate(b.dataset.panel)));
     document.querySelectorAll('.library-view-tab').forEach((btn)=>btn.addEventListener('click',()=>{document.querySelectorAll('.library-view-tab').forEach((b)=>b.classList.remove('active','border-b-2','border-red-700','text-red-700'));btn.classList.add('active','border-b-2','border-red-700','text-red-700');loadOrgLibrary(btn.dataset.libraryView);}));
     // Announcements/feed items can carry an uploaded file (photo, video, or
@@ -245,7 +502,7 @@
     const mobileSidebar=document.getElementById('org-tutor-sidebar');
     new MutationObserver(()=>{const isOpen=mobileSidebar.classList.contains('open');mobileSidebarButton.setAttribute('aria-expanded',String(isOpen));mobileSidebarButton.setAttribute('aria-label',isOpen?'Close sidebar':'Open sidebar');mobileSidebarButton.title=isOpen?'Close sidebar':'Open sidebar';document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-right',!isOpen);document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-left',isOpen);}).observe(mobileSidebar,{attributes:true,attributeFilter:['class']});
     document.addEventListener('pointerdown',(event)=>{if(window.matchMedia('(max-width:768px)').matches&&mobileSidebar.classList.contains('open')&&!mobileSidebar.contains(event.target))mobileSidebar.classList.remove('open');});
-    document.getElementById('org-tutor-mobile').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.toggle('open'));document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{await fetch('/api/notifications/read-all',{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})});});document.getElementById('schedule-class').addEventListener('click',()=>activate('classes'));document.getElementById('create-group-chat').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();activate('students');};});load().catch(()=>location.href='/tutor');
+    document.getElementById('org-tutor-mobile').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.toggle('open'));document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{const orgId=state.data?.organization?.id;await fetch(`/api/organizations/tutor-workspace/notifications/read-all?orgId=${encodeURIComponent(orgId||'')}`,{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await Promise.all([fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})}),fetch('/api/tutors/me/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:document.getElementById('settings-phone').value})})]);load();});document.getElementById('schedule-class').addEventListener('click',()=>activate('schedules'));document.getElementById('org-tutor-new-group-btn').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();loadOrgMessages();};});load().catch(()=>location.href='/tutor');
   </script>
   <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
