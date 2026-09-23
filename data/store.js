@@ -307,18 +307,39 @@ function setPhoto(userId, photoUrl) {
   return user;
 }
 
-// A student's saved card, used to authorize (hold) and later capture escrow
-// payments off-session when a tutor logs/confirms a lesson. Only the
-// non-sensitive display bits (brand/last4) and Stripe's own IDs are stored
-// here - the actual card details live entirely on Stripe's side.
-function setStripePaymentMethod(userId, { customerId, paymentMethodId, brand, last4 }) {
+// Stripe test and live mode have separate Customers and PaymentMethods. Keep
+// their IDs separate even when both environments use the same user database.
+// Older single-mode fields are retained only for verified, lazy migration.
+function getStripePaymentMethod(user, mode) {
+  if (!user || !['test', 'live'].includes(mode)) return null;
+  const profile = user.stripePaymentProfiles && user.stripePaymentProfiles[mode];
+  return profile && profile.customerId ? {
+    customerId: profile.customerId,
+    paymentMethodId: profile.paymentMethodId || null,
+    brand: profile.brand || null,
+    last4: profile.last4 || null,
+  } : null;
+}
+
+function setStripePaymentMethod(userId, { mode, customerId, paymentMethodId, brand, last4 }) {
+  if (!['test', 'live'].includes(mode) || !customerId) throw new Error('A Stripe mode and customer ID are required.');
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
-  user.stripeCustomerId = customerId;
-  user.stripePaymentMethodId = paymentMethodId;
-  user.cardBrand = brand || null;
-  user.cardLast4 = last4 || null;
+  user.stripePaymentProfiles = user.stripePaymentProfiles || {};
+  user.stripePaymentProfiles[mode] = {
+    customerId, paymentMethodId: paymentMethodId || null,
+    brand: brand || null, last4: last4 || null,
+  };
+  persist(db);
+  return user;
+}
+
+function setProfileDisplayRole(userId, roleKey) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.profileDisplayRoleKey = roleKey;
   persist(db);
   return user;
 }
@@ -354,13 +375,26 @@ function setStripeConnectAccount(userId, account) {
   return user;
 }
 
-function clearStripePaymentMethod(userId) {
+function clearStripePaymentMethod(userId, mode) {
+  if (!['test', 'live'].includes(mode)) throw new Error('A Stripe mode is required.');
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
-  user.stripePaymentMethodId = null;
-  user.cardBrand = null;
-  user.cardLast4 = null;
+  const profile = user.stripePaymentProfiles && user.stripePaymentProfiles[mode];
+  if (!profile) return user;
+  profile.paymentMethodId = null;
+  profile.brand = null;
+  profile.last4 = null;
+  persist(db);
+  return user;
+}
+
+function clearStripeCustomer(userId, mode) {
+  if (!['test', 'live'].includes(mode)) throw new Error('A Stripe mode is required.');
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user || !user.stripePaymentProfiles || !user.stripePaymentProfiles[mode]) return user || null;
+  delete user.stripePaymentProfiles[mode];
   persist(db);
   return user;
 }
@@ -732,12 +766,12 @@ function getThreadPrefs(userId) {
 }
 
 module.exports = {
-  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
+  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setProfileDisplayRole, setPhoto,
   setCalendarTokens, clearCalendarTokens,
   markActive, markSeen, markReengagementEmailSent, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setExpoPushToken, removeExpoPushToken, markAppOnboardingSeen, markMobileWelcomeEmailSent, markTourSeen, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
-  setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,
+  getStripePaymentMethod, setStripePaymentMethod, clearStripePaymentMethod, clearStripeCustomer, setStripeConnectAccount,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
   toggleBlockedUser, isBlockedPair, toggleFavoriteThread, toggleArchivedThread, togglePinnedThread,
   setMutedThread, hideThread, getThreadPrefs,

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Mozart Techniques</title>
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-red': '#cc0000',
+                        'primary-dark': '#1F2937',
+                    },
+                    fontFamily: { sans: ['Montserrat', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            color: #333;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%) !important;
+        }
+        h1, h2, h3 { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
+        .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-container { width: 100%; max-width: 1160px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; gap: 16px; }
+        .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
+        .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
+        .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+        @media (max-width: 768px) { .nav-links { display: none; } }
+
+        .profile-card {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            gap: 10px;
+        }
+        .profile-avatar-wrap { position: relative; width: 88px; height: 88px; }
+        .profile-avatar-trigger {
+            width: 88px; height: 88px; padding: 0; border: none; background: none; cursor: pointer;
+        }
+        .profile-avatar {
+            width: 88px; height: 88px; border-radius: 999px; flex-shrink: 0;
+            background: linear-gradient(135deg, #c41822, #7e0e14);
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; box-shadow: 0 10px 24px rgba(196,24,34,.28);
+            transition: filter .15s ease;
+        }
+        .profile-avatar-trigger:hover .profile-avatar { filter: brightness(.85); }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-avatar span { color: #fff; font-weight: 700; font-size: 1.6rem; }
+        .profile-name-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; }
+        .profile-role-badge { display: inline-flex; align-items: center; gap: 6px; max-width: min(100%, 18rem); padding: 5px 9px; border: 1px solid #c99a2e; border-radius: 999px; background: linear-gradient(135deg, #fff3c7, #f6d777); color: #674609; box-shadow: 0 2px 7px #ad7b202e; cursor: pointer; }
+        .profile-role-badge select { appearance: none; border: 0; outline: 0; background: transparent; color: inherit; font: 700 .78rem 'Montserrat', sans-serif; min-width: 0; max-width: 13rem; cursor: pointer; }
+        .profile-role-badge select:focus-visible { outline: 2px solid #9b6b10; outline-offset: 2px; border-radius: 4px; }
+        .profile-role-badge i { color: #8e620e; font-size: .8rem; flex: none; }
+        #profile-role-status { min-height: 1rem; font-size: .75rem; }
+        .profile-avatar-badge {
+            position: absolute; bottom: -2px; right: -2px;
+            width: 28px; height: 28px; border-radius: 999px;
+            background: #cc0000; color: #fff; border: 2px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .78rem; pointer-events: none;
+        }
+        #avatar-photo-input { display: none; }
+        .profile-photo-status { min-height: 1.1em; font-size: .82rem; font-weight: 600; }
+
+        .avatar-menu {
+            position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            min-width: 170px; background: #fff; border-radius: 12px;
+            box-shadow: 0 16px 36px rgba(0,0,0,.18); border: 1px solid rgba(0,0,0,.06);
+            padding: 6px; z-index: 50;
+        }
+        .avatar-menu[hidden] { display: none; }
+        .avatar-menu button {
+            display: flex; align-items: center; gap: 10px; width: 100%;
+            padding: 10px 12px; border-radius: 8px; border: none; background: none;
+            font-size: .9rem; font-weight: 600; color: #1F2937; cursor: pointer;
+            font-family: inherit; text-align: left;
+        }
+        .avatar-menu button:hover { background: #f5f5f5; }
+        .avatar-menu i { width: 18px; text-align: center; color: #cc0000; }
+
+        .avatar-lightbox {
+            position: fixed; inset: 0; z-index: 9999; display: flex;
+            align-items: center; justify-content: center; padding: 24px;
+            background: rgba(0,0,0,.78);
+        }
+        .avatar-lightbox[hidden] { display: none; }
+        .avatar-lightbox img {
+            max-width: min(90vw, 480px); max-height: 80vh; border-radius: 16px;
+            box-shadow: 0 30px 70px rgba(0,0,0,.5);
+        }
+        .avatar-lightbox-close {
+            position: absolute; top: 18px; right: 18px; width: 40px; height: 40px;
+            border-radius: 999px; background: rgba(255,255,255,.14); border: none;
+            color: #fff; font-size: 1.3rem; cursor: pointer;
+        }
+
+        .profile-menu { width: 100%; max-width: 32rem; margin-left: 0; text-align: left; }
+        .profile-menu a, .profile-menu button {
+            display: flex; align-items: center; gap: 16px; width: 100%;
+            padding: 18px 4px; text-align: left; background: none; border: none;
+            border-bottom: 1px solid #f0f0f0; font-size: 1.08rem; font-weight: 600;
+            color: #1F2937; text-decoration: none; cursor: pointer; font-family: inherit;
+            transition: background-color .15s ease;
+        }
+        .profile-menu a:last-child, .profile-menu button:last-child { border-bottom: none; }
+        .profile-menu a:hover, .profile-menu button:hover { background: #fafafa; }
+        .profile-menu i { width: 36px; text-align: center; color: #cc0000; font-size: 1.7rem; flex: none; }
+        .profile-menu .pill {
+            margin-left: auto; min-width: 22px; padding: 2px 8px;
+            border-radius: 999px; background: #cc0000; color: #fff;
+            font-size: .78rem; font-weight: 700; text-align: center;
+        }
+        .signout-btn {
+            display: flex; align-items: center; justify-content: flex-start; gap: 16px;
+            width: 100%; padding: 14px 4px; border-radius: 14px; border: 1px solid #fecaca;
+            background: #fff; color: #B91C1C; font-weight: 700; font-size: .95rem;
+            cursor: pointer; font-family: inherit; transition: background-color .15s ease;
+        }
+        .signout-btn i { width: 36px; text-align: center; font-size: 1.7rem; }
+        .signout-btn:hover { background: #fef2f2; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="/mozartLogo.jpg" alt="Mozart Techniques logo">Mozart Techniques</a>
+            </div>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/store">Store</a>
+                <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <div id="profile-root">
+            <p class="text-gray-400 text-sm text-center">Loading your profile…</p>
+        </div>
+    </main>
+
+    <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/mobile-nav.js"></script>
+    <script src="/assets/nav-performance.js" defer></script>
+    <script>
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+        function initials(name) {
+            return (name || '?').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+        }
+
+        // Same link set/visibility rules as the account dropdown this page
+        // replaces (public/assets/nav-auth.js's render()) - kept in sync by
+        // hand since both build the menu from the same /api/session shape.
+        function buildMenu(user) {
+            const items = [
+                { href: '/dashboard', icon: 'fa-gauge', label: 'Dashboard' },
+                { href: '/orientation', icon: 'fa-compass', label: 'Orientation' },
+                { href: '/notifications', icon: 'fa-bell', label: 'Notifications' },
+                { href: '/messages', icon: 'fa-comments', label: 'Messages', pillKey: 'messages' },
+                { href: '/store-profile', icon: 'fa-bag-shopping', label: 'Store Profile' },
+                { href: '/edit-profile', icon: 'fa-user-pen', label: 'Edit Profile' },
+            ];
+            if (!user.hasTutorProfile && user.role !== 'admin') {
+                items.push({ href: '/payment-methods', icon: 'fa-credit-card', label: 'Manage Payment Methods' });
+            }
+            if (user.hasSponsorOrg) {
+                items.push({
+                    href: user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor',
+                    icon: 'fa-building', label: 'Sponsor Dashboard',
+                });
+            } else if (user.hasSponsorAccess) {
+                items.push({
+                    href: user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard',
+                    icon: 'fa-building', label: user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard',
+                    blank: !!user.hasTutorProfile,
+                });
+            }
+            if (user.hasSponsorOrg && user.sponsorOrgType === 'ngo') {
+                // Prefer the org's own registered name (e.g. "Slum2School
+                // Dashboard") over a generic "NGO Dashboard"/"Institution
+                // Dashboard" label - same preference order as the mobile
+                // app's Profile screen (buildMenu in ProfileScreen.tsx).
+                const orgLabel = user.sponsorOrgName
+                    ? `${user.sponsorOrgName} Dashboard`
+                    : (user.sponsorOrgKind === 'institution' ? 'Institution Dashboard' : 'NGO Dashboard');
+                items.push({ href: '/ngo-dashboard', icon: 'fa-building', label: orgLabel });
+            }
+            // One row per organization this account holds a *tutor* code
+            // for, and one per NGO/Institution *student* relationship -
+            // same as mobile's Profile screen, which lists these
+            // memberships individually instead of one generic destination.
+            (user.organizationTutorMemberships || []).forEach((org) => {
+                items.push({ href: '/org-tutor', icon: 'fa-briefcase', label: `${org.name} Tutor` });
+            });
+            (user.organizationStudentMemberships || []).forEach((org) => {
+                items.push({ href: '/my-organization', icon: 'fa-school', label: `${org.name}'s Student` });
+            });
+            if (user.role === 'admin') items.push({ href: '/admin', icon: 'fa-user-shield', label: 'Admin' });
+            if (user.hasTutorProfile) {
+                items.push({ href: '/tutor', icon: 'fa-chalkboard-user', label: 'Tutor Profile' });
+                items.push({ href: '/teacher-education', icon: 'fa-award', label: 'Teacher Education' });
+            }
+            if (user.supportAgent || user.role === 'support_agent') {
+                items.push({ href: '/support-agent', icon: 'fa-headset', label: 'Support Agent' });
+            }
+            return items;
+        }
+
+        function renderMenuItem(item) {
+            const pill = item.pillKey ? `<span class="pill" data-pill="${item.pillKey}" hidden></span>` : '';
+            const target = item.blank ? ' target="_blank" rel="noopener"' : '';
+            return `<a href="${item.href}"${target}><i class="fa-solid ${item.icon}"></i> ${escapeHtml(item.label)}${pill}</a>`;
+        }
+
+        async function loadUnreadCount() {
+            const pill = document.querySelector('[data-pill="messages"]');
+            if (!pill) return;
+            try {
+                const data = await fetch('/api/messages/unread-count').then((r) => r.json());
+                if (!data.success) return;
+                const total = data.total || 0;
+                pill.hidden = total === 0;
+                pill.textContent = total > 99 ? '99+' : String(total);
+            } catch (e) { /* offline - leave hidden */ }
+        }
+
+        async function init() {
+            const root = document.getElementById('profile-root');
+            let user;
+            try {
+                const data = await fetch('/api/session').then((r) => r.json());
+                user = data.user;
+            } catch (e) {
+                user = null;
+            }
+            if (!user) {
+                window.location.href = '/login';
+                return;
+            }
+
+            const avatarInner = user.photoUrl
+                ? `<img src="${escapeHtml(user.photoUrl)}" alt="${escapeHtml(user.name || '')}">`
+                : `<span>${initials(user.name || user.email)}</span>`;
+            const firstName = escapeHtml((user.name || user.email || 'there').split(' ')[0]);
+            const menu = buildMenu(user).map(renderMenuItem).join('');
+            const displayRoles = Array.isArray(user.displayRoles) && user.displayRoles.length ? user.displayRoles : [{ key: 'student', label: 'Student' }];
+            const selectedRoleKey = displayRoles.some((role) => role.key === user.displayRoleKey) ? user.displayRoleKey : displayRoles[0].key;
+            const roleOptions = displayRoles.map((role) => `<option value="${escapeHtml(role.key)}"${role.key === selectedRoleKey ? ' selected' : ''}>${escapeHtml(role.label)}</option>`).join('');
+
+            root.innerHTML = `
+                <div class="profile-card max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 mb-5">
+                    <div class="profile-avatar-wrap">
+                        <button type="button" class="profile-avatar-trigger" id="avatar-trigger" aria-haspopup="true">
+                            <div class="profile-avatar" id="profile-avatar">${avatarInner}</div>
+                        </button>
+                        <span class="profile-avatar-badge"><i class="fa-solid fa-camera"></i></span>
+                        <div class="avatar-menu" id="avatar-menu" hidden>
+                            <button type="button" id="avatar-view-btn" ${user.photoUrl ? '' : 'hidden'}><i class="fa-solid fa-eye"></i> View Photo</button>
+                            <button type="button" id="avatar-upload-btn"><i class="fa-solid fa-upload"></i> Upload Photo</button>
+                        </div>
+                    </div>
+                    <input type="file" id="avatar-photo-input" accept="image/*">
+                    <p class="profile-photo-status" id="avatar-photo-status"></p>
+                    <div class="profile-name-row"><h1 class="text-2xl font-bold text-gray-900">Hi, ${firstName}</h1><label class="profile-role-badge" title="Choose the role shown on your profile"><i class="fa-solid fa-award" aria-hidden="true"></i><select id="profile-display-role" aria-label="Displayed profile role">${roleOptions}</select><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></label></div>
+                    <p class="text-gray-500 text-sm">${escapeHtml(user.email || '')}</p>
+                    <p id="profile-role-status" role="status" aria-live="polite"></p>
+                </div>
+                <div class="profile-menu mb-5">${menu}</div>
+                <button type="button" class="signout-btn max-w-lg" id="signout-btn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
+            `;
+
+            const roleSelect = document.getElementById('profile-display-role');
+            const roleStatus = document.getElementById('profile-role-status');
+            let savedRoleKey = selectedRoleKey;
+            roleSelect.addEventListener('change', async () => {
+                roleSelect.disabled = true;
+                roleStatus.textContent = 'Saving badge…';
+                try {
+                    const response = await fetch('/api/profile/display-role', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roleKey: roleSelect.value }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) throw new Error(data.error || 'Could not save your badge.');
+                    savedRoleKey = data.user.displayRoleKey;
+                    roleStatus.textContent = 'Badge updated.';
+                    roleStatus.style.color = '#765316';
+                } catch (error) {
+                    roleSelect.value = savedRoleKey;
+                    roleStatus.textContent = error.message || 'Could not save your badge.';
+                    roleStatus.style.color = '#b91c1c';
+                } finally { roleSelect.disabled = false; }
+            });
+
+            document.getElementById('signout-btn').addEventListener('click', async () => {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/home';
+            });
+
+            wireAvatarUpload();
+            loadUnreadCount();
+        }
+
+        function wireAvatarMenu() {
+            const trigger = document.getElementById('avatar-trigger');
+            const menu = document.getElementById('avatar-menu');
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menu.hidden = !menu.hidden;
+            });
+            document.addEventListener('click', (e) => {
+                if (!menu.hidden && !e.target.closest('.profile-avatar-wrap')) menu.hidden = true;
+            });
+
+            document.getElementById('avatar-view-btn').addEventListener('click', () => {
+                menu.hidden = true;
+                const img = document.querySelector('#profile-avatar img');
+                if (img) openLightbox(img.src);
+            });
+            document.getElementById('avatar-upload-btn').addEventListener('click', () => {
+                menu.hidden = true;
+                document.getElementById('avatar-photo-input').click();
+            });
+        }
+
+        function openLightbox(src) {
+            let box = document.getElementById('avatar-lightbox');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'avatar-lightbox';
+                box.className = 'avatar-lightbox';
+                box.hidden = true;
+                box.innerHTML = `
+                    <button type="button" class="avatar-lightbox-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+                    <img id="avatar-lightbox-img" src="" alt="Profile photo">
+                `;
+                box.addEventListener('click', (e) => { if (e.target === box) box.hidden = true; });
+                box.querySelector('.avatar-lightbox-close').addEventListener('click', () => { box.hidden = true; });
+                document.body.appendChild(box);
+            }
+            document.getElementById('avatar-lightbox-img').src = src;
+            box.hidden = false;
+        }
+
+        // Same endpoint/contract edit-profile.html's photo picker already
+        // uses (POST /api/profile/photo, FormData field "photo") - the
+        // avatar menu's "Upload Photo" option just gives it a second, more
+        // direct entry point.
+        function wireAvatarUpload() {
+            wireAvatarMenu();
+            const input = document.getElementById('avatar-photo-input');
+            const statusEl = document.getElementById('avatar-photo-status');
+            input.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                if (file.size > maxSize) {
+                    statusEl.textContent = 'File is too large. Max 5MB.';
+                    statusEl.style.color = '#B91C1C';
+                    e.target.value = '';
+                    return;
+                }
+
+                statusEl.textContent = 'Uploading…';
+                statusEl.style.color = '#666';
+
+                const formData = new FormData();
+                formData.append('photo', file);
+
+                try {
+                    const res = await fetch('/api/profile/photo', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (!data.success) {
+                        statusEl.textContent = data.error || 'Upload failed.';
+                        statusEl.style.color = '#B91C1C';
+                        e.target.value = '';
+                        return;
+                    }
+                    document.getElementById('profile-avatar').innerHTML = `<img src="${escapeHtml(data.photoUrl)}" alt="">`;
+                    document.getElementById('avatar-view-btn').hidden = false;
+                    statusEl.textContent = 'Photo updated!';
+                    statusEl.style.color = '#059669';
+                } catch (err) {
+                    statusEl.textContent = 'Upload failed.';
+                    statusEl.style.color = '#B91C1C';
+                    e.target.value = '';
+                }
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -36,13 +36,10 @@
            explicit CSS (not just Tailwind utility classes) so name-left /
            icons-right can't silently regress if a utility class combo ever
            fails to generate. */
-        #chat-header-row { display: flex !important; align-items: center !important; width: 100% !important; }
+        #chat-header-row { display: flex !important; align-items: center !important; width: 100% !important; min-height: 64px; gap: 12px; }
         #chat-header-identity { flex: 1 1 auto !important; min-width: 0 !important; text-align: left !important; }
         #chat-header-icons { flex: 0 0 auto !important; margin-left: auto !important; display: flex !important; align-items: center !important; }
-
-        .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-        .brand img { width: 36px; height: 36px; border-radius: 12px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-        .brand span { font-family: 'Science Gothic', sans-serif; font-weight: 700; font-size: 1.15rem; color: #333; letter-spacing: .03em; }
+        @media (max-width: 420px) { #chat-header-row { gap: 8px; } #chat-header-icons { gap: 0; } }
 
         /* In-page camera. A file input's capture attribute only does
            anything on mobile - desktop browsers ignore it and fall back to a
@@ -406,21 +403,9 @@
         </section>
     </div>
 
+    <!-- The conversation controls are the page navigation, leaving its centre clear. -->
     <header class="sticky top-0 z-50 bg-white shadow-sm">
-        <nav class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 flex items-center justify-between h-16 gap-3">
-            <a href="/home" class="brand">
-                <img src="/mozartLogo.jpg" alt="Mozart Techniques logo">
-                <span>Mozart Techniques</span>
-            </a>
-            <div class="flex items-center gap-3">
-                <a href="/messages" class="text-sm font-semibold text-gray-500 hover:text-primary-red transition">Messages</a>
-                <div id="auth-state"></div>
-            </div>
-        </nav>
-    </header>
-
-    <!-- Who you're talking to, directly above the thread -->
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 pt-4">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10">
         <div class="flex items-center gap-3" id="chat-header-row">
             <a href="/messages" title="Back to messages" class="text-gray-400 hover:text-primary-red transition shrink-0">
                 <i class="fa-solid fa-arrow-left"></i>
@@ -452,6 +437,7 @@
             </div>
         </div>
     </div>
+    </header>
 
     <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-4 w-full flex flex-col">
         <div class="chat-card bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">

@@ -1,7 +1,7 @@
 // Populates any #auth-state element in the header with a Login button
-// (signed out) or an account avatar that opens a dropdown menu (signed in).
-// Self-contained so it works on pages regardless of which CSS framework
-// they load.
+// (signed out) or an account avatar linking to the full /profile page
+// (signed in). Self-contained so it works on pages regardless of which CSS
+// framework they load.
 (function () {
   if (!document.getElementById('mt-cookie-consent-loader')) {
     const cookieScript = document.createElement('script');
@@ -51,50 +51,21 @@
         background: linear-gradient(135deg, #c41822, #7e0e14);
         display: flex; align-items: center; justify-content: center;
         transition: border-color .2s ease, transform .2s ease;
+        position: relative;
       }
       .mt-auth-avatar-btn:hover { border-color: #c41822; transform: translateY(-1px); }
       .mt-auth-avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
       .mt-auth-avatar-btn .mt-auth-initials { color: #fff; font-weight: 700; font-size: .95rem; font-family: inherit; }
 
-      .mt-auth-menu {
-        position: absolute; top: calc(100% + 10px); right: 0;
-        min-width: 200px; background: #fff; color: #1F2937;
-        border-radius: 14px; box-shadow: 0 20px 45px -10px rgba(0,0,0,.25);
-        border: 1px solid rgba(0,0,0,.06);
-        padding: 8px; z-index: 200;
-        opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none;
-        transition: opacity .18s ease, transform .18s ease;
-      }
-      .mt-auth-menu.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-      .mt-auth-menu-name {
-        padding: 8px 12px 10px; font-weight: 700; font-size: .9rem;
-        border-bottom: 1px solid #f0f0f0; margin-bottom: 6px;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      }
-      .mt-auth-menu a, .mt-auth-menu button {
-        display: flex; align-items: center; gap: 10px; width: 100%;
-        padding: 9px 12px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-        text-decoration: none; color: #1F2937; background: none; border: none;
-        cursor: pointer; text-align: left; font-family: inherit;
-        transition: background-color .15s ease;
-      }
-      .mt-auth-menu a:hover, .mt-auth-menu button:hover { background: #f5f5f5; }
-
-      /* Unread-message indicators: a dot on the avatar (visible from any
-         page without opening the menu) and an exact count inside it. */
-      .mt-auth-avatar-btn { position: relative; }
+      /* Unread-message dot on the avatar - visible from any page, links
+         straight to the full /profile page (see render() below) rather
+         than opening a menu here. */
       .mt-unread-dot {
         position: absolute; top: -1px; right: -1px;
         width: 12px; height: 12px; border-radius: 999px;
         background: #cc0000; border: 2px solid #fff;
       }
-      .mt-unread-dot[hidden], .mt-unread-pill[hidden] { display: none; }
-      .mt-unread-pill {
-        margin-left: auto; min-width: 20px; padding: 1px 6px;
-        border-radius: 999px; background: #cc0000; color: #fff;
-        font-size: .72rem; font-weight: 700; text-align: center;
-      }
-      .mt-auth-menu button[data-mt-logout] { color: #B91C1C; }
+      .mt-unread-dot[hidden] { display: none; }
 
       body.mt-page-loading > *:not(#mt-page-loader) {
         filter: blur(4px) saturate(.8);
@@ -205,109 +176,34 @@
     const avatarInner = user.photoUrl
       ? `<img src="${escapeHtml(user.photoUrl)}" alt="${name}">`
       : `<span class="mt-auth-initials">${initials(user.name || user.email)}</span>`;
-    const editProfileLink = `<a href="/edit-profile"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>`;
-    const storeProfileLink = `<a href="/store-profile"><i class="fa-solid fa-bag-shopping"></i> Store Profile</a>`;
-    const paymentMethodsLink = !user.hasTutorProfile && user.role !== 'admin' ? `<a href="/payment-methods"><i class="fa-solid fa-credit-card"></i> Manage Payment Methods</a>` : '';
-    const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
-    const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
-    const teacherEdLink = user.hasTutorProfile ? `<a href="/teacher-education"><i class="fa-solid fa-award"></i> Teacher Education</a>` : '';
-    // Sponsor Dashboard shows for ANY owned org. An Individual Sponsor gets
-    // the real ongoing-use dashboard (wallet, billing, codes, messaging) at
-    // /sponsor-dashboard; an NGO/Institution owner still lands on
-    // /become-sponsor's application/codes/subscription status panel, since
-    // their real day-to-day workspace is the separate Organization Dashboard
-    // link (below) - not a replacement, so an NGO/Institution owner sees
-    // BOTH links at once, each pointing at a genuinely different page. An
-    // account that only holds a redeemed *membership* (not ownership) keeps
-    // the prior fallback behavior.
-    const sponsorLink = user.hasSponsorOrg
-      ? `<a href="${user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor'}"><i class="fa-solid fa-building"></i> Sponsor Dashboard</a>`
-      : (user.hasSponsorAccess
-          ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>`
-          : '');
-    const organizationLink = (user.hasSponsorOrg && user.sponsorOrgType === 'ngo')
-      ? `<a href="/ngo-dashboard"><i class="fa-solid fa-building"></i> ${user.sponsorOrgKind === 'institution' ? 'Institution Dashboard' : 'NGO Dashboard'}</a>`
-      : '';
-    const supportLink = (user.supportAgent || user.role === 'support_agent') ? `<a href="/support-agent"><i class="fa-solid fa-headset"></i> Support Agent</a>` : '';
+    // The avatar is now a direct link into the full /profile page (its own
+    // account menu, dashboard/edit-profile/sponsor/admin links, sign out -
+    // see profile.html) instead of opening an in-place dropdown, matching
+    // the mobile app's Profile screen.
     target.innerHTML = `
       <div class="mt-auth-wrap">
-        <button type="button" class="mt-auth-avatar-btn" data-mt-toggle aria-label="Account menu">${avatarInner}<span class="mt-unread-dot" data-mt-unread hidden></span></button>
-        <div class="mt-auth-menu" data-mt-menu>
-          <div class="mt-auth-menu-name">Hi, ${name.split(' ')[0]}</div>
-          <a href="/dashboard"><i class="fa-solid fa-gauge"></i> Dashboard</a>
-          <a href="/orientation"><i class="fa-solid fa-compass"></i> Orientation</a>
-          <a href="/notifications"><i class="fa-solid fa-bell"></i> Notifications</a>
-          <a href="/messages" data-mt-messages><i class="fa-solid fa-comments"></i> Messages<span class="mt-unread-pill" data-mt-unread-count hidden></span></a>
-          ${storeProfileLink}
-          ${editProfileLink}
-          ${paymentMethodsLink}
-          ${sponsorLink}
-          ${organizationLink}
-          ${adminLink}
-          ${tutorLink}
-          ${teacherEdLink}
-          ${supportLink}
-          <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
-        </div>
+        <a href="/profile" class="mt-auth-avatar-btn" aria-label="Profile">${avatarInner}<span class="mt-unread-dot" data-mt-unread hidden></span></a>
       </div>
     `;
-    const menu = target.querySelector('[data-mt-menu]');
-    const toggle = target.querySelector('[data-mt-toggle]');
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const opening = !menu.classList.contains('open');
-      // .mt-auth-menu's CSS anchors its right edge to this avatar wrapper
-      // (right:0, relative to .mt-auth-wrap), not the actual screen edge -
-      // on a small screen, wherever the header happens to leave a gap
-      // between the avatar and the true viewport edge, that same gap
-      // showed up as empty space to the dropdown's right instead of the
-      // menu reaching the edge. Recomputed on every open (not just once)
-      // since a resize/rotation changes it.
-      if (opening && window.matchMedia('(max-width: 768px)').matches) {
-        const gapFromViewportEdge = window.innerWidth - target.getBoundingClientRect().right;
-        menu.style.right = `${-(gapFromViewportEdge - 8)}px`;
-      } else {
-        menu.style.right = '';
-      }
-      menu.classList.toggle('open');
-    });
-    document.addEventListener('click', (e) => {
-      if (!target.contains(e.target)) menu.classList.remove('open');
-    });
-    target.querySelector('[data-mt-logout]').addEventListener('click', async () => {
-      await fetch('/api/logout', { method: 'POST' });
-      window.location.href = '/home';
-    });
 
     startUnreadPolling(target);
     startNotificationSoundPolling();
   }
 
-  // Keeps the unread badge honest across pages. Polled rather than pushed:
+  // Keeps the unread dot honest across pages. Polled rather than pushed:
   // the chat socket only exists on the chat page, and a 30s badge refresh
   // is plenty for something the email notification already backstops. Skips
   // work entirely while the tab is hidden.
   function startUnreadPolling(target) {
     const dot = target.querySelector('[data-mt-unread]');
-    const pill = target.querySelector('[data-mt-unread-count]');
-    const link = target.querySelector('[data-mt-messages]');
-    if (!dot || !pill) return;
+    if (!dot) return;
 
     async function refresh() {
       if (document.hidden) return;
       try {
         const data = await fetch('/api/messages/unread-count').then((r) => r.json());
         if (!data.success) return;
-        const total = data.total || 0;
-        dot.hidden = total === 0;
-        pill.hidden = total === 0;
-        pill.textContent = total > 99 ? '99+' : String(total);
-        // With exactly one unread thread, send them straight into it
-        // instead of to the dashboard to hunt for it.
-        if (link && data.threads && data.threads.length === 1) {
-          const thread = data.threads[0];
-          link.href = thread.otherPartyName ? `/messages/chat?name=${encodeURIComponent(thread.otherPartyName)}` : `/messages/chat/${thread.assignmentId}`;
-        }
+        dot.hidden = (data.total || 0) === 0;
       } catch (e) { /* offline - leave the badge as-is */ }
     }
 

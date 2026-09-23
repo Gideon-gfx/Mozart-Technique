@@ -376,10 +376,11 @@ function setHourlyRate(id, hourlyRateUsd) {
 // categories/hourlyRateUsd already are above. Each field is only touched
 // when explicitly provided, so a partial payload (e.g. just bio) doesn't
 // clobber the others.
-function setProfileDetails(id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation }) {
+function setProfileDetails(id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation, phone }) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
   if (!tutor) return null;
+  if (phone !== undefined) tutor.phone = phone ? String(phone).trim().slice(0, 30) : null;
   if (bio !== undefined) tutor.bio = String(bio || '').slice(0, 2000);
   if (typeof publicExactLocation === 'boolean') {
     tutor.publicExactLocation = publicExactLocation;

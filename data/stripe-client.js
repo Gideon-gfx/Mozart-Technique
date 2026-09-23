@@ -5,6 +5,13 @@
 let stripe = null;
 let warnedMissingKey = false;
 
+function getMode() {
+  const key = String(process.env.STRIPE_SECRET_KEY || '');
+  if (/^(sk|rk)_live_/.test(key)) return 'live';
+  if (/^(sk|rk)_test_/.test(key)) return 'test';
+  return null;
+}
+
 function getClient() {
   if (stripe) return stripe;
   const key = process.env.STRIPE_SECRET_KEY;
@@ -21,4 +28,4 @@ function getClient() {
   return stripe;
 }
 
-module.exports = { getClient };
+module.exports = { getClient, getMode };

@@ -56,6 +56,7 @@ const benchmarkRates = require('./data/benchmarkRates');
 const mailer = require('./data/mailer');
 const newsletter = require('./data/newsletter');
 const stripeClient = require('./data/stripe-client');
+const stripePaymentProfile = require('./data/stripe-payment-profile');
 const cloudinaryClient = require('./data/cloudinary-client');
 const realtime = require('./data/realtime');
 const mongoPersistence = require('./data/mongo-persistence');
@@ -493,6 +494,25 @@ function requireApprovedPerformerApi(req, res, next) {
   next();
 }
 
+function availableProfileDisplayRoles(user, tutorProfile, performerProfile, org, tutorMemberships, studentMemberships) {
+  const roles = [{ key: 'student', label: 'Student' }];
+  if (tutorProfile && tutorProfile.status === 'approved') roles.push({ key: 'tutor', label: 'Tutor' });
+  if (performerProfile && performerProfile.status === 'approved') roles.push({ key: 'performer', label: 'Performer' });
+  for (const membership of tutorMemberships) roles.push({ key: `org_tutor:${membership.id}`, label: `Org Tutor · ${membership.name || 'Organization'}` });
+  for (const membership of studentMemberships) roles.push({ key: `org_student:${membership.id}`, label: `Org Student · ${membership.name || 'Organization'}` });
+  if (org && org.status === 'approved') {
+    roles.push({ key: 'organization', label: org.sponsorType === 'ngo' ? 'Organization' : 'Sponsor' });
+  }
+  if (user.role === 'admin') {
+    if (isPrimaryAdmin(user)) roles.push({ key: 'main_admin', label: 'Main Admin' });
+    if (user.adminCountryCode) roles.push({ key: 'country_admin', label: 'Country Admin' });
+    if (!isPrimaryAdmin(user) && !user.adminCountryCode) roles.push({ key: 'admin', label: 'Admin' });
+  }
+  if (user.supportAgent || user.role === 'support_agent') roles.push({ key: 'support_agent', label: 'Support Agent' });
+  if (user.role === 'demo') roles.push({ key: 'demo', label: 'Demo' });
+  return roles;
+}
+
 function publicUser(user) {
   const tutorProfile = tutors.findByUserId(user.id);
   const performerProfile = performers.findByUserId(user.id);
@@ -518,11 +538,15 @@ function publicUser(user) {
   const organizationStudentMemberships = organizationMembershipsForUser(user)
     .filter((o) => o.sponsorType === 'ngo' && (o.members || []).some((m) => Number(m.studentId) === Number(user.id) && m.role !== 'tutor'))
     .map((o) => ({ id: o.id, name: o.name || o.contactName }));
+  const displayRoles = availableProfileDisplayRoles(user, tutorProfile, performerProfile, org, organizationTutorMemberships, organizationStudentMemberships);
+  const displayRoleKey = displayRoles.some((role) => role.key === user.profileDisplayRoleKey) ? user.profileDisplayRoleKey : 'student';
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role || 'user',
+    displayRoles,
+    displayRoleKey,
     // Country Admin (scoped to one country) and Main Admin (supersedes
     // every country restriction) are two different destinations on
     // Profile, not one generic "Admin" row - an account can hold both at
@@ -1052,6 +1076,13 @@ app.get('/edit-profile', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'edit-profile.html'));
 });
 
+// Full-page account menu - what the avatar in the header links to (see
+// nav-auth.js), replacing what used to be a dropdown so the web app has the
+// same dedicated Profile destination the mobile app does.
+app.get('/profile', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'profile.html'));
+});
+
 app.get('/payment-methods', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'payment-methods.html'));
 });
@@ -1070,6 +1101,10 @@ app.get('/become-tutor', requireAuthPage, (req, res) => {
 
 app.get('/tutor', requireTutorProfilePage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
+});
+
+app.get('/tutor/my-profile', requireTutorProfilePage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'edit-profile.html'));
 });
 
 app.get('/org-tutor', requireTutorProfilePage, (req, res) => {
@@ -1576,6 +1611,18 @@ app.post('/api/profile/name', requireAuthApi, (req, res) => {
   res.json({ success: true, user: publicUser(updated) });
 });
 
+// Display preference only: this badge never changes permissions or account roles.
+app.post('/api/profile/display-role', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const roleKey = String((req.body && req.body.roleKey) || '');
+  const allowed = publicUser(user).displayRoles;
+  if (!allowed.some((role) => role.key === roleKey)) {
+    return res.status(400).json({ success: false, error: 'That role is not available on your account.' });
+  }
+  const updated = store.setProfileDisplayRole(user.id, roleKey);
+  res.json({ success: true, user: publicUser(updated) });
+});
+
 app.post('/api/profile/photo', hydrateUploadToken, requireAuthApi, photoUpload.single('photo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No file uploaded.' });
@@ -1600,42 +1647,42 @@ app.get('/api/stripe/config', (req, res) => {
   res.json({ success: true, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null });
 });
 
-app.get('/api/payment-method', requireAuthApi, (req, res) => {
+app.get('/api/payment-method', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
   const user = currentUser(req);
-  res.json({
-    success: true,
-    hasCard: Boolean(user.stripePaymentMethodId),
-    brand: user.cardBrand || null,
-    last4: user.cardLast4 || null,
-  });
+  try {
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode);
+    res.json({ success: true, hasCard: Boolean(profile && profile.paymentMethodId), brand: profile && profile.brand || null, last4: profile && profile.last4 || null });
+  } catch (error) {
+    console.error('Could not load saved payment method:', error.message);
+    res.status(502).json({ success: false, error: 'Could not check your saved card right now. Please try again.' });
+  }
 });
 
 app.post('/api/payment-method/setup-intent', requireAuthApi, async (req, res) => {
   const client = stripeClient.getClient();
-  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
 
   const user = currentUser(req);
   try {
-    let customerId = user.stripeCustomerId;
-    if (!customerId) {
-      const customer = await client.customers.create({ email: user.email, name: user.name });
-      customerId = customer.id;
-      store.setStripePaymentMethod(user.id, {
-        customerId, paymentMethodId: user.stripePaymentMethodId, brand: user.cardBrand, last4: user.cardLast4,
-      });
-    }
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode, { createCustomer: true });
     const setupIntent = await client.setupIntents.create({
-      customer: customerId, usage: 'off_session', payment_method_types: ['card'],
+      customer: profile.customerId, usage: 'off_session', payment_method_types: ['card'],
     });
     res.json({ success: true, clientSecret: setupIntent.client_secret });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error('Could not start card setup:', err.message);
+    res.status(502).json({ success: false, error: 'Could not start card setup. Please try again.' });
   }
 });
 
 app.post('/api/payment-method/confirm', requireAuthApi, async (req, res) => {
   const client = stripeClient.getClient();
-  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
 
   const { setupIntentId } = req.body || {};
   if (!setupIntentId) return res.status(400).json({ success: false, error: 'Missing setup intent.' });
@@ -1643,30 +1690,97 @@ app.post('/api/payment-method/confirm', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   try {
     const setupIntent = await client.setupIntents.retrieve(setupIntentId);
-    if (setupIntent.status !== 'succeeded' || setupIntent.customer !== user.stripeCustomerId) {
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode);
+    if (setupIntent.status !== 'succeeded' || !profile || setupIntent.customer !== profile.customerId || setupIntent.livemode !== (mode === 'live')) {
       return res.status(400).json({ success: false, error: 'Card setup was not completed.' });
     }
     const paymentMethod = await client.paymentMethods.retrieve(setupIntent.payment_method);
+    if (paymentMethod.customer !== profile.customerId) return res.status(400).json({ success: false, error: 'Card setup was not completed.' });
     const updated = store.setStripePaymentMethod(user.id, {
-      customerId: user.stripeCustomerId,
+      mode, customerId: profile.customerId,
       paymentMethodId: paymentMethod.id,
       brand: paymentMethod.card ? paymentMethod.card.brand : null,
       last4: paymentMethod.card ? paymentMethod.card.last4 : null,
     });
-    res.json({ success: true, brand: updated.cardBrand, last4: updated.cardLast4 });
+    const saved = store.getStripePaymentMethod(updated, mode);
+    res.json({ success: true, brand: saved.brand, last4: saved.last4 });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error('Could not confirm card setup:', err.message);
+    res.status(502).json({ success: false, error: 'Could not confirm your card. Please try again.' });
   }
 });
 
 app.delete('/api/payment-method', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   const client = stripeClient.getClient();
-  if (client && user.stripePaymentMethodId) {
-    try { await client.paymentMethods.detach(user.stripePaymentMethodId); } catch { /* best-effort */ }
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  try {
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode);
+    if (profile && profile.paymentMethodId) await client.paymentMethods.detach(profile.paymentMethodId);
+    store.clearStripePaymentMethod(user.id, mode);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Could not remove saved card:', error.message);
+    res.status(502).json({ success: false, error: 'Could not remove your card right now. Please try again.' });
   }
-  store.clearStripePaymentMethod(user.id);
-  res.json({ success: true });
+});
+
+// Stripe-hosted card setup: replacing a card means saving a new card, then
+// using its PaymentMethod for future approved lesson charges.
+app.post('/api/payment-method/checkout', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const user = currentUser(req);
+  try {
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode, { createCustomer: true });
+    const session = await client.checkout.sessions.create({
+      mode: 'setup', currency: 'usd', payment_method_types: ['card'],
+      managed_payments: { enabled: false },
+      customer: profile.customerId, client_reference_id: String(user.id),
+      success_url: `${publicAppUrl(req)}/api/payment-method/checkout-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicAppUrl(req)}/payment-methods?card=cancelled`,
+      metadata: { type: 'save-card', userId: String(user.id) },
+    });
+    res.json({ success: true, url: session.url });
+  } catch (error) {
+    console.error('Could not open Stripe card setup:', error.message);
+    res.status(502).json({ success: false, error: 'Could not open Stripe card setup. Please try again.' });
+  }
+});
+
+app.get('/api/payment-method/checkout-success', requireAuthPage, async (req, res) => {
+  const client = stripeClient.getClient();
+  const mode = stripeClient.getMode();
+  const user = currentUser(req);
+  if (!client || !mode || !req.query.session_id) return res.redirect('/payment-methods?card=error');
+  try {
+    const session = await client.checkout.sessions.retrieve(req.query.session_id);
+    const profile = await stripePaymentProfile.resolveProfile(user, client, mode);
+    if (session.mode !== 'setup' || session.status !== 'complete' || session.livemode !== (mode === 'live') ||
+        session.client_reference_id !== String(user.id) || !profile || session.customer !== profile.customerId ||
+        !session.setup_intent || !session.metadata || session.metadata.type !== 'save-card' ||
+        session.metadata.userId !== String(user.id)) {
+      return res.redirect('/payment-methods?card=error');
+    }
+    const setupIntent = await client.setupIntents.retrieve(session.setup_intent);
+    if (setupIntent.status !== 'succeeded' || setupIntent.livemode !== (mode === 'live') ||
+        setupIntent.customer !== profile.customerId || !setupIntent.payment_method) {
+      return res.redirect('/payment-methods?card=error');
+    }
+    const paymentMethod = await client.paymentMethods.retrieve(setupIntent.payment_method);
+    if (paymentMethod.customer !== profile.customerId) return res.redirect('/payment-methods?card=error');
+    store.setStripePaymentMethod(user.id, {
+      mode, customerId: profile.customerId, paymentMethodId: paymentMethod.id,
+      brand: paymentMethod.card ? paymentMethod.card.brand : null,
+      last4: paymentMethod.card ? paymentMethod.card.last4 : null,
+    });
+    return res.redirect('/payment-methods?card=saved');
+  } catch (error) {
+    console.error('Could not finish Stripe card setup:', error.message);
+    return res.redirect('/payment-methods?card=error');
+  }
 });
 
 // Resolves real browser GPS coordinates to a city/state/country and saves
@@ -2259,10 +2373,10 @@ app.post('/api/tutors/me/hourly-rate', requireTutorProfileApi, (req, res) => {
 // The rest of a tutor's editable public-facing details, same
 // self-service pattern as /categories and /hourly-rate above.
 app.post('/api/tutors/me/profile', requireTutorProfileApi, (req, res) => {
-  const { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation } = req.body || {};
+  const { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation, phone } = req.body || {};
   if (publicExactLocation !== undefined && typeof publicExactLocation !== 'boolean') return res.status(400).json({ success: false, error: 'Invalid map sharing permission.' });
   if (genres !== undefined && !Array.isArray(genres)) return res.status(400).json({ success: false, error: 'Invalid genres.' });
-  const updated = tutors.setProfileDetails(req.tutorProfile.id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation });
+  const updated = tutors.setProfileDetails(req.tutorProfile.id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation, phone });
   res.json({ success: true, profile: updated });
 });
 
@@ -5376,9 +5490,16 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   // Org Tutor's own notification bell should only ever show things
   // related to this organization - not the account's whole notification
   // history (lesson requests, chat pings, etc., which belong to the
-  // regular Notifications screen). A stored notification counts as
-  // organization-related by type or by its href pointing at /org-tutor.
-  const orgNotifications = (user.notifications || []).filter((item) => item.type === 'organization' || String(item.href || '').startsWith('/org-tutor'));
+  // regular Notifications screen). type:'organization' is NOT that signal -
+  // it's used everywhere else in this file for owner-only concerns (wallet
+  // top-ups, subscription payments, an org chat ping or content submission
+  // TO the owner - see /api/organizations/me/notifications above, which
+  // scopes the Sponsor tab's own bell by that exact type). Matching on it
+  // here previously leaked an org owner's own wallet/subscription
+  // notifications into their Tutor Dashboard whenever the same account
+  // held both relationships to an org. Only an explicit /org-tutor href
+  // (nothing currently sets one) should ever qualify.
+  const orgNotifications = (user.notifications || []).filter((item) => String(item.href || '').startsWith('/org-tutor'));
   const notifications = [
     ...orgNotifications.map((item) => ({ ...item })),
     ...content.map((item) => ({ id: `content-${item.id}`, type: item.type, message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, href: `/org-tutor?orgId=${org.id}#feeds` })),
@@ -6612,17 +6733,26 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
   }
 
   const client = stripeClient.getClient();
-  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const mode = stripeClient.getMode();
+  if (!client || !mode) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+
+  let paymentProfile;
+  try {
+    paymentProfile = await stripePaymentProfile.resolveProfile(user, client, mode, { createCustomer: true });
+  } catch (error) {
+    console.error('Could not load lesson payment customer:', error.message);
+    return res.status(502).json({ success: false, error: 'Could not prepare your payment. Please try again.' });
+  }
 
   // First payment: explicit Checkout saves/authorizes the card. Later
   // payments: charge the saved card automatically off-session.
-  if (user.stripeCustomerId && user.stripePaymentMethodId) {
+  if (paymentProfile.paymentMethodId) {
     try {
       const paymentIntent = await client.paymentIntents.create({
         amount: Math.round(Number(pending.totalUsd || 0) * 100),
         currency: 'usd',
-        customer: user.stripeCustomerId,
-        payment_method: user.stripePaymentMethodId,
+        customer: paymentProfile.customerId,
+        payment_method: paymentProfile.paymentMethodId,
         off_session: true,
         confirm: true,
         metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
@@ -6633,7 +6763,9 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
       return res.json({ success: true, paidAutomatically: true, session: result.session });
     } catch (error) {
       const code = error && error.code;
+      if (code === 'resource_missing') store.clearStripePaymentMethod(user.id, mode);
       const messageByCode = {
+        resource_missing: 'Your saved card is no longer available. Please add or change your card and try again.',
         card_declined: 'Your saved card was declined. Please use another card or contact your bank.',
         insufficient_funds: 'Your saved card has insufficient funds for this lesson payment.',
         expired_card: 'Your saved card has expired. Please update it before trying again.',
@@ -6652,21 +6784,10 @@ app.post('/api/assignments/:id/sessions/:sessionId/confirm', requireAuthApi, asy
     // Use a Stripe Customer for Checkout as well.  `setup_future_usage`
     // tells Stripe to retain the card for the later, student-approved
     // off-session lesson payments above; no card details ever enter our DB.
-    let checkoutCustomerId = user.stripeCustomerId;
-    if (!checkoutCustomerId) {
-      const customer = await client.customers.create({ email: user.email, name: user.name });
-      checkoutCustomerId = customer.id;
-      store.setStripePaymentMethod(user.id, {
-        customerId: checkoutCustomerId,
-        paymentMethodId: null,
-        brand: user.cardBrand,
-        last4: user.cardLast4,
-      });
-    }
     const checkout = await client.checkout.sessions.create({
       managed_payments: { enabled: false }, mode: 'payment',
       line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson` }, unit_amount: Math.round(Number(pending.totalUsd || 0) * 100) }, quantity: 1 }],
-      customer: checkoutCustomerId,
+      customer: paymentProfile.customerId,
       payment_intent_data: {
         setup_future_usage: 'off_session',
         metadata: { type: 'student-lesson', assignmentId: String(record.id), sessionId: String(pending.id), studentId: String(user.id) },
@@ -6701,9 +6822,8 @@ app.get('/api/assignments/:id/sessions/:sessionId/checkout-success', async (req,
     const paymentIntent = session.payment_intent ? await client.paymentIntents.retrieve(session.payment_intent) : null;
     const paymentMethod = paymentIntent && paymentIntent.payment_method ? await client.paymentMethods.retrieve(paymentIntent.payment_method) : null;
     if (paymentMethod && paymentMethod.id) {
-      const student = store.findById(record.studentId);
       store.setStripePaymentMethod(record.studentId, {
-        customerId: session.customer || (student && student.stripeCustomerId),
+        mode: stripeClient.getMode(), customerId: session.customer,
         paymentMethodId: paymentMethod.id,
         brand: paymentMethod.card ? paymentMethod.card.brand : null,
         last4: paymentMethod.card ? paymentMethod.card.last4 : null,

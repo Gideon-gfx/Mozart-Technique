@@ -18,18 +18,29 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/site.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/assets/redesign.css">
     <style>
-        body { font-family: 'Montserrat', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        body { font-family: 'Science Gothic', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%); }
+        body button, body input, body select, body textarea { font-family: inherit; }
         .chip { display: inline-flex; align-items: center; padding: .35rem .85rem; border-radius: 999px; font-size: .8rem; font-weight: 700; }
         .field-underline { border: none; border-bottom: 1.5px solid #d6d2cd; background: transparent; border-radius: 0; padding: .75rem .75rem .5rem; width: 100%; transition: border-color .2s ease; }
         .field-underline:focus { outline: none; border-color: #cc0000; }
-        .nav-links { display: flex; align-items: center; gap: 1rem; flex-wrap: nowrap; white-space: nowrap; }
-        .nav-links a { font-size: .82rem; font-weight: 700; color: #374151; }
-        .nav-links a:hover { color: #cc0000; }
+        #tutor-nav-menu { position: absolute; top: 100%; left: 0; right: 0; width: 100%; max-height: calc(100dvh - 5rem); overflow-y: auto; background: #fff; border-top: 1px solid #eee5e5; border-bottom: 1px solid #eee5e5; box-shadow: 0 18px 36px #27151724; padding: .5rem max(1rem, calc((100vw - 64rem) / 2)); z-index: 60; }
+        #tutor-nav-menu a { display: flex; align-items: center; width: 100%; padding: .85rem 1rem; color: #374151; font-size: .9rem; font-weight: 700; text-align: left; }
+        #tutor-nav-menu a:hover, #tutor-nav-menu a:focus-visible { background: #fff1f2; color: #b91c1c; outline: none; }
+        #tutor-nav-menu.hidden, #tutor-nav-menu a.hidden { display: none; }
+        #tutor-nav-toggle[aria-expanded="true"] { background: #fff1f2; color: #b91c1c; }
+        #tutor-nav-menu hr { border: 0; border-top: 1px solid #ede5e5; margin: 0 .75rem; }
+        #tutor-nav-menu a.hidden + hr { display: none; }
+        #student-info-details { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s ease; }
+        #student-info-details.is-open { grid-template-rows: 1fr; }
+        #student-info-details > div { min-height: 0; overflow: hidden; }
+        #student-info-toggle .student-chevron { transition: transform .32s ease; }
+        #student-info-toggle[aria-expanded="true"] .student-chevron { transform: rotate(180deg); }
+        @media (prefers-reduced-motion: reduce) { #student-info-details, #student-info-toggle .student-chevron { transition: none; } }
         .public-profile-head { align-items: center; }
     </style>
 </head>
@@ -49,38 +60,43 @@
         <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
             <div class="flex items-center gap-3">
                 <a href="/home" class="flex items-center gap-3">
-                    <img src="/mozartLogo.jpg" alt="Mozart Techniques" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                    <img src="/mozartLogo.jpg" alt="Mozart Techniques" class="w-14 h-14 rounded-2xl object-cover shadow-sm">
                     <div class="hidden sm:block">
                         <p id="page-subtitle" class="text-sm text-gray-500 uppercase tracking-[0.2em]">Tutor dashboard</p>
                         <h1 id="page-title" class="text-2xl font-bold text-gray-900">Mozart Techniques</h1>
                     </div>
                 </a>
             </div>
-            <div class="flex items-center gap-3">
-                <div class="hidden sm:flex nav-links mr-4">
-                    <a href="/home">Home</a>
-                    <a href="/find-tutor">Find a Tutor</a>
-                    <a href="/library">Library</a>
-                    <a id="organization-workspace-link" href="/org-tutor" class="hidden">Organization</a>
-                    <a href="/become-tutor">Become a Tutor</a>
-                    <a href="/become-sponsor">Sponsor</a>
-                    <a href="/contact">Contact</a>
-                </div>
-                <button id="mobile-nav-toggle" class="sm:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100" aria-label="Toggle navigation">
-                    <i class="fa-solid fa-bars text-xl"></i>
-                </button>
+            <div class="flex items-center gap-2 sm:gap-3">
                 <div id="auth-state"></div>
+                <button id="tutor-nav-toggle" type="button" class="p-2 rounded-md text-gray-700 hover:bg-gray-100" aria-label="Open navigation" aria-controls="tutor-nav-menu" aria-expanded="false">
+                    <i class="fa-solid fa-bars text-xl" aria-hidden="true"></i>
+                </button>
             </div>
         </nav>
-        <div id="mobile-nav" class="sm:hidden bg-white border-t border-gray-100 hidden">
-            <div class="px-4 py-3 space-y-2">
-                <a href="/home" class="block text-gray-700">Home</a>
-                <a href="/find-tutor" class="block text-gray-700">Find a Tutor</a>
-                <a href="/become-tutor" class="block text-gray-700">Become a Tutor</a>
-                <a href="/dashboard" class="block text-gray-700">Dashboard</a>
-                <a href="/search" class="block text-gray-700">Search</a>
-            </div>
-        </div>
+        <nav id="tutor-nav-menu" class="hidden" aria-label="Tutor page navigation">
+            <a href="/home">Home</a>
+            <hr>
+            <a href="/tutor">Tutor Dashboard</a>
+            <hr>
+            <a id="tutor-my-profile-link" href="/tutor/my-profile">My profile</a>
+            <hr>
+            <a href="/dashboard">Student Dashboard</a>
+            <hr>
+            <a href="/find-tutor">Find a Tutor</a>
+            <hr>
+            <a href="/library">Library</a>
+            <hr>
+            <a id="organization-workspace-link" href="/org-tutor" class="hidden">Organization</a>
+            <hr>
+            <a href="/become-tutor">Become a Tutor</a>
+            <hr>
+            <a href="/become-sponsor">Sponsor</a>
+            <hr>
+            <a href="/contact">Contact</a>
+            <hr>
+            <a href="/search">Search</a>
+        </nav>
     </header>
 
     <div class="page-layout max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
@@ -127,10 +143,15 @@
                 </div>
             </section>
 
-        <section id="student-info-section" class="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 hidden">
-            <div class="flex items-center gap-3"><img id="student-info-photo" src="/mozartLogo.jpg" alt="Student photo" class="w-12 h-12 object-cover rounded-2xl"><div><p class="text-xs uppercase tracking-wide text-gray-400">Current student</p><h2 id="student-info-name" class="text-lg font-bold text-gray-900">Student Name</h2></div></div>
-            <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm"><div><p class="text-xs text-gray-500">Age</p><p id="student-info-age" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Sex</p><p id="student-info-sex" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Location</p><p id="student-info-location" class="font-medium text-gray-800 truncate">Not provided</p></div><div><p class="text-xs text-gray-500">Contact</p><p id="student-info-contact" class="font-medium text-gray-800 truncate">Not provided</p></div></div>
-            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+        <section id="student-info-section" class="bg-white rounded-3xl shadow-sm border border-gray-100 hidden">
+            <button id="student-info-toggle" type="button" class="flex w-full items-center gap-3 rounded-3xl p-4 text-left hover:bg-gray-50" aria-expanded="false" aria-controls="student-info-details">
+                <img id="student-info-photo" src="/mozartLogo.jpg" alt="Student photo" class="w-12 h-12 object-cover rounded-2xl shrink-0">
+                <span class="min-w-0 flex-1"><span class="block text-xs uppercase tracking-wide text-gray-400">Current student</span><span id="student-info-name" class="block text-lg font-bold text-gray-900 truncate">Student Name</span><span id="student-info-course" class="block text-sm text-gray-500 truncate">Course</span></span>
+                <i class="student-chevron fa-solid fa-chevron-down text-gray-500" aria-hidden="true"></i>
+            </button>
+            <div id="student-info-details" aria-hidden="true" inert><div>
+            <div class="mx-4 mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm"><div><p class="text-xs text-gray-500">Age</p><p id="student-info-age" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Sex</p><p id="student-info-sex" class="font-medium text-gray-800">Not provided</p></div><div><p class="text-xs text-gray-500">Location</p><p id="student-info-location" class="font-medium text-gray-800 break-words">Not provided</p></div><div><p class="text-xs text-gray-500">Contact</p><p id="student-info-contact" class="font-medium text-gray-800 break-words">Not provided</p></div></div>
+            <div class="mx-4 mt-4 mb-4 grid gap-2 sm:grid-cols-2">
                 <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 bg-gray-50">
                     <input type="checkbox" id="student-agreement-1" class="h-4 w-4 text-primary-red border-gray-300 rounded" />
                     <span class="text-sm text-gray-700">I have reviewed the student's details and confirm they are ready to start classes.</span>
@@ -140,6 +161,7 @@
                     <span class="text-sm text-gray-700">I agree to follow Mozart Techniques teaching guidelines and respect the student.</span>
                 </label>
             </div>
+            </div></div>
         </section>
         <section id="tutor-dashboard-sections" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8">
             <h2 class="text-xl font-bold text-gray-900">Tutor dashboard</h2>
@@ -217,19 +239,6 @@
             </div>
         </section>
 
-        <section id="profile-summary-section" class="bg-white rounded-3xl shadow-lg p-6 sm:p-8">
-            <h2 class="text-xl font-bold text-gray-900">Tutor profile summary</h2>
-            <div class="grid sm:grid-cols-2 gap-6 mt-6">
-                <div class="rounded-2xl border border-gray-200 p-5">
-                    <h3 class="font-semibold text-gray-700 mb-3">Subjects</h3>
-                    <div id="profile-categories" class="flex flex-wrap gap-2"></div>
-                </div>
-                <div class="rounded-2xl border border-gray-200 p-5">
-                    <h3 class="font-semibold text-gray-700 mb-3">Your hourly rate</h3>
-                    <p id="profile-rate" class="text-2xl font-bold text-primary-red"></p>
-                </div>
-            </div>
-        </section>
     </main>
     </div>
 
@@ -274,7 +283,6 @@
                     userProfile = profileData.profile || null;
                     userSponsorship = sessionData.user.sponsor || null;
                     if (userSponsorship) document.getElementById('organization-workspace-link')?.classList.remove('hidden');
-                    renderProfileSummary();
                     renderSponsorshipStatus();
                     const sidebarName = document.getElementById('sidebar-tutor-name');
                     if (sidebarName) sidebarName.textContent = userProfile?.name || 'Tutor';
@@ -311,20 +319,15 @@
                     userProfile = publicData.tutor;
                     // hide editor and dashboard controls on public profile
                     const dash = document.getElementById('tutor-dashboard-sections'); if (dash) dash.style.display = 'none';
+                    document.getElementById('tutor-my-profile-link')?.classList.add('hidden');
                     document.getElementById('page-subtitle').textContent = 'Tutor profile';
                     document.getElementById('page-title').textContent = userProfile.name || 'Tutor profile';
                     document.getElementById('public-profile-section').classList.remove('hidden');
-                    if (document.getElementById('profile-summary-section')) document.getElementById('profile-summary-section').style.display = 'none';
                     renderPublicProfile();
                 }
             } catch (err) {
                 showAlert('Could not load tutor page. Try again in a moment.', 'error');
             }
-        }
-
-        function renderProfileSummary() {
-            document.getElementById('profile-categories').innerHTML = (userProfile?.categories || []).map((cat) => `<span class="chip bg-red-50 text-primary-red">${escapeHtml(cat)}</span>`).join('');
-            document.getElementById('profile-rate').textContent = userProfile ? `$${userProfile.hourlyRateUsd}/hr` : 'Not set';
         }
 
         function renderSponsorshipStatus() {
@@ -377,8 +380,17 @@
             }
             section.classList.remove('hidden');
             document.getElementById('tutor-dashboard-sections').insertAdjacentElement('afterend', section);
+            if (section.dataset.assignmentId !== String(assignment.id)) {
+                section.dataset.assignmentId = String(assignment.id);
+                document.getElementById('student-info-toggle').setAttribute('aria-expanded', 'false');
+                const details = document.getElementById('student-info-details');
+                details.classList.remove('is-open');
+                details.setAttribute('aria-hidden', 'true');
+                details.setAttribute('inert', '');
+            }
             document.getElementById('student-info-photo').src = assignment.studentPhotoUrl || 'mozartLogo.jpg';
             document.getElementById('student-info-name').textContent = assignment.studentName || `Student #${assignment.studentId}`;
+            document.getElementById('student-info-course').textContent = assignment.category || 'Course not specified';
             document.getElementById('student-info-age').textContent = assignment.studentAgeGroup || 'Not provided';
             document.getElementById('student-info-sex').textContent = assignment.studentSex || 'Not provided';
             const locationText = assignment.lessonType === 'physical'
@@ -1246,6 +1258,36 @@
     </script>
     <script src="/assets/nav-auth.js"></script>
     <script src="/assets/mobile-nav.js"></script>
+    <script>
+        (() => {
+            const toggle = document.getElementById('tutor-nav-toggle');
+            const menu = document.getElementById('tutor-nav-menu');
+            const studentToggle = document.getElementById('student-info-toggle');
+            const studentDetails = document.getElementById('student-info-details');
+            const setOpen = (open) => {
+                menu.classList.toggle('hidden', !open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+                toggle.querySelector('i').className = open ? 'fa-solid fa-xmark text-xl' : 'fa-solid fa-bars text-xl';
+            };
+            toggle.addEventListener('click', () => setOpen(menu.classList.contains('hidden')));
+            studentToggle.addEventListener('click', () => {
+                const open = studentToggle.getAttribute('aria-expanded') !== 'true';
+                studentToggle.setAttribute('aria-expanded', String(open));
+                studentDetails.classList.toggle('is-open', open);
+                studentDetails.setAttribute('aria-hidden', String(!open));
+                if (open) studentDetails.removeAttribute('inert');
+                else studentDetails.setAttribute('inert', '');
+            });
+            menu.addEventListener('click', (event) => { if (event.target.closest('a')) setOpen(false); });
+            document.addEventListener('click', (event) => {
+                if (!menu.classList.contains('hidden') && !menu.contains(event.target) && !toggle.contains(event.target)) setOpen(false);
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !menu.classList.contains('hidden')) { setOpen(false); toggle.focus(); }
+            });
+        })();
+    </script>
     <script src="/assets/video-embed.js"></script>
     <script>
         document.addEventListener('click', (e) => {
