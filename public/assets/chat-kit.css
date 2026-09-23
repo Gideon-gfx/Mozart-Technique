@@ -81,7 +81,7 @@
 .ck-row.justify-end .ck-swipe-icon { right: 34px; }
 .ck-row.justify-start .ck-swipe-icon { left: 34px; }
 
-.ck-date-sep { position: sticky; top: 0; z-index: 6; display: flex; justify-content: center; margin: 4px 0 12px; }
+.ck-date-sep { position: static; z-index: auto; display: flex; justify-content: center; margin: 8px 0 12px; }
 .ck-date-sep span { background: rgba(17,24,39,.78); color: #fff; font-size: 11px; font-weight: 700; padding: 4px 13px; border-radius: 999px; }
 
 .ck-reply-banner { display: flex; align-items: flex-start; gap: 8px; padding: 7px 12px; background: #f4f4f5; border-radius: 8px; margin: 8px 10px 0; border-left: 3px solid #cc0000; }
@@ -95,8 +95,9 @@
 .ck-composer { border-top: 1px solid #eee; padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
 .ck-composer-icon { flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center; border: none; background: none; border-radius: 999px; color: #8a8a8f; font-size: 14px; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
 .ck-composer-icon:hover { color: #cc0000; background: rgba(204,0,0,.07); }
-.ck-composer-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; padding: 0 6px; background: #f4f4f5; border: 1px solid #e6e6e8; border-radius: 999px; }
-.ck-composer-input { flex: 1; min-width: 0; border: none; background: transparent; resize: none; outline: none; font-family: inherit; font-size: 13.5px; line-height: 1.35; padding: 8px 4px; max-height: 96px; }
+.ck-composer-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; padding: 0 6px; background: #f1f1f3; border: 1px solid #d4d4d8; border-radius: 999px; }
+.ck-composer-input { flex: 1; min-width: 0; border: none; background: transparent; color: #27272a; caret-color: #cc0000; resize: none; outline: none; font-family: inherit; font-size: 13.5px; line-height: 1.35; padding: 8px 4px; max-height: 96px; }
+.ck-composer-input::placeholder { color: #77777f; opacity: 1; }
 .ck-composer-send { flex-shrink: 0; width: 36px; height: 36px; border-radius: 999px; border: none; background: #cc0000; color: #fff; display: grid; place-items: center; font-size: 14px; cursor: pointer; }
 .ck-composer-send:hover { background: #a30000; }
 .ck-composer-send.recording { background: #17130f; animation: ckRecPulse 1.2s ease-in-out infinite; }

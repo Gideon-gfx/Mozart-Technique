@@ -14,7 +14,8 @@ if (!/^\/(?:messages\/)?chat(?:\/|$)/.test(location.pathname) && !document.getEl
   document.head.appendChild(script);
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+function mountMozartFooter() {
+  if (document.querySelector('.mt-footer')) return;
   const STYLE_ID = 'mt-footer-style';
 
   if (!document.getElementById(STYLE_ID)) {
@@ -55,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function () {
         transition: transform .2s ease, background .2s ease;
       }
       .mt-footer-social a:hover { transform: translateY(-2px); background: #cc0000; color: white; }
-      .mt-footer-newsletter { display: flex; }
+      .mt-footer-newsletter { display: flex; position: relative; z-index: 100000; pointer-events: auto; }
       .mt-footer-newsletter input {
         background: #fff; color: #333; border: 1px solid rgba(204,0,0,.25);
         padding: .5rem .75rem; border-radius: .375rem 0 0 .375rem; flex: 1; min-width: 0;
@@ -139,6 +140,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const newsletterForm = document.getElementById('mt-newsletter-form');
   const newsletterMsg = document.getElementById('mt-newsletter-msg');
+  if (!newsletterForm || newsletterForm.dataset.bound === 'true') return;
+  newsletterForm.dataset.bound = 'true';
   newsletterForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const emailInput = document.getElementById('mt-newsletter-email');
@@ -169,4 +172,10 @@ document.addEventListener('DOMContentLoaded', function () {
       submitBtn.disabled = false;
     }
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mountMozartFooter, { once: true });
+} else {
+  mountMozartFooter();
+}

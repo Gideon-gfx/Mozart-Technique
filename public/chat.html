@@ -191,8 +191,8 @@
         .msg-row.justify-end .swipe-reply-icon { right: 34px; }
         .msg-row.justify-start .swipe-reply-icon { left: 34px; }
 
-        /* --- Date separators (sticky while scrolling) ---------------------- */
-        .date-sep { position: sticky; top: 0; z-index: 6; display: flex; justify-content: center; margin: 4px 0 12px; }
+        /* --- Date separators ----------------------------------------------- */
+        .date-sep { position: static; z-index: auto; display: flex; justify-content: center; margin: 8px 0 12px; }
         .date-sep span { background: rgba(17,24,39,.78); color: #fff; font-size: 11px; font-weight: 700; padding: 4px 13px; border-radius: 999px; }
 
         /* --- Clip / attachment menu ----------------------------------------- */
@@ -278,8 +278,8 @@
             align-items: center;
             gap: 2px;
             padding: 0 6px;
-            background: #f4f4f5;
-            border: 1px solid #e6e6e8;
+            background: #f1f1f3;
+            border: 1px solid #d4d4d8;
             border-radius: 999px;
         }
         .composer-input {
@@ -290,11 +290,14 @@
             resize: none;
             outline: none;
             font-family: inherit;
+            color: #27272a;
+            caret-color: #cc0000;
             font-size: 13.5px;
             line-height: 1.35;
             padding: 8px 4px;
             max-height: 96px;
         }
+        .composer-input::placeholder { color: #77777f; opacity: 1; }
         .composer-icon {
             flex-shrink: 0;
             width: 30px;
@@ -1259,30 +1262,39 @@
             return html;
         }
 
+        let messagesLoading = false;
         async function loadMessages(scroll) {
-            const res = await fetch(`/api/assignments/${assignmentId}/messages`);
-            const data = await res.json();
-            if (!data.success) return;
-            myRole = data.role;
-            if (myRole === 'tutor') document.getElementById('clip-library-btn').classList.remove('hidden');
-            // Messages the current user deleted "for me" stay on the server
-            // (the sender and anyone else still sees them) but never render
-            // in this client.
-            const visibleMessages = data.messages.filter((m) => !(m.deletedForUserIds || []).includes(myUserId));
-            currentMessages = visibleMessages;
-            renderPinnedBar();
-            // Covers new messages as well as an edit/delete/pin/react/vote on
-            // any existing one (not just the latest) - a plain last-id check
-            // would miss those and leave the bubble stale.
-            const signature = visibleMessages.map((m) => `${m.id}:${m.text}:${m.deleted ? 1 : 0}:${m.pinned ? 1 : 0}:${m.editedAt || ''}:${(m.reactions || []).map((r) => r.userId + r.emoji).join(',')}:${m.poll ? m.poll.votes.length : ''}`).join('|');
-            if (signature === lastMessagesSignature) return; // nothing new
-            lastMessagesSignature = signature;
+            if (messagesLoading) return;
+            messagesLoading = true;
+            try {
+                const res = await fetch(`/api/assignments/${assignmentId}/messages`);
+                const data = await res.json();
+                if (!data.success) return;
+                myRole = data.role;
+                if (myRole === 'tutor') document.getElementById('clip-library-btn').classList.remove('hidden');
+                // Messages the current user deleted "for me" stay on the server
+                // (the sender and anyone else still sees them) but never render
+                // in this client.
+                const visibleMessages = data.messages.filter((m) => !(m.deletedForUserIds || []).includes(myUserId));
+                currentMessages = visibleMessages;
+                renderPinnedBar();
+                // Covers new messages as well as an edit/delete/pin/react/vote on
+                // any existing one (not just the latest) - a plain last-id check
+                // would miss those and leave the bubble stale.
+                const signature = visibleMessages.map((m) => `${m.id}:${m.text}:${m.deleted ? 1 : 0}:${m.pinned ? 1 : 0}:${m.editedAt || ''}:${(m.reactions || []).map((r) => r.userId + r.emoji).join(',')}:${m.poll ? m.poll.votes.length : ''}`).join('|');
+                if (signature === lastMessagesSignature) return; // nothing new
+                lastMessagesSignature = signature;
 
-            const body = document.getElementById('chat-body');
-            body.innerHTML = visibleMessages.length
-                ? renderMessageList(visibleMessages)
-                : '<p class="text-center text-gray-400 text-sm py-10">No messages yet - say hello!</p>';
-            if (scroll !== false) body.scrollTop = body.scrollHeight;
+                const body = document.getElementById('chat-body');
+                body.innerHTML = visibleMessages.length
+                    ? renderMessageList(visibleMessages)
+                    : '<p class="text-center text-gray-400 text-sm py-10">No messages yet - say hello!</p>';
+                if (scroll !== false) body.scrollTop = body.scrollHeight;
+            } catch (error) {
+                console.error('Could not refresh chat messages:', error);
+            } finally {
+                messagesLoading = false;
+            }
         }
 
         function renderPinnedBar() {
@@ -1958,7 +1970,11 @@
             loadLessonStrip();
             connectSocket();
             // Fallback only - the socket handles the live case.
-            setInterval(() => loadMessages(), 15000);
+            // Deployments that do not pass WebSocket upgrades need a quicker
+            // HTTP fallback, while connected sessions avoid redundant polls.
+            setInterval(() => {
+                if (!document.hidden && (!socket || socket.readyState !== WebSocket.OPEN)) loadMessages(false);
+            }, 4000);
             // Picks up a lesson scheduled or a recording posted from the
             // tutor dashboard while this thread is already open.
             setInterval(() => { if (!document.hidden) loadLessonStrip(); }, 30000);
