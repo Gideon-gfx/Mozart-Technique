@@ -15,8 +15,7 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      /* The logo's container becomes a flex row so the badge sits beside
-         the wordmark instead of wrapping onto its own line. */
+      /* Keep the country badge attached to the logo cluster on every header. */
       .mt-flag-host {
         display: flex !important;
         align-items: center;
@@ -127,8 +126,8 @@
       }
     });
 
-    anchor.parentElement.classList.add('mt-flag-host');
-    anchor.parentElement.insertBefore(badge, anchor.nextSibling);
+    anchor.classList.add('mt-flag-host');
+    anchor.appendChild(badge);
   }
 
   async function sendCoords(lat, lng) {
