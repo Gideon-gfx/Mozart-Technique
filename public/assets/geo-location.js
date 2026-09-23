@@ -164,8 +164,8 @@
     const box = document.createElement('div');
     box.className = 'mt-geo-prompt';
     box.innerHTML = `
-      <h4>Show tutors near you</h4>
-      <p>Mozart Techniques matches you with tutors in your own country. Share your location so we can show the right roster.</p>
+      <h4>Show tutors and performers near you</h4>
+      <p>Mozart Techniques matches you with tutors and performers in your own country. Share your location so we can show the right roster.</p>
       <div class="mt-geo-actions">
         <button type="button" class="mt-geo-btn" data-geo-allow>Use my location</button>
         <button type="button" class="mt-geo-btn secondary" data-geo-skip>Not now</button>

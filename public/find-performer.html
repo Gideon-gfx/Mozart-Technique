@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Find a Performer - Mozart Techniques</title>
 <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -23,6 +27,9 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .performer-card-meta { font-size: .78rem; color: var(--mz-muted); margin-bottom: 6px; }
 .performer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .benchmark-hint { font-size: .78rem; color: var(--mz-muted); margin-top: 4px; }
+.request-media-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.request-media-item { display:inline-flex; align-items:center; gap:7px; padding:7px 9px; border:1px solid var(--mz-border); border-radius:8px; font-size:.78rem; }
+.request-media-item button { border:0; background:transparent; color:var(--mz-red); cursor:pointer; font-size:1rem; }
 
 /* Light main-site-matching nav + footer, in place of the dark store chrome. */
 .site-nav { background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; }
@@ -39,17 +46,20 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .site-footer-links a:hover { color: var(--mz-red); }
 .site-footer-bottom { color: #999; font-size: .78rem; }
 </style>
+<link rel="stylesheet" href="/assets/performer-nav.css">
+<link rel="stylesheet" href="/assets/performer-typography.css">
 </head>
 <body class="market-body">
 
 <nav class="site-nav">
   <div class="site-nav-inner">
-    <a href="/home" class="site-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques">Mozart Techniques</a>
+    <a href="/home" class="site-logo"><img src="/mozartLogo.jpg" alt=""><span>Mozart<span class="performer-brand-extra"> Techniques</span></span></a>
     <div class="site-nav-links">
       <a href="/become-performer">Become a Performer</a>
+      <a href="#request-form-card"><i class="fa-solid fa-bullhorn"></i> Request a Performer</a>
       <a href="/performance-requests"><i class="fa-solid fa-calendar-check"></i> My Requests</a>
-      <div id="auth-state"></div>
     </div>
+    <div id="auth-state"></div>
   </div>
 </nav>
 
@@ -60,7 +70,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 
 <div class="market-container" style="padding-top:32px;">
   <div class="market-card" id="request-form-card" style="margin-bottom:32px;">
-    <h2 class="market-card-title">Post an Event Request</h2>
+    <h2 class="market-card-title">Request a Performer</h2>
     <div class="market-form-row">
       <div class="market-field"><label>Performer category</label><select class="market-select" id="req-category"></select></div>
       <div class="market-field"><label>Event type</label><select class="market-select" id="req-event-type"></select></div>
@@ -82,7 +92,8 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
       <div class="market-field"><label>Your phone (optional)</label><input class="market-input" id="req-phone"></div>
     </div>
     <div class="market-field"><label>Tell performers about your event</label><textarea class="market-textarea" id="req-notes" placeholder="What should performers know?"></textarea></div>
-    <button type="button" id="submit-request-btn" class="market-btn market-btn-primary market-btn-block">Post Request</button>
+    <div class="market-field" style="margin-top:14px;"><label>Event photos, videos, or links (optional)</label><input class="market-input" type="file" id="req-media-input" accept="image/*,video/*" multiple><div style="display:flex;gap:8px;margin-top:8px;"><input class="market-input" id="req-media-link" type="url" placeholder="Paste an event link"><button type="button" id="add-request-link-btn" class="market-btn market-btn-outline market-btn-sm">Add link</button></div><div id="request-media-list" class="request-media-list"></div></div>
+    <button type="button" id="submit-request-btn" class="market-btn market-btn-primary market-btn-block">Send Request to Performers</button>
   </div>
 
   <section class="market-section">
@@ -98,10 +109,6 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 <footer class="site-footer">
   <div class="site-footer-inner">
     <div class="site-footer-links">
-      <a href="/home">Home</a>
-      <a href="/find-performer">Find a Performer</a>
-      <a href="/become-performer">Become a Performer</a>
-      <a href="/performance-requests">My Requests</a>
       <a href="/contact">Contact Us</a>
     </div>
     <div class="site-footer-bottom">&copy; <span id="year"></span> Mozart Techniques. All rights reserved.</div>
@@ -109,6 +116,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 </footer>
 
 <script src="/assets/nav-auth.js" defer></script>
+<script src="/assets/performer-nav.js" defer></script>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -122,6 +130,11 @@ function showToast(message, type) {
 }
 
 let selectedCategory = '';
+let requestMedia = [];
+function renderRequestMedia() { document.getElementById('request-media-list').innerHTML = requestMedia.map((item, index) => `<span class="request-media-item"><i class="fa-solid ${item.type === 'image' ? 'fa-image' : item.type === 'video' ? 'fa-video' : 'fa-link'}"></i>${escapeHtml(item.name || 'Event link')}<button type="button" data-index="${index}" aria-label="Remove">&times;</button></span>`).join(''); document.querySelectorAll('#request-media-list button').forEach((button) => button.addEventListener('click', () => { requestMedia.splice(Number(button.dataset.index), 1); renderRequestMedia(); })); }
+async function uploadRequestMedia(file) { const kind = file.type.startsWith('video/') ? 'video' : 'image'; const body = new FormData(); body.append(kind === 'video' ? 'video' : 'photo', file); const res = await fetch(kind === 'video' ? '/api/uploads/performer-video' : '/api/uploads/photo', { method: 'POST', body }); const data = await res.json(); if (!data.success) throw new Error(data.error || 'Upload failed.'); return { type: kind, url: data.url, name: file.name }; }
+document.getElementById('req-media-input').addEventListener('change', async (event) => { const files = [...event.target.files].slice(0, 6 - requestMedia.length); if (!files.length) return; try { for (const file of files) requestMedia.push(await uploadRequestMedia(file)); renderRequestMedia(); showToast('Event media added.', 'success'); } catch (error) { showToast(error.message, 'error'); } event.target.value = ''; });
+document.getElementById('add-request-link-btn').addEventListener('click', () => { const input = document.getElementById('req-media-link'); const url = input.value.trim(); try { const parsed = new URL(url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid'); } catch { return showToast('Enter a valid http(s) link.', 'error'); } if (requestMedia.length >= 6) return showToast('You can add up to 6 attachments.', 'error'); requestMedia.push({ type: 'link', url, name: url }); input.value = ''; renderRequestMedia(); });
 
 async function loadCategories() {
   const res = await fetch('/api/performer-categories');
@@ -162,7 +175,7 @@ async function loadBenchmarkHint() {
 
 function performerCardHtml(p) {
   return `
-    <a class="market-product-card performer-card" href="/performers/${p.id}">
+    <a class="market-product-card performer-card" href="/performers/${encodeURIComponent(p.slug || p.id)}">
       <div class="market-product-image"><img src="${p.photoUrl || '/mozartLogo.jpg'}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
       <div class="market-product-info performer-card-body">
         <p class="market-product-name performer-card-name">${escapeHtml(p.name)}</p>
@@ -196,6 +209,7 @@ document.getElementById('submit-request-btn').addEventListener('click', async ()
     proposedAmountUsd: Number(document.getElementById('req-amount').value) || 0,
     notes: document.getElementById('req-notes').value.trim(),
     phone: document.getElementById('req-phone').value.trim(),
+    eventMedia: requestMedia,
   };
   if (!payload.eventLocation) return showToast('Enter an event location.', 'error');
   if (!payload.proposedAmountUsd) return showToast('Enter a proposed amount.', 'error');
@@ -204,7 +218,7 @@ document.getElementById('submit-request-btn').addEventListener('click', async ()
   btn.disabled = true; btn.textContent = 'Posting...';
   const res = await fetch('/api/marketplace/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await res.json();
-  btn.disabled = false; btn.textContent = 'Post Request';
+  btn.disabled = false; btn.textContent = 'Send Request to Performers';
   if (!data.success) return showToast(data.error || 'Could not post request.', 'error');
 
   if (!data.locationResolved) {
@@ -221,5 +235,6 @@ loadCategories();
 loadEventTypes();
 loadPerformers();
 </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

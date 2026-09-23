@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Organization Dashboard</title>
   <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -136,7 +140,7 @@
           <img src="/mozartLogo.jpg" alt="Mozart" style="width:40px;height:40px;border-radius:8px;" />
           <div>
             <div class="text-xs font-bold uppercase tracking-wide text-red-600">Mozart Techniques</div>
-            <h1 class="text-xl font-bold">Organization Dashboard</h1>
+            <h1 id="dashboard-title" class="text-xl font-bold">Organization Dashboard</h1>
           </div>
         </div>
       </div>
@@ -293,6 +297,7 @@
                 <button class="classroom-menu-btn" data-page="announcement"><i class="fa-solid fa-bullhorn"></i> Announcement</button>
                 <button class="classroom-menu-btn" data-page="notification"><i class="fa-solid fa-bell"></i> Notification</button>
                 <button class="classroom-menu-btn" data-page="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
+                <button class="classroom-menu-btn" data-page="games"><i class="fa-solid fa-gamepad"></i> Games</button>
                 <button class="classroom-menu-btn" data-page="performance"><i class="fa-solid fa-chart-line"></i> Performance</button>
               </div>
               <div id="classroom-members-panel" class="mt-6 space-y-3"></div>
@@ -352,6 +357,19 @@
                 <div class="classroom-card">
                   <div class="row mb-4"><div><h3 class="text-2xl font-bold">Events</h3><p class="muted">Upcoming organization events.</p></div><button id="create-event-btn" type="button" class="icon-btn w-10 h-10 rounded-lg text-red-600 hover:bg-red-50" title="Create event" aria-label="Create event"><i class="fa-solid fa-plus"></i></button></div>
                   <div id="classroom-events" class="space-y-3"><p class="text-gray-400 text-center py-8">No events scheduled.</p></div>
+                </div>
+              </div>
+
+              <div class="classroom-page" data-page-panel="games">
+                <div class="classroom-card mb-4">
+                  <h3 class="text-2xl font-bold mb-2">Instrument challenges</h3>
+                  <p class="muted mb-4">Eight theory practice games your students can play from their own Games tab. Share one as classroom content from "Post Content" → "Game / Activity" to point students at it directly.</p>
+                  <div id="instrument-games-grid" class="grid sm:grid-cols-2 gap-3"></div>
+                </div>
+                <div class="classroom-card">
+                  <h3 class="text-2xl font-bold mb-2">Games leaderboard</h3>
+                  <p class="muted mb-4">Best note-recognition scores from your students.</p>
+                  <div class="table-card overflow-x-auto"><table><thead><tr><th>#</th><th>Student</th><th>Level</th><th>Score</th><th>Played</th></tr></thead><tbody id="classroom-games-leaderboard"><tr><td colspan="5" class="text-center text-gray-400 py-8">No scores yet</td></tr></tbody></table></div>
                 </div>
               </div>
 
@@ -491,6 +509,12 @@
                   </div>
                 </div>
                 <div id="content-form-game" class="hidden space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold mb-2">Built-in instrument challenge (optional)</label>
+                    <select id="content-game-picker" class="w-full border border-gray-300 rounded-lg p-3">
+                      <option value="">Choose one to auto-fill the link below, or paste your own URL</option>
+                    </select>
+                  </div>
                   <div>
                     <label class="block text-sm font-semibold mb-2">Game / Activity URL</label>
                     <input type="url" id="content-game-url" placeholder="https://example.com/game" class="w-full border border-gray-300 rounded-lg p-3">
@@ -633,6 +657,7 @@
     </main>
   </div>
 
+  <script src="/assets/teaching-tools-launcher.js"></script>
   <script src="/assets/chat-kit.js"></script>
   <script>
     const sidebarItems = document.querySelectorAll('.sidebar-item');
@@ -711,6 +736,13 @@
       const orgTypeNode = document.getElementById('org-type');
       if (orgNameNode) orgNameNode.textContent = name;
       if (orgTypeNode) orgTypeNode.textContent = 'Type: ' + type;
+      // The dashboard's own identity is which form the organization filled
+      // in - "NGO Dashboard" or "Institution Dashboard", not a generic
+      // "Organization Dashboard".
+      const dashboardTitleNode = document.getElementById('dashboard-title');
+      const dashboardName = org.organizationType === 'institution' ? 'Institution Dashboard' : 'NGO Dashboard';
+      if (dashboardTitleNode) dashboardTitleNode.textContent = dashboardName;
+      document.title = dashboardName;
       const profileName = document.getElementById('org-profile-name');
       const profileEmail = document.getElementById('org-profile-email');
       const profileButton = document.getElementById('org-profile-btn');
@@ -1469,11 +1501,12 @@
     async function loadClassroomLiveData() {
       if (!state.organization) return;
       try {
-        const [contentRes, notificationRes, eventRes, performanceRes] = await Promise.all([
+        const [contentRes, notificationRes, eventRes, performanceRes, gamesRes] = await Promise.all([
           fetch(`/api/organizations/${state.organization.id}/private-content`),
           fetch('/api/organizations/notifications'),
           fetch('/api/organizations/events'),
-          fetch('/api/organizations/performance')
+          fetch('/api/organizations/performance'),
+          fetch('/api/games/note-recognition/leaderboard')
         ]);
         const contentData = await contentRes.json();
         if (contentData.success) renderClassroomContent(contentData.content || []);
@@ -1500,6 +1533,20 @@
         document.getElementById('performance-active').textContent = performance.activeLessons || 0;
         document.getElementById('performance-completed').textContent = performance.completedLessons || 0;
         document.getElementById('performance-members').textContent = performance.memberCount || 0;
+        const gamesData = await gamesRes.json();
+        const leaderboardBody = document.getElementById('classroom-games-leaderboard');
+        if (leaderboardBody) {
+          const rows = gamesData.leaderboard || [];
+          leaderboardBody.innerHTML = rows.length ? rows.map((entry, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${escapeHtml(entry.studentName)}</td>
+              <td class="capitalize">${escapeHtml(entry.tier)}</td>
+              <td>${Number(entry.score)}</td>
+              <td>${entry.playedAt ? new Date(entry.playedAt).toLocaleDateString() : '—'}</td>
+            </tr>
+          `).join('') : '<tr><td colspan="5" class="text-center text-gray-400 py-8">No scores yet</td></tr>';
+        }
       } catch (error) {
         console.warn('Could not load classroom activity', error);
       }
@@ -1512,6 +1559,41 @@
       document.getElementById('content-form-video')?.classList.toggle('hidden', type !== 'video');
       document.getElementById('content-form-game')?.classList.toggle('hidden', type !== 'game');
     });
+
+    // Lets a "Game / Activity" post reference one of the eight built-in
+    // instrument challenges (public/classroom-games/) with one click,
+    // instead of an org tutor needing to know and hand-type its exact URL -
+    // picking one just auto-fills the same URL/instructions fields a fully
+    // custom game link would use, so posting still works identically either
+    // way.
+    fetch('/classroom-games/catalog.json').then((r) => r.json()).then((games) => {
+      const picker = document.getElementById('content-game-picker');
+      if (picker) {
+        games.forEach((game) => {
+          const option = document.createElement('option');
+          option.value = game.id;
+          option.textContent = `${game.title} (${game.category})`;
+          picker.appendChild(option);
+        });
+        picker.addEventListener('change', () => {
+          if (!picker.value) return;
+          const game = games.find((g) => g.id === picker.value);
+          if (!game) return;
+          document.getElementById('content-game-url').value = `${location.origin}/classroom-games/index.html?game=${game.id}`;
+          document.getElementById('content-game-instructions').value = game.description;
+          if (!document.getElementById('content-title').value) document.getElementById('content-title').value = game.title;
+        });
+      }
+      const grid = document.getElementById('instrument-games-grid');
+      if (grid) {
+        grid.innerHTML = games.map((game) => `
+          <a href="/classroom-games/index.html?game=${game.id}" class="block rounded-xl border border-gray-200 p-4 hover:border-red-300 hover:bg-red-50 transition">
+            <p class="font-bold">${escapeHtml(game.title)}</p>
+            <p class="text-sm text-gray-500 mt-1">${escapeHtml(game.description)}</p>
+          </a>
+        `).join('');
+      }
+    }).catch(() => {});
 
     document.querySelectorAll('.classroom-menu-btn').forEach((button) => {
       button.addEventListener('click', () => setClassroomPage(button.dataset.page));
@@ -1945,5 +2027,6 @@
       loadIssuedCodes();
     }, 20000);
   </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

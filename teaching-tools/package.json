@@ -1,0 +1,30 @@
+{
+  "name": "mozart-teaching-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
+    "@tiptap/core": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "@vexflow-fonts/academico": "1.0.1",
+    "@vexflow-fonts/bravura": "1.0.2",
+    "konva": "10.6.0",
+    "meyda": "5.6.3",
+    "pitchy": "4.1.0",
+    "soundfont-player": "0.12.0",
+    "teoria": "2.5.0",
+    "three": "0.186.0",
+    "tone": "15.1.22",
+    "vexflow": "5.0.0",
+    "wavesurfer.js": "7.12.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.25.12"
+  }
+}

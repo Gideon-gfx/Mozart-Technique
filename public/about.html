@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/assets/redesign.css">
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -105,6 +109,7 @@
         body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at left, rgba(204,0,0,0.04), transparent 20%), radial-gradient(circle at bottom right, rgba(204,0,0,0.03), transparent 16%); pointer-events: none; z-index: 0; }
         .serif { font-family: 'Science Gothic', sans-serif; }
         .wrap { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+        main { width: 100%; padding-inline: clamp(16px, 3vw, 40px); }
 
         .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .nav-container { width: 100%; max-width: var(--max-width); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; }
@@ -325,5 +330,6 @@
     <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/geo-location.js"></script>
     <script src="/assets/footer.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

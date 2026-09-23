@@ -1,0 +1,10 @@
+[
+{"id":"piano","title":"Piano: Inversion Lab","category":"Piano","description":"Identify triad qualities and inversions from ordered keyboard pitches."},
+{"id":"guitar","title":"Guitar: Fretboard Navigator","category":"Guitar","description":"Calculate notes across six strings, frets and capo positions in standard tuning."},
+{"id":"bass","title":"Bass: Groove Roots","category":"Bass Guitar","description":"Find roots, thirds and fifths across a four-string bass fretboard."},
+{"id":"violin","title":"Violin: Pitch Shifts","category":"Violin","description":"Work out sounding pitches from open strings and semitone shifts."},
+{"id":"cello","title":"Cello: Register Explorer","category":"Cello","description":"Navigate open strings, octave numbers and chromatic shifts."},
+{"id":"trumpet","title":"Trumpet: Concert Pitch Mission","category":"Trumpet","description":"Convert between written and concert pitches for B-flat trumpet."},
+{"id":"saxophone","title":"Saxophone: Transposition Mission","category":"Saxophone","description":"Solve alto E-flat and tenor B-flat written-to-concert pitch puzzles."},
+{"id":"drums","title":"Drums: Bar Builder","category":"Drums","description":"Complete simple and compound meters using eighth- and sixteenth-note subdivisions."}
+]

@@ -23,13 +23,19 @@ function persistCache(cache) {
 
 // Returns { lat, lng, city, state, country } or null if the address
 // couldn't be resolved. city/state/country back the locality-tier matching
-// for online lessons (same city > same state/region > same country).
-async function geocodeAddress(query) {
+// for online lessons (same city > same state/region > same country) AND
+// inViewerCountry's browse-visibility filter (server.js) - a tutor whose
+// country never resolved shows up for every viewer's country, not just
+// their own, which is the actual bug this retry is meant to close off, not
+// just a data-quality nicety. A single transient failure (Nominatim hiccup,
+// momentary network blip during signup) used to leave that tutor
+// permanently mis-scoped since nothing ever retried the lookup.
+async function geocodeAddress(query, attempt = 1) {
   const trimmed = String(query || '').trim();
   if (!trimmed) return null;
 
   const cache = loadCache();
-  const key = trimmed.toLowerCase();
+  const key = `area-v2:${trimmed.toLowerCase()}`;
   if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
 
   try {
@@ -43,16 +49,25 @@ async function geocodeAddress(query) {
       coords = {
         lat: parseFloat(results[0].lat),
         lng: parseFloat(results[0].lon),
+        area: addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.hamlet || addr.village || addr.town || null,
         city: addr.city || addr.town || addr.village || addr.county || null,
         state: addr.state || addr.region || null,
         country: addr.country || null,
       };
     }
+    if (!coords && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return geocodeAddress(query, attempt + 1);
+    }
     cache[key] = coords;
     persistCache(cache);
     return coords;
   } catch {
-    return null; // best-effort - matching falls back to city-name text matching
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return geocodeAddress(query, attempt + 1);
+    }
+    return null; // best-effort, twice - matching falls back to city-name text matching
   }
 }
 
@@ -63,7 +78,7 @@ async function geocodeAddress(query) {
 // same device land on nearly the same point.
 async function reverseGeocode(lat, lng) {
   if (lat == null || lng == null) return null;
-  const key = `rev:${Number(lat).toFixed(3)},${Number(lng).toFixed(3)}`;
+  const key = `rev-area-v2:${Number(lat).toFixed(3)},${Number(lng).toFixed(3)}`;
   const cache = loadCache();
   if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
 
@@ -75,6 +90,7 @@ async function reverseGeocode(lat, lng) {
     const addr = (result && result.address) || {};
     const resolved = {
       lat: Number(lat), lng: Number(lng),
+      area: addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.hamlet || addr.village || addr.town || null,
       city: addr.city || addr.town || addr.village || addr.county || null,
       state: addr.state || addr.region || null,
       country: addr.country || null,

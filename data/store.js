@@ -51,6 +51,14 @@ function createUser({ name, email, passwordHash = null, googleId = null, role = 
     notifications: [],
     nextNotificationId: 1,
     createdAt: new Date().toISOString(),
+    // Separate from streak above (that one's gamification - daily
+    // count, resets on a missed day, drives badges). This is a plain
+    // "were they seen at all today" marker, updated for every signed-in
+    // request regardless of role (see server.js's global middleware),
+    // used only to tell whether someone's gone quiet for the
+    // win-back email - see checkReengagementEmails below.
+    lastSeenAt: null,
+    lastReengagementEmailAt: null,
   };
   db.users.push(user);
   persist(db);
@@ -80,6 +88,31 @@ function markActive(userId) {
   return user;
 }
 
+// Called from server.js's global "any signed-in request" middleware, for
+// every role (student, tutor, performer, sponsor, admin) - not just the
+// student dashboard visit markActive() above is scoped to. Day-granular
+// (same as markActive) since the only thing reading this cares about
+// weeks of inactivity, not minutes - so this writes at most once per user
+// per day no matter how many requests they make.
+function markSeen(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return;
+  const today = todayStamp();
+  if (user.lastSeenAt !== today) {
+    user.lastSeenAt = today;
+    persist(db);
+  }
+}
+
+function markReengagementEmailSent(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return;
+  user.lastReengagementEmailAt = new Date().toISOString();
+  persist(db);
+}
+
 function getBadges(user) {
   const badges = [];
   if ((user.streak && user.streak.count) >= 3) badges.push({ id: 'streak-3', label: '3-Day Streak', icon: 'fa-fire' });
@@ -88,7 +121,7 @@ function getBadges(user) {
   return badges;
 }
 
-function addNotification(userId, { type, message, href = null }) {
+function addNotification(userId, { type, message, href = null, imageUrl = null }) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
@@ -99,6 +132,10 @@ function addNotification(userId, { type, message, href = null }) {
     type,
     message,
     href,
+    // Optional - only ever set for notification types that display an
+    // image (e.g. 'new_product', a store cover image). null for every
+    // other type, same as href already is.
+    imageUrl,
     read: false,
     createdAt: new Date().toISOString(),
     pushPending: true,
@@ -157,6 +194,68 @@ function removePushSubscription(userId, endpoint) {
   const user = db.users.find((u) => u.id === userId);
   if (!user) return null;
   user.pushSubscriptions = (user.pushSubscriptions || []).filter((item) => item.endpoint !== endpoint);
+  persist(db);
+  return user;
+}
+
+// Native (Expo) push tokens, same shape/lifecycle as web's pushSubscriptions
+// above but a flat string per device instead of a subscription object. A
+// token is also stripped from every OTHER account first - the same
+// physical device can only usefully deliver to whichever account is
+// currently signed in, so a stale token left on a previous account would
+// otherwise keep notifying someone who signed out of this device.
+function setExpoPushToken(userId, token) {
+  const db = load();
+  db.users.forEach((u) => {
+    if (u.id !== userId && Array.isArray(u.expoPushTokens)) u.expoPushTokens = u.expoPushTokens.filter((t) => t !== token);
+  });
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!Array.isArray(user.expoPushTokens)) user.expoPushTokens = [];
+  user.expoPushTokens = user.expoPushTokens.filter((t) => t !== token);
+  user.expoPushTokens.push(token);
+  persist(db);
+  return user;
+}
+
+function removeExpoPushToken(userId, token) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.expoPushTokens = (user.expoPushTokens || []).filter((t) => t !== token);
+  persist(db);
+  return user;
+}
+
+function markAppOnboardingSeen(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.needsAppOnboarding = false;
+  persist(db);
+  return user;
+}
+
+function markMobileWelcomeEmailSent(userId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  user.mobileWelcomeEmailSentAt = new Date().toISOString();
+  persist(db);
+  return user;
+}
+
+// Tracks which mobile coachmark tours (one per dashboard - student home,
+// tutor home, org dashboard, Find a Tutor, etc.) this account has already
+// clicked through, so each shows only once per account, same idea as
+// needsAppOnboarding but per-screen instead of a single app-wide flag. A
+// tourId is any string the client defines (e.g. "student-dashboard").
+function markTourSeen(userId, tourId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+  if (!Array.isArray(user.seenTours)) user.seenTours = [];
+  if (!user.seenTours.includes(tourId)) user.seenTours.push(tourId);
   persist(db);
   return user;
 }
@@ -478,17 +577,17 @@ function listUsers() {
   return load().users;
 }
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes - short-lived since it's now a typeable 6-digit OTP, not an unguessable link token
 
-// No email service is configured, so there's no inbox to deliver a reset
-// link to - the caller (server.js) hands the raw link back to the browser
-// that requested it instead. Still time-limited and single-use like a real
-// email-based flow, just delivered a different way.
+// A 6-digit OTP emailed to the account (server.js calls mailer.js's
+// sendPasswordResetEmail right after this) - short and typeable rather
+// than a long link token, since the user now enters it by hand instead of
+// clicking through. Still single-use and time-limited (15 min).
 function createResetToken(email) {
   const db = load();
   const user = db.users.find((u) => u.email.toLowerCase() === String(email).toLowerCase());
   if (!user) return null;
-  user.resetToken = crypto.randomBytes(24).toString('hex');
+  user.resetToken = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
   user.resetTokenExpires = Date.now() + RESET_TOKEN_TTL_MS;
   persist(db);
   return user;
@@ -635,7 +734,7 @@ function getThreadPrefs(userId) {
 module.exports = {
   findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setPhoto,
   setCalendarTokens, clearCalendarTokens,
-  markActive, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setRole, setCountryAdmin, setPayoutDetails, listUsers,
+  markActive, markSeen, markReengagementEmailSent, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, setPushSubscription, removePushSubscription, setExpoPushToken, removeExpoPushToken, markAppOnboardingSeen, markMobileWelcomeEmailSent, markTourSeen, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
   setStudentProfile, setRealLocation, setSponsor, clearSponsor, setPlacementSuggestion, finalizePlacement, addStudentRating, clearStudentFlag,
   setStripePaymentMethod, clearStripePaymentMethod, setStripeConnectAccount,

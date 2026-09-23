@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/assets/redesign.css">
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -36,6 +40,17 @@
         .nav-links { display: flex; align-items: center; gap: 24px; }
         .nav-links a { color: #666; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: all .25s ease; }
         .nav-links a:hover, .nav-links a.active { color: #cc0000; font-weight: 700; }
+        /* Keep legal-page navigation in the site's shared hamburger menu. */
+        .header .mt-mobile-toggle { display: inline-flex; }
+        .header .nav-links:not(.mt-mobile-nav-open) { display: none !important; }
+        .header .mt-mobile-nav-open .mt-perf-dropdown { display: block; width: 100%; }
+        .header .mt-mobile-nav-open .mt-perf-dropdown-menu {
+            position: static !important; transform: none !important;
+            box-shadow: none !important; border: none !important;
+            opacity: 1 !important; visibility: visible !important;
+            display: none; padding: 0 !important; margin: 0 !important;
+        }
+        .header .mt-mobile-nav-open .mt-perf-open .mt-perf-dropdown-menu { display: block; }
 
         .policy-hero { padding: 72px 0 56px; background: linear-gradient(180deg, rgba(204,0,0,0.08), rgba(255,255,255,0.02)); border-bottom: 2px solid rgba(204,0,0,0.12); }
         .hero-kicker { font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
@@ -64,11 +79,14 @@
             </div>
             <div class="nav-links">
                 <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
                 <a href="/about">About</a>
-                <a href="/library">Library</a>
-                <a href="/find-tutor">Find Tutor</a>
                 <a href="/store">Store</a>
                 <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
             </div>
         </nav>
     </header>
@@ -85,7 +103,7 @@
         <section class="policy-content">
             <div class="wrap">
                 <div class="last-updated">
-                    Last updated: January 2026
+                    Last updated: September 2026
                 </div>
 
                 <div class="policy-section">
@@ -169,6 +187,12 @@
 
                     <h3>10.3 Recurring Charges</h3>
                     <p>If you enroll in a recurring subscription, you authorize Mozart Techniques to charge your payment method on a recurring basis until you cancel your subscription.</p>
+
+                    <h3>10.4 Tutor and Performer Payouts</h3>
+                    <p>Tutors and performers who receive payment through the platform are paid out via Stripe Connect to the bank or payout account they connect. A platform service fee is deducted from each payout as disclosed at the time of the transaction. Tutors and performers are solely responsible for any taxes owed on income earned through the platform.</p>
+
+                    <h3>10.5 Sponsor and Organization Wallets</h3>
+                    <p>Individual sponsors and organizations (NGOs and institutions) may fund a wallet balance used to automatically pay lesson bills for the students or members they sponsor. Wallet funds are non-refundable once a lesson bill has been paid from them, except where required by law.</p>
                 </div>
 
                 <div class="policy-section">
@@ -177,7 +201,7 @@
                 </div>
 
                 <div class="policy-section">
-                    <h2>12. Tutor and Student Responsibilities</h2>
+                    <h2>12. Tutor, Student, and Performer Responsibilities</h2>
                     <h3>12.1 Tutors</h3>
                     <ul>
                         <li>Agree to provide accurate credentials and qualifications</li>
@@ -192,25 +216,51 @@
                         <li>Are responsible for providing accurate contact information</li>
                         <li>Agree to comply with all applicable laws</li>
                     </ul>
+
+                    <h3>12.3 Performers</h3>
+                    <p>Mozart Techniques also operates a performer marketplace where event organizers can browse performer profiles and submit booking requests. Performers who create a profile:</p>
+                    <ul>
+                        <li>Agree to provide accurate portfolio media, rates, and availability</li>
+                        <li>Are responsible for fulfilling event bookings they accept</li>
+                        <li>Agree to comply with all applicable laws and venue requirements</li>
+                        <li>Must maintain professional conduct in all communications with event organizers</li>
+                    </ul>
+                    <p>Mozart Techniques is not a party to any booking agreement between a performer and an event organizer and is not responsible for the conduct of either party or the outcome of a booked event.</p>
                 </div>
 
                 <div class="policy-section">
-                    <h2>13. Limitation of Liability</h2>
+                    <h2>13. Organizations, Sponsors, and NGOs</h2>
+                    <p>An individual sponsor or an organization (NGO or institution) may register to sponsor students, link tutors, and manage a group of members on the platform. By registering as a sponsor or organization, you agree that:</p>
+                    <ul>
+                        <li>Information provided about your organization (name, registration details, and contact information) is accurate</li>
+                        <li>You are authorized to act on behalf of the organization you register</li>
+                        <li>Access codes you issue may only be distributed to your organization's own students, tutors, or members</li>
+                        <li>You are responsible for funds loaded into your organization's wallet and for reviewing lesson bills paid automatically from it</li>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h2>14. Marketplace and Store Purchases</h2>
+                    <p>Mozart Techniques operates a store for music-related merchandise. Product listings, pricing, and availability are subject to change without notice. Orders are subject to the shipping, delivery, and return terms shown at checkout for each product. Mozart Techniques is not responsible for delays caused by shipping carriers or customs authorities.</p>
+                </div>
+
+                <div class="policy-section">
+                    <h2>15. Limitation of Liability</h2>
                     <p>To the fullest extent permitted by law, Mozart Techniques shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use of or inability to use the Site or Services.</p>
                 </div>
 
                 <div class="policy-section">
-                    <h2>14. Indemnification</h2>
+                    <h2>16. Indemnification</h2>
                     <p>You agree to indemnify and hold harmless Mozart Techniques, its officers, directors, employees, and agents from any claims, damages, or costs arising from your use of the Site, violation of these Terms, or infringement of any third-party rights.</p>
                 </div>
 
                 <div class="policy-section">
-                    <h2>15. Governing Law</h2>
+                    <h2>17. Governing Law</h2>
                     <p>These Terms and Conditions are governed by and construed in accordance with the laws of the jurisdiction in which Mozart Techniques operates, and you irrevocably submit to the exclusive jurisdiction of the courts in that location.</p>
                 </div>
 
                 <div class="policy-section">
-                    <h2>16. Contact Information</h2>
+                    <h2>18. Contact Information</h2>
                     <p>If you have any questions about these Terms of Service, please contact us:</p>
                     <ul>
                         <li><strong>Email:</strong> support@mozarttechniques.com</li>
@@ -219,7 +269,7 @@
                 </div>
 
                 <div class="policy-section">
-                    <h2>17. Entire Agreement</h2>
+                    <h2>19. Entire Agreement</h2>
                     <p>These Terms and Conditions constitute the entire agreement between you and Mozart Techniques regarding your use of the Site and Services and supersede all prior agreements and understandings.</p>
                 </div>
             </div>
@@ -227,7 +277,9 @@
     </main>
 
     <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/mobile-nav.js" defer></script>
     <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/footer.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

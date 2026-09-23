@@ -67,7 +67,7 @@ async function apply({
     address: address || null,
     lat: coords ? coords.lat : null,
     lng: coords ? coords.lng : null,
-    locality: coords ? { city: coords.city, state: coords.state, country: coords.country } : null,
+    locality: coords ? { area: coords.area || null, city: coords.city, state: coords.state, country: coords.country } : null,
     teachesOnline: Boolean(teachesOnline),
     commuteRadiusKm: Math.max(1, Number(commuteRadiusKm) || 10),
     // Whether in-person lessons happen at the student's place, the tutor's
@@ -92,6 +92,12 @@ async function apply({
     orientationCompletedAt: null,
     orientationReward: null,
     orientationBonusPending: false,
+    // The mandatory 14-screen Tutor Orientation modal's acceptance record -
+    // unrelated to orientationCompleted above (that's the existing admin
+    // content-feed/quiz system). Null gates the modal open on next
+    // dashboard visit; see acknowledgeTutorOrientation() below.
+    tutorOrientationAcceptedAt: null,
+    tutorOrientationVersion: null,
     ratingSum: 0,
     ratingCount: 0,
     professionalismSum: 0,
@@ -133,6 +139,23 @@ function setStatus(id, status, reviewedByUserId = null) {
   tutor.status = status;
   tutor.reviewedAt = new Date().toISOString();
   if (status === 'approved' && reviewedByUserId) tutor.approvedByUserId = Number(reviewedByUserId);
+  // Tracked on rejection too (not just approval) so a Country Admin's own
+  // "my reviews" analytics can count both, not only approvals.
+  if (reviewedByUserId) tutor.reviewedByUserId = Number(reviewedByUserId);
+  persist(db);
+  return tutor;
+}
+
+// Records acceptance of the mandatory Tutor Orientation modal - logs which
+// content version was shown/agreed to (bump the version string in the
+// mobile content file whenever the 14 screens change materially) alongside
+// the timestamp, for compliance/audit per the spec.
+function acknowledgeTutorOrientation(id, version) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  tutor.tutorOrientationAcceptedAt = new Date().toISOString();
+  tutor.tutorOrientationVersion = String(version || '').slice(0, 40) || null;
   persist(db);
   return tutor;
 }
@@ -303,13 +326,18 @@ function debitBalance(id, amountUsd) {
 // Updates a tutor's location from real browser GPS coordinates (reverse
 // geocoded), rather than the free-text address they typed at application
 // time - keeps their city normalized for city-based grouping/matching.
-function setRealLocation(id, { lat, lng, city, state, country, fullAddress }) {
+function setRealLocation(id, { lat, lng, area, city, state, country, fullAddress }) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
   if (!tutor) return null;
+  // Permission applies to the saved place, not every future GPS update.
+  if (Number(tutor.lat) !== Number(lat) || Number(tutor.lng) !== Number(lng)) {
+    tutor.publicExactLocation = false;
+    tutor.publicExactLocationConsentAt = null;
+  }
   tutor.lat = lat;
   tutor.lng = lng;
-  tutor.locality = { city: city || null, state: state || null, country: country || null };
+  tutor.locality = { area: area || null, city: city || null, state: state || null, country: country || null };
   if (city) tutor.city = city;
   if (fullAddress) tutor.fullAddress = fullAddress;
   persist(db);
@@ -343,6 +371,29 @@ function setHourlyRate(id, hourlyRateUsd) {
   return tutor;
 }
 
+// The rest of a tutor's own public-facing details - bio, qualifications,
+// city/venue, genres, online availability - editable the same way
+// categories/hourlyRateUsd already are above. Each field is only touched
+// when explicitly provided, so a partial payload (e.g. just bio) doesn't
+// clobber the others.
+function setProfileDetails(id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation }) {
+  const db = load();
+  const tutor = db.tutors.find((t) => t.id === Number(id));
+  if (!tutor) return null;
+  if (bio !== undefined) tutor.bio = String(bio || '').slice(0, 2000);
+  if (typeof publicExactLocation === 'boolean') {
+    tutor.publicExactLocation = publicExactLocation;
+    tutor.publicExactLocationConsentAt = publicExactLocation ? new Date().toISOString() : null;
+  }
+  if (qualifications !== undefined) tutor.qualifications = String(qualifications || '').slice(0, 2000);
+  if (city !== undefined) tutor.city = city ? String(city).trim() : null;
+  if (genres !== undefined) tutor.genres = Array.isArray(genres) ? genres : [];
+  if (teachesOnline !== undefined) tutor.teachesOnline = Boolean(teachesOnline);
+  if (inPersonVenue !== undefined && ['student_location', 'tutor_studio', 'either'].includes(inPersonVenue)) tutor.inPersonVenue = inPersonVenue;
+  persist(db);
+  return tutor;
+}
+
 function setIntakeQuestions(id, questions) {
   const db = load();
   const tutor = db.tutors.find((t) => t.id === Number(id));
@@ -365,9 +416,9 @@ function avgProfessionalism(tutor) {
 
 module.exports = {
   listAll, listApproved, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
-  markActivationPaid,
+  markActivationPaid, acknowledgeTutorOrientation,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
-  creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setHourlyRate, setIntakeQuestions, findBySlug,
+  creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setHourlyRate, setProfileDetails, setIntakeQuestions, findBySlug,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };

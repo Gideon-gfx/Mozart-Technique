@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Become a Performer - Mozart Techniques</title>
 <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -43,17 +47,19 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .site-footer-links a:hover { color: var(--mz-red); }
 .site-footer-bottom { color: #999; font-size: .78rem; }
 </style>
+<link rel="stylesheet" href="/assets/performer-nav.css">
+<link rel="stylesheet" href="/assets/performer-typography.css">
 </head>
 <body class="market-body">
 
 <nav class="site-nav">
   <div class="site-nav-inner">
-    <a href="/home" class="site-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques">Mozart Techniques</a>
+    <a href="/home" class="site-logo"><img src="/mozartLogo.jpg" alt=""><span>Mozart<span class="performer-brand-extra"> Techniques</span></span></a>
     <div class="site-nav-links">
       <a href="/find-performer">Find a Performer</a>
       <a href="/home">Home</a>
-      <div id="auth-state"></div>
     </div>
+    <div id="auth-state"></div>
   </div>
 </nav>
 
@@ -76,14 +82,18 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
         <button type="button" class="chip" data-performer-type="group">Group / Band / Team</button>
       </div>
     </div>
-    <div class="market-field" id="pf-group-size-field" hidden><label>Group size</label><input class="market-input" type="number" id="pf-group-size" min="2" value="2"></div>
+    <div class="market-field" id="pf-group-size-field" hidden><label for="pf-group-size">Group size</label><input class="market-input" type="number" id="pf-group-size" min="2" step="1" value="2" aria-describedby="pf-group-size-error"><p id="pf-group-size-error" role="status" style="color:#b91c1c;margin-top:6px" hidden></p></div>
     <div class="market-field">
       <label>Performer categories</label>
       <div class="chip-row" id="pf-categories"></div>
+      <div class="market-form-row" id="pf-category-custom-row" style="margin-top:8px;">
+        <input class="market-input" id="pf-category-custom" placeholder="Don't see your category? Type it and add it">
+        <button type="button" class="market-btn market-btn-outline" id="pf-category-custom-add">Add</button>
+      </div>
     </div>
     <div class="market-form-row">
       <div class="market-field"><label>City</label><input class="market-input" id="pf-city" placeholder="e.g. Lagos"></div>
-      <div class="market-field"><label>Address (used for matching, not shown publicly)</label><input class="market-input" id="pf-address" placeholder="Street, city, country"></div>
+      <div class="market-field"><label>Address</label><input class="market-input" id="pf-address" placeholder="Street, city, country"></div>
     </div>
     <div class="market-field"><label>How far will you travel for a booking? (km)</label><input class="market-input" type="number" id="pf-radius" value="25" min="1"></div>
 
@@ -143,8 +153,6 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 <footer class="site-footer">
   <div class="site-footer-inner">
     <div class="site-footer-links">
-      <a href="/home">Home</a>
-      <a href="/find-performer">Find a Performer</a>
       <a href="/find-tutor">Find a Tutor</a>
       <a href="/contact">Contact Us</a>
       <a href="/privacy-policy">Privacy Policy</a>
@@ -156,6 +164,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 <div class="market-toast" id="toast"></div>
 
 <script src="/assets/nav-auth.js" defer></script>
+<script src="/assets/performer-nav.js" defer></script>
 <script>
 document.getElementById('footer-year').textContent = new Date().getFullYear();
 function escapeHtml(text) { return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -169,11 +178,27 @@ function showToast(message, type) {
 }
 
 let performerType = 'individual';
+function validateGroupSize() {
+  const input = document.getElementById('pf-group-size');
+  const error = document.getElementById('pf-group-size-error');
+  const size = Number(input.value);
+  const invalid = performerType === 'group' && (!Number.isInteger(size) || size < 2);
+  const message = invalid ? (size < 2 ? "Group size can't be lower than 2." : 'Enter a whole number of at least 2.') : '';
+  input.setCustomValidity(message);
+  input.setAttribute('aria-invalid', String(invalid));
+  input.style.borderColor = invalid ? '#b91c1c' : '';
+  input.style.boxShadow = invalid ? '0 0 0 1px #b91c1c' : '';
+  error.textContent = message;
+  error.hidden = !invalid;
+  return !invalid;
+}
+document.getElementById('pf-group-size').addEventListener('input', validateGroupSize);
 document.querySelectorAll('[data-performer-type]').forEach((chip) => chip.addEventListener('click', () => {
   document.querySelectorAll('[data-performer-type]').forEach((c) => c.classList.remove('active'));
   chip.classList.add('active');
   performerType = chip.dataset.performerType;
   document.getElementById('pf-group-size-field').hidden = performerType !== 'group';
+  validateGroupSize();
 }));
 
 let rateUnit = 'per_event';
@@ -188,7 +213,7 @@ async function loadCategories() {
   const res = await fetch('/api/performer-categories');
   const data = await res.json();
   if (!data.success) return;
-  document.getElementById('pf-categories').innerHTML = data.categories.map((c) => `<button type="button" class="chip" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+  document.getElementById('pf-categories').innerHTML = data.categories.map((c) => `<button type="button" class="chip${selectedCategories.has(c) ? ' active' : ''}" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
   document.querySelectorAll('[data-category]').forEach((chip) => chip.addEventListener('click', () => {
     const c = chip.dataset.category;
     if (selectedCategories.has(c)) { selectedCategories.delete(c); chip.classList.remove('active'); }
@@ -196,6 +221,31 @@ async function loadCategories() {
   }));
 }
 loadCategories();
+
+// A performer who doesn't see their own category (e.g. "Puppeteer") can add
+// it themselves - it's saved to the same shared list Find a Performer reads
+// its filter chips from, so it shows up there for everyone right away, not
+// just stored on this one application.
+async function addCustomCategory() {
+  const input = document.getElementById('pf-category-custom');
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/performer-categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category: name }),
+  });
+  const data = await res.json();
+  if (!data.success) return showToast(data.error || 'Could not add that category.', 'error');
+  selectedCategories.add(data.category);
+  input.value = '';
+  await loadCategories();
+  showToast(`Added "${data.category}".`, 'success');
+}
+document.getElementById('pf-category-custom-add').addEventListener('click', addCustomCategory);
+document.getElementById('pf-category-custom').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); }
+});
 
 async function uploadFile(file, kind) {
   const endpoint = kind === 'video' ? '/api/uploads/performer-video' : '/api/uploads/photo';
@@ -250,9 +300,11 @@ document.getElementById('pf-video-input').addEventListener('change', async (e) =
 });
 
 document.getElementById('pf-submit-btn').addEventListener('click', async () => {
+  if (!validateGroupSize()) { document.getElementById('pf-group-size').focus(); return; }
   const payload = {
+    name: document.getElementById('pf-name').value.trim(),
     performerType,
-    groupSize: performerType === 'group' ? Number(document.getElementById('pf-group-size').value) || 2 : null,
+    groupSize: performerType === 'group' ? Number(document.getElementById('pf-group-size').value) : 0,
     categories: [...selectedCategories],
     city: document.getElementById('pf-city').value.trim(),
     address: document.getElementById('pf-address').value.trim(),
@@ -310,5 +362,6 @@ document.getElementById('pf-submit-btn').addEventListener('click', async () => {
   window.location.href = '/performer';
 });
 </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

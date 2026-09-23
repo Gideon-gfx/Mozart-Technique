@@ -90,12 +90,13 @@ async function apply({ userId, name, contactName, email, phone, registrationNumb
   return org;
 }
 
-function setStatus(id, status) {
+function setStatus(id, status, reviewedByUserId = null) {
   const db = load();
   const org = db.organizations.find((o) => o.id === Number(id));
   if (!org) return null;
   org.status = status;
   org.reviewedAt = new Date().toISOString();
+  if (reviewedByUserId) org.reviewedByUserId = Number(reviewedByUserId);
 
   if (status === 'rejected') {
     org.subscriptionStatus = 'inactive';
@@ -136,6 +137,49 @@ function setMonthlyAmount(id, monthlyAmount) {
   const org = db.organizations.find((o) => o.id === Number(id));
   if (!org) return null;
   org.monthlyAmount = Number(monthlyAmount) || 0;
+  persist(db);
+  return org;
+}
+
+// The sponsor's own pre-funded balance ("load money in, lesson bills draw
+// it down automatically") - a separate concept from monthlyAmount/
+// subscriptionStatus above, which is the flat fee the sponsor pays *Mozart*
+// for platform access, not what pays for sponsored students' lessons.
+//
+// stripeSessionId makes this safe to call twice for the same real payment -
+// there's no webhook in this app (every Stripe flow here relies on the
+// checkout success_url redirect alone), and that redirect can fail to
+// reach a local/LAN dev server even after the card was actually charged.
+// The mobile client calls a verify endpoint as a fallback after the
+// in-app browser closes regardless of whether the redirect already fired,
+// so this guards against crediting the same session twice.
+function creditWallet(id, amountUsd, stripeSessionId) {
+  const db = load();
+  const org = db.organizations.find((o) => o.id === Number(id));
+  if (!org) return null;
+  if (stripeSessionId) {
+    if (!org.processedStripeSessionIds) org.processedStripeSessionIds = [];
+    if (org.processedStripeSessionIds.includes(stripeSessionId)) return { ...org, alreadyProcessed: true };
+    org.processedStripeSessionIds.push(stripeSessionId);
+  }
+  org.walletBalanceUsd = Math.round(((org.walletBalanceUsd || 0) + Number(amountUsd)) * 100) / 100;
+  if (!org.walletHistory) org.walletHistory = [];
+  org.walletHistory.unshift({ type: 'topup', amountUsd: Number(amountUsd), at: new Date().toISOString() });
+  persist(db);
+  return org;
+}
+
+// Returns null if the balance can't cover it (caller falls back to the
+// manual per-lesson Stripe Checkout instead) rather than ever going negative.
+function debitWallet(id, amountUsd) {
+  const db = load();
+  const org = db.organizations.find((o) => o.id === Number(id));
+  if (!org) return null;
+  const balance = org.walletBalanceUsd || 0;
+  if (balance < Number(amountUsd)) return null;
+  org.walletBalanceUsd = Math.round((balance - Number(amountUsd)) * 100) / 100;
+  if (!org.walletHistory) org.walletHistory = [];
+  org.walletHistory.unshift({ type: 'lesson-debit', amountUsd: Number(amountUsd), at: new Date().toISOString() });
   persist(db);
   return org;
 }
@@ -245,7 +289,7 @@ function updateProfile(orgId, fields) {
   const db = load();
   const org = db.organizations.find((entry) => entry.id === Number(orgId));
   if (!org) return null;
-  ['name', 'contactName', 'phone', 'address', 'description', 'logoUrl'].forEach((field) => {
+  ['name', 'contactName', 'phone', 'address', 'description', 'logoUrl', 'sponsorTitle'].forEach((field) => {
     if (fields[field] !== undefined) org[field] = String(fields[field] || '').trim();
   });
   org.updatedAt = new Date().toISOString();
@@ -343,6 +387,6 @@ function addFolder(orgId, name) {
 
 module.exports = {
   listAll, findById, findByUserId, removeByUserId, removeById, apply, setStatus,
-  activateSubscription, isSubscriptionActive, setMonthlyAmount, generateStudentCode, redeemCode, findOrgForStudent,
+  activateSubscription, isSubscriptionActive, setMonthlyAmount, creditWallet, debitWallet, generateStudentCode, redeemCode, findOrgForStudent,
   getStudentsForOrganization, getTutorsForOrganization, removeMember, addEvent, updateEvent, addClassroom, addFolder, listCodes, deleteCode, updateProfile, markCodeSent, markCodeInvited, generateOrganizationCode,
 };

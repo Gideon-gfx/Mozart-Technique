@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Mozart Techniques</title>
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -138,6 +142,7 @@
                 <div class="admin-tab" data-panel="performers"><i class="fa-solid fa-masks-theater"></i><span class="tab-label">Performers</span></div>
                 <div class="admin-tab" data-panel="marketplace"><i class="fa-solid fa-calendar-check"></i><span class="tab-label">Marketplace</span></div>
                 <div class="admin-tab" data-panel="analytics"><i class="fa-solid fa-chart-line"></i><span class="tab-label">Analytics</span></div>
+                <div class="admin-tab" data-panel="teacher-ed"><i class="fa-solid fa-award"></i><span class="tab-label">Teacher Education</span></div>
             </nav>
         </aside>
 
@@ -328,6 +333,47 @@
             </div>
 
             <div class="admin-card p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Orientation Updates</h1>
+                <p class="text-gray-500 mb-4">Dated announcements that show up in everyone's Orientation feed, separate from the one-time primer above. Send to one dashboard, several, or everyone at once - people can react and comment, and you'll see that here.</p>
+
+                <label class="block text-sm font-medium text-gray-600 mb-1">Send to</label>
+                <div id="orient-post-audiences" class="flex flex-wrap gap-2 mb-3"></div>
+
+                <label class="block text-sm font-medium text-gray-600 mb-1">Title</label>
+                <input id="orient-post-title" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg" placeholder="e.g. Studio etiquette update">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Notes (optional)</label>
+                <textarea id="orient-post-notes" rows="3" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg" placeholder="What do they need to know?"></textarea>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Video URL (optional)</label>
+                <input id="orient-post-video" type="text" placeholder="https://..." class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Upload local video</label>
+                <input id="orient-post-video-upload" type="file" accept="video/*" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Attachment - any file (document, letter, image, PDF, anything besides an executable)</label>
+                <input id="orient-post-file-upload" type="file" class="w-full px-3 py-2 mb-1 border border-gray-300 rounded-lg">
+                <p id="orient-post-file-status" class="text-xs text-gray-500 mb-3"></p>
+
+                <label class="flex items-start gap-2 mb-4 cursor-pointer">
+                    <input id="orient-post-required" type="checkbox" class="mt-1">
+                    <span class="text-sm text-gray-700">
+                        <span class="font-semibold">Require this to be completed.</span>
+                        With a quiz below, that means passing it (70%+); with no quiz, just tapping Finished. Tutors are blocked from withdrawing, everyone else gets a reminder, until they do.
+                    </span>
+                </label>
+
+                <label class="block text-sm font-medium text-gray-600 mb-1">Quiz questions (optional)</label>
+                <div id="orient-post-quiz-editor" class="space-y-4 mb-3"></div>
+                <button id="add-orient-post-question-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition mb-4">
+                    <i class="fa-solid fa-plus mr-1"></i> Add Question
+                </button>
+                <br>
+
+                <button id="orient-post-submit-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Post update</button>
+
+                <hr class="my-6 border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800 mb-3">Sent updates</h2>
+                <div id="orient-posts-list" class="space-y-3"></div>
+            </div>
+
+            <div class="admin-card p-6 sm:p-8">
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">Technique Video Library</h1>
                 <p class="text-gray-500 mb-4">Upload your own clips, or link back to an original creator's post - never a downloaded/rehosted copy. Swap in a replacement when a link goes dead.</p>
 
@@ -359,6 +405,25 @@
                         <tbody id="library-tbody"></tbody>
                     </table>
                 </div>
+            </div>
+
+            <div class="admin-card p-6 sm:p-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-1">Popup Polls</h1>
+                <p class="text-gray-500 mb-4">A one-off question with no right answer - pops up once on whoever's screen it lands on (web and app), for every signed-in user. Separate from Orientation Updates above; each person sees it exactly once, whether they answer or dismiss it.</p>
+
+                <label class="block text-sm font-medium text-gray-600 mb-1">Question</label>
+                <input id="poll-question" type="text" class="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg" placeholder="e.g. Which of these is a sign that a piece is probably too difficult?">
+                <label class="block text-sm font-medium text-gray-600 mb-1">Options</label>
+                <div id="poll-options-editor" class="space-y-2 mb-3"></div>
+                <button id="add-poll-option-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition mb-4">
+                    <i class="fa-solid fa-plus mr-1"></i> Add Option
+                </button>
+                <br>
+                <button id="poll-submit-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Send Poll</button>
+
+                <hr class="my-6 border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800 mb-3">Sent polls</h2>
+                <div id="polls-list" class="space-y-3"></div>
             </div>
         </div>
 
@@ -632,6 +697,100 @@
                 </div>
             </div>
         </div>
+
+        <!-- Teacher Education: admin-assigned quizzes, the certification +
+             external-credential portal's admin side, and the credential
+             equivalency engine's crosswalk editor. One shared review queue
+             for both credential verification and practicum review. -->
+        <div id="panel-teacher-ed" class="hidden space-y-6">
+            <div class="admin-card p-4">
+                <div class="flex flex-wrap gap-2" id="teach-ed-subnav">
+                    <button type="button" data-sub="queue" class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-300 text-gray-600 hover:border-primary-red transition">Review Queue</button>
+                    <button type="button" data-sub="crosswalk" class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-300 text-gray-600 hover:border-primary-red transition">Credential Crosswalk</button>
+                    <button type="button" data-sub="modules" class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-300 text-gray-600 hover:border-primary-red transition">Foundation Modules</button>
+                    <button type="button" data-sub="assignments" class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-300 text-gray-600 hover:border-primary-red transition">Assignments</button>
+                </div>
+            </div>
+
+            <div id="teach-ed-sub-queue" class="space-y-6">
+                <div class="admin-card p-6 sm:p-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">Credential &amp; Practicum Review Queue</h1>
+                    <p class="text-gray-500 mb-4">One shared queue for external-credential verification and practicum teaching-evidence review, oldest first. Never let a teacher self-assign their own tier - Advanced/Professional access always passes through here.</p>
+                    <div id="review-queue-list" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <div id="teach-ed-sub-crosswalk" class="hidden space-y-6">
+                <div class="admin-card p-6 sm:p-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">Credential Crosswalk</h1>
+                    <p class="text-gray-500 mb-4">Mozart Techniques' own proposed policy mapping outside credentials to MT tiers - not a ruling any of these bodies themselves issued. Edit points/tier in place; a change bumps that row's own version so a teacher's already-awarded points never silently shift.</p>
+                    <div class="relative mb-3"><i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i><input id="crosswalk-search" type="search" placeholder="Search body or credential name" class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3"></div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Body</th><th>Credential</th><th>Type</th><th>Anchor / source</th><th>Points</th><th>Tier</th><th>Verification</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody id="crosswalk-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="teach-ed-sub-modules" class="hidden space-y-6">
+                <div class="admin-card p-6 sm:p-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">Foundation &amp; Specialist Modules</h1>
+                    <p class="text-gray-500 mb-4">Each module passes at 80%+ overall with no competency dimension below level 3. Create a module, then add its questions below it.</p>
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                        <input id="module-code" type="text" placeholder="Code (e.g. F05)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <input id="module-title" type="text" placeholder="Title" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <select id="module-kind" class="px-3 py-2 border border-gray-300 rounded-lg"><option value="foundation">Foundation</option><option value="specialist">Specialist pathway</option></select>
+                        <select id="module-dimension" class="px-3 py-2 border border-gray-300 rounded-lg"></select>
+                    </div>
+                    <button id="add-module-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Create Module</button>
+                    <div id="modules-list" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div id="teach-ed-sub-assignments" class="hidden space-y-6">
+                <div class="admin-card p-6 sm:p-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">Assign a Module</h1>
+                    <p class="text-gray-500 mb-4">Push a specific module at a specific tutor, with a reason they'll see - professional development, not a compliance stick.</p>
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                        <input id="assign-tutor-id" type="number" placeholder="Tutor ID" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <select id="assign-module" class="px-3 py-2 border border-gray-300 rounded-lg"></select>
+                        <input id="assign-reason" type="text" placeholder="Reason (shown to teacher)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <input id="assign-due" type="date" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <button id="assign-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Assign</button>
+
+                    <hr class="my-6 border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 mb-1">Auto-assignment rules</h2>
+                    <p class="text-gray-500 mb-3 text-sm">"If X, assign Y" - e.g. every tutor tagged instrument = Vocals gets a module automatically. Runs on demand below (this deployment has no scheduled job runner).</p>
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                        <select id="rule-trigger" class="px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="subject_tag">Subject tag</option>
+                            <option value="new_hire">New hire</option>
+                            <option value="low_score">Low dimension score</option>
+                            <option value="manual">Manual (run on demand)</option>
+                            <option value="recurring">Recurring</option>
+                        </select>
+                        <input id="rule-instrument" type="text" placeholder="Instrument filter (optional)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                        <select id="rule-module" class="px-3 py-2 border border-gray-300 rounded-lg"></select>
+                        <input id="rule-cadence" type="text" placeholder="Cadence (e.g. termly, annual)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <button id="add-rule-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition">Add Rule</button>
+                    <button id="run-rules-btn" class="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red transition ml-2">Run rules now</button>
+                    <div id="rules-list" class="space-y-2 mt-4"></div>
+
+                    <hr class="my-6 border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 mb-3">Outstanding queue</h2>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Tutor</th><th>Target</th><th>Reason</th><th>Due</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody id="assignment-queue-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
         </main>
     </div>
 
@@ -661,7 +820,7 @@
         if (localStorage.getItem('mt-admin-sidebar-collapsed') === '1') setSidebarCollapsed(true);
 
         // --- Tabs ---
-        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'payouts', 'products', 'store-orders', 'performers', 'marketplace', 'analytics'];
+        const PANELS = ['tutors', 'users', 'ngos', 'ngo-institutions', 'educator', 'activity', 'payouts', 'products', 'store-orders', 'performers', 'marketplace', 'analytics', 'teacher-ed'];
         // Was a single-select pill row - with enough countries in play that
         // became an unbounded, ever-growing row of buttons. Now "Region" is
         // one dropdown with a checkbox per country, multi-select, so admin
@@ -770,6 +929,7 @@
                 if (tab.dataset.panel === 'performers') loadPerformers();
                 if (tab.dataset.panel === 'marketplace') loadMarketplaceRequests();
                 if (tab.dataset.panel === 'analytics') loadAnalytics();
+                if (tab.dataset.panel === 'teacher-ed') loadTeacherEd();
             });
         });
 
@@ -1401,6 +1561,145 @@
         });
         document.getElementById('orientation-audience').addEventListener('change', loadOrientation);
 
+        // --- Orientation Updates: dated posts, separate from the one-time
+        // primer above. Multi-audience (with an "All" chip last) instead of
+        // the single-select dropdown that primer uses, since this is a
+        // repeatable "send to N dashboards" action, not a per-audience
+        // persistent record. ---
+        const ORIENT_POST_AUDIENCES = [
+            { value: 'tutor', label: 'Tutors' },
+            { value: 'student', label: 'Students' },
+            { value: 'admin', label: 'Admins' },
+            { value: 'sponsor', label: 'Sponsors' },
+            { value: 'organization', label: 'NGO / Organizations' },
+            { value: 'support_agent', label: 'Support Agents' },
+        ];
+        let orientPostSelected = new Set(['tutor']);
+        let orientPostAttachment = null; // { url, name }, set by the file-upload input below
+        const orientPostQuiz = makeQuizController('orientpost', 'orient-post-quiz-editor', 'add-orient-post-question-btn');
+
+        function renderOrientPostAudiences() {
+            const wrap = document.getElementById('orient-post-audiences');
+            const allSelected = ORIENT_POST_AUDIENCES.every((a) => orientPostSelected.has(a.value));
+            const chipClass = (active) => `px-3 py-1.5 rounded-full text-xs font-semibold border transition ${active ? 'bg-primary-red text-white border-primary-red' : 'border-gray-300 text-gray-600 hover:border-primary-red'}`;
+            const chips = ORIENT_POST_AUDIENCES.map((a) => `<button type="button" data-aud="${a.value}" class="${chipClass(orientPostSelected.has(a.value))}">${a.label}</button>`).join('');
+            const allChip = `<button type="button" data-aud="all" class="px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed transition ${allSelected ? 'bg-primary-red text-white border-primary-red' : 'border-primary-red text-primary-red'}">All</button>`;
+            wrap.innerHTML = chips + allChip;
+            wrap.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
+                const val = btn.dataset.aud;
+                if (val === 'all') {
+                    if (allSelected) orientPostSelected.clear();
+                    else ORIENT_POST_AUDIENCES.forEach((a) => orientPostSelected.add(a.value));
+                } else if (orientPostSelected.has(val)) {
+                    orientPostSelected.delete(val);
+                } else {
+                    orientPostSelected.add(val);
+                }
+                renderOrientPostAudiences();
+            }));
+        }
+        renderOrientPostAudiences();
+
+        document.getElementById('orient-post-video-upload')?.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('video', file);
+            const response = await fetch('/api/admin/orientation/upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) return showAlert(data.error || 'Upload failed.', 'error');
+            document.getElementById('orient-post-video').value = data.url;
+            showAlert('Video uploaded.', 'success');
+        });
+
+        document.getElementById('orient-post-file-upload')?.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('orient-post-file-status');
+            status.textContent = 'Uploading…';
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await fetch('/api/admin/orientation/posts/upload-file', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) { status.textContent = ''; return showAlert(data.error || 'Upload failed.', 'error'); }
+            orientPostAttachment = { url: data.url, name: data.name };
+            status.textContent = `Attached: ${data.name}`;
+        });
+
+        document.getElementById('orient-post-submit-btn').addEventListener('click', async () => {
+            const audiences = Array.from(orientPostSelected);
+            if (!audiences.length) return showAlert('Select at least one dashboard to send this to.', 'error');
+            const title = document.getElementById('orient-post-title').value.trim();
+            if (!title) return showAlert('Enter a title.', 'error');
+            const questions = orientPostQuiz.collect().filter((q) => q.question.trim() && q.options.every((o) => o.trim()));
+            const res = await fetch('/api/admin/orientation/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    audiences,
+                    title,
+                    notes: document.getElementById('orient-post-notes').value.trim(),
+                    videoUrl: document.getElementById('orient-post-video').value.trim(),
+                    attachmentUrl: orientPostAttachment ? orientPostAttachment.url : undefined,
+                    attachmentName: orientPostAttachment ? orientPostAttachment.name : undefined,
+                    required: document.getElementById('orient-post-required').checked,
+                    questions: questions.length ? questions : undefined,
+                }),
+            });
+            const data = await res.json();
+            if (!data.success) return showAlert(data.error || 'Could not post that update.', 'error');
+            const targets = data.posts.length === ORIENT_POST_AUDIENCES.length
+                ? 'everyone'
+                : data.posts.map((p) => ORIENT_POST_AUDIENCES.find((a) => a.value === p.audience)?.label || p.audience).join(', ');
+            showAlert(`Posted to ${targets}.`, 'success');
+            // Clears the content fields for the next update, same as asked -
+            // stays open and keeps the dashboard selection, since sending
+            // several updates to the same target in a row is the common case.
+            document.getElementById('orient-post-title').value = '';
+            document.getElementById('orient-post-notes').value = '';
+            document.getElementById('orient-post-video').value = '';
+            document.getElementById('orient-post-video-upload').value = '';
+            document.getElementById('orient-post-file-upload').value = '';
+            document.getElementById('orient-post-required').checked = false;
+            orientPostQuiz.set([]);
+            document.getElementById('orient-post-file-status').textContent = '';
+            orientPostAttachment = null;
+            loadOrientPosts();
+        });
+
+        async function loadOrientPosts() {
+            const list = document.getElementById('orient-posts-list');
+            const res = await fetch('/api/admin/orientation/posts');
+            const data = await res.json();
+            if (!data.success) { list.innerHTML = '<p class="text-sm text-gray-400">Could not load.</p>'; return; }
+            const posts = data.posts || [];
+            if (!posts.length) { list.innerHTML = '<p class="text-sm text-gray-400">Nothing sent yet.</p>'; return; }
+            list.innerHTML = posts.map((p) => `
+                <div class="border border-gray-200 rounded-lg p-3 flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span class="text-xs font-bold uppercase tracking-wide text-primary-red">${escapeHtml(ORIENT_POST_AUDIENCES.find((a) => a.value === p.audience)?.label || p.audience)}</span>
+                            <span class="text-xs text-gray-400">${new Date(p.createdAt).toLocaleString()}</span>
+                            ${p.required ? '<span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Required</span>' : ''}
+                            ${p.hasQuiz ? '<span class="text-[10px] font-bold uppercase bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Quiz</span>' : ''}
+                        </div>
+                        <div class="font-semibold text-gray-800">${escapeHtml(p.title)}</div>
+                        ${p.notes ? `<div class="text-sm text-gray-500 mt-1">${escapeHtml(p.notes)}</div>` : ''}
+                        ${p.attachmentUrl ? `<a href="${escapeHtml(p.attachmentUrl)}" target="_blank" class="text-xs text-primary-red hover:underline mt-1 inline-block">📎 ${escapeHtml(p.attachmentName || 'Attachment')}</a>` : ''}
+                        <div class="text-xs text-gray-400 mt-2">${(p.reactions || []).length} reaction${(p.reactions || []).length === 1 ? '' : 's'} · ${(p.comments || []).length} comment${(p.comments || []).length === 1 ? '' : 's'}</div>
+                        ${(p.comments || []).length ? `<div class="mt-2 space-y-1 border-t border-gray-100 pt-2">${p.comments.map((c) => `<div class="text-xs text-gray-600"><span class="font-semibold text-gray-700">${escapeHtml(c.userName)}:</span> ${escapeHtml(c.text)}</div>`).join('')}</div>` : ''}
+                    </div>
+                    <button data-del="${p.id}" class="text-gray-400 hover:text-red-600 shrink-0" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `).join('');
+            list.querySelectorAll('[data-del]').forEach((btn) => btn.addEventListener('click', async () => {
+                if (!confirm('Delete this update?')) return;
+                await fetch(`/api/admin/orientation/posts/${btn.dataset.del}`, { method: 'DELETE' });
+                loadOrientPosts();
+            }));
+        }
+        loadOrientPosts();
+
         // --- Video library ---
         function libraryRowHtml(item) {
             return `
@@ -1555,6 +1854,112 @@
                 loadOrientation();
             }
             loadLibrary();
+            loadPolls();
+        }
+
+        // --- Popup Polls: one-off, no-correct-answer questions broadcast to
+        // every signed-in user, once each, wherever they happen to be on web
+        // or the app when it's their turn to see it. Separate from
+        // Orientation Updates and its quiz questions above, which are
+        // graded and audience-scoped - a poll has no right answer and
+        // always goes to everyone. ---
+        let pollOptions = ['', '', '', ''];
+
+        function renderPollOptions() {
+            const wrap = document.getElementById('poll-options-editor');
+            wrap.innerHTML = pollOptions.map((opt, i) => `
+                <div class="flex items-center gap-2">
+                    <input data-poll-opt="${i}" type="text" value="${escapeHtml(opt)}" placeholder="Option ${i + 1}" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
+                    ${pollOptions.length > 2 ? `<button type="button" data-poll-opt-remove="${i}" class="text-gray-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </div>
+            `).join('');
+            wrap.querySelectorAll('[data-poll-opt]').forEach((input) => {
+                input.addEventListener('input', () => { pollOptions[Number(input.dataset.pollOpt)] = input.value; });
+            });
+            wrap.querySelectorAll('[data-poll-opt-remove]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    pollOptions.splice(Number(btn.dataset.pollOptRemove), 1);
+                    renderPollOptions();
+                });
+            });
+        }
+        renderPollOptions();
+
+        document.getElementById('add-poll-option-btn').addEventListener('click', () => {
+            pollOptions.push('');
+            renderPollOptions();
+        });
+
+        document.getElementById('poll-submit-btn').addEventListener('click', async () => {
+            const question = document.getElementById('poll-question').value.trim();
+            const options = pollOptions.map((o) => o.trim()).filter(Boolean);
+            if (!question) return showAlert('Enter a question.', 'error');
+            if (options.length < 2) return showAlert('Add at least 2 options.', 'error');
+            const res = await fetch('/api/admin/polls', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, options }),
+            });
+            const data = await res.json();
+            if (!data.success) return showAlert(data.error || 'Could not send that poll.', 'error');
+            showAlert('Poll sent.', 'success');
+            document.getElementById('poll-question').value = '';
+            pollOptions = ['', '', '', ''];
+            renderPollOptions();
+            loadPolls();
+        });
+
+        async function loadPolls() {
+            const list = document.getElementById('polls-list');
+            const res = await fetch('/api/admin/polls');
+            const data = await res.json();
+            if (!data.success) { list.innerHTML = '<p class="text-sm text-gray-400">Could not load.</p>'; return; }
+            const polls = data.polls || [];
+            if (!polls.length) { list.innerHTML = '<p class="text-sm text-gray-400">No polls sent yet.</p>'; return; }
+            list.innerHTML = polls.map((p) => {
+                const maxCount = Math.max(1, ...p.counts);
+                const bars = p.options.map((opt, i) => {
+                    const count = p.counts[i] || 0;
+                    const pct = Math.round((count / maxCount) * 100);
+                    return `
+                        <div class="mb-1.5">
+                            <div class="flex items-center justify-between text-xs text-gray-600 mb-0.5">
+                                <span>${escapeHtml(opt)}</span>
+                                <span class="font-semibold">${count}</span>
+                            </div>
+                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-primary-red rounded-full" style="width:${pct}%"></div></div>
+                        </div>
+                    `;
+                }).join('');
+                return `
+                    <div class="border border-gray-200 rounded-lg p-3">
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap mb-1">
+                                    <span class="text-xs text-gray-400">${new Date(p.createdAt).toLocaleString()}</span>
+                                    ${p.active ? '<span class="text-[10px] font-bold uppercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>' : '<span class="text-[10px] font-bold uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Closed</span>'}
+                                </div>
+                                <p class="font-semibold text-gray-800">${escapeHtml(p.question)}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">${p.totalResponses} answered · ${p.totalSeen} seen</p>
+                            </div>
+                            <div class="flex gap-2 shrink-0">
+                                ${p.active ? `<button data-close="${p.id}" class="px-2 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-primary-red hover:text-primary-red">Close</button>` : ''}
+                                <button data-del="${p.id}" class="text-gray-400 hover:text-red-600" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        ${bars}
+                    </div>
+                `;
+            }).join('');
+            list.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', async () => {
+                await fetch(`/api/admin/polls/${btn.dataset.close}/close`, { method: 'POST' });
+                loadPolls();
+            }));
+            list.querySelectorAll('[data-del]').forEach((btn) => btn.addEventListener('click', async () => {
+                if (!confirm('Delete this poll?')) return;
+                await fetch(`/api/admin/polls/${btn.dataset.del}`, { method: 'DELETE' });
+                loadPolls();
+            }));
         }
 
         // --- Activity & flags ---
@@ -2315,8 +2720,310 @@
             else showAlert(data.error || 'Failed.', 'error');
         });
 
+        // --- Teacher Education: admin-assigned quizzes, credential
+        // crosswalk, Foundation/specialist modules, and the shared
+        // credential+practicum review queue. ---
+        function selectTeachEdSub(key) {
+            document.querySelectorAll('#teach-ed-subnav [data-sub]').forEach((b) => {
+                const active = b.dataset.sub === key;
+                b.classList.toggle('bg-primary-red', active);
+                b.classList.toggle('text-white', active);
+                b.classList.toggle('border-primary-red', active);
+                b.classList.toggle('text-gray-600', !active);
+            });
+            ['queue', 'crosswalk', 'modules', 'assignments'].forEach((s) => document.getElementById(`teach-ed-sub-${s}`).classList.toggle('hidden', s !== key));
+            if (key === 'queue') loadReviewQueue();
+            if (key === 'crosswalk') loadCrosswalk();
+            if (key === 'modules') loadCertModules();
+            if (key === 'assignments') loadAssignmentsPanel();
+        }
+        document.querySelectorAll('#teach-ed-subnav [data-sub]').forEach((btn) => btn.addEventListener('click', () => selectTeachEdSub(btn.dataset.sub)));
+
+        async function loadTeacherEd() {
+            if (!window.__teachingTiers) {
+                const res = await fetch('/api/teaching-tiers');
+                const data = await res.json();
+                window.__teachingTiers = data.tiers || [];
+            }
+            selectTeachEdSub('queue');
+        }
+
+        async function loadReviewQueue() {
+            const list = document.getElementById('review-queue-list');
+            const res = await fetch('/api/admin/review-queue');
+            const data = await res.json();
+            if (!data.success) { list.innerHTML = '<p class="text-sm text-gray-400">Could not load.</p>'; return; }
+            const items = data.items || [];
+            if (!items.length) { list.innerHTML = '<p class="text-sm text-gray-400">Nothing pending.</p>'; return; }
+            list.innerHTML = items.map((item) => {
+                if (item.kind === 'credential') {
+                    return `
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <span class="text-[10px] font-bold uppercase bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Credential</span>
+                            <p class="font-semibold text-gray-800 mt-1">${escapeHtml(item.crosswalkSnapshot.body)} - ${escapeHtml(item.crosswalkSnapshot.credentialName)}</p>
+                            <p class="text-xs text-gray-500 mt-1">${escapeHtml(item.crosswalkSnapshot.bodysOwnAnchor || '')}</p>
+                            <p class="text-xs text-gray-400 mt-1">Tutor #${item.tutorId} &middot; Submitted ${new Date(item.submittedAt).toLocaleDateString()} &middot; Verification: ${escapeHtml(item.crosswalkSnapshot.verificationMethod)}</p>
+                            ${item.evidenceUrl ? `<a href="${escapeHtml(item.evidenceUrl)}" target="_blank" class="text-xs text-primary-red hover:underline">View evidence</a>` : ''}
+                            ${item.issuingBodyRef ? `<p class="text-xs text-gray-400">Reference: ${escapeHtml(item.issuingBodyRef)}</p>` : ''}
+                            <div class="flex flex-wrap gap-2 mt-3">
+                                <button data-verify="${item.id}" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded text-xs font-semibold">Verify</button>
+                                <button data-reject="${item.id}" class="px-3 py-1.5 bg-red-50 text-red-600 rounded text-xs font-semibold">Reject</button>
+                                <button data-more="${item.id}" class="px-3 py-1.5 border border-gray-300 rounded text-xs font-semibold text-gray-600">Request more evidence</button>
+                            </div>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <span class="text-[10px] font-bold uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Practicum &middot; ${escapeHtml(item.stage.replace('_', ' '))}</span>
+                        <p class="font-semibold text-gray-800 mt-1">Tutor #${item.tutorId}</p>
+                        <p class="text-xs text-gray-500 mt-1">${escapeHtml(item.outcomeNote || '')}</p>
+                        <p class="text-xs text-gray-400 mt-1">Submitted ${new Date(item.submittedAt).toLocaleDateString()}</p>
+                        ${item.videoUrl ? `<a href="${escapeHtml(item.videoUrl)}" target="_blank" class="text-xs text-primary-red hover:underline mr-3">View video</a>` : ''}
+                        ${item.lessonPlanUrl ? `<a href="${escapeHtml(item.lessonPlanUrl)}" target="_blank" class="text-xs text-primary-red hover:underline">View lesson plan</a>` : ''}
+                        <div class="flex flex-wrap gap-2 mt-3">
+                            <button data-approve-practicum="${item.id}" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded text-xs font-semibold">Approve</button>
+                            <button data-reject-practicum="${item.id}" class="px-3 py-1.5 bg-red-50 text-red-600 rounded text-xs font-semibold">Reject</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            list.querySelectorAll('[data-verify]').forEach((btn) => btn.addEventListener('click', async () => {
+                const note = prompt('Verification note (optional):') || undefined;
+                const res2 = await fetch(`/api/admin/external-credentials/${btn.dataset.verify}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Verified.', 'success'); loadReviewQueue(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            list.querySelectorAll('[data-reject]').forEach((btn) => btn.addEventListener('click', async () => {
+                const reason = prompt('Reason for rejecting (shown to the teacher):');
+                if (!reason) return;
+                const res2 = await fetch(`/api/admin/external-credentials/${btn.dataset.reject}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Rejected.', 'success'); loadReviewQueue(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            list.querySelectorAll('[data-more]').forEach((btn) => btn.addEventListener('click', async () => {
+                const note = prompt('What additional evidence is needed?');
+                if (!note) return;
+                const res2 = await fetch(`/api/admin/external-credentials/${btn.dataset.more}/more-evidence`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Requested.', 'success'); loadReviewQueue(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            list.querySelectorAll('[data-approve-practicum]').forEach((btn) => btn.addEventListener('click', async () => {
+                const note = prompt('Approval note (optional):') || undefined;
+                const res2 = await fetch(`/api/admin/practicum-reviews/${btn.dataset.approvePracticum}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Approved.', 'success'); loadReviewQueue(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            list.querySelectorAll('[data-reject-practicum]').forEach((btn) => btn.addEventListener('click', async () => {
+                const reason = prompt('Reason for rejecting (shown to the teacher):');
+                if (!reason) return;
+                const res2 = await fetch(`/api/admin/practicum-reviews/${btn.dataset.rejectPracticum}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Rejected.', 'success'); loadReviewQueue(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+        }
+
+        let crosswalkRowsCache = [];
+        async function loadCrosswalk() {
+            const res = await fetch('/api/admin/credential-crosswalk');
+            const data = await res.json();
+            crosswalkRowsCache = data.rows || [];
+            renderCrosswalk();
+        }
+        function renderCrosswalk() {
+            const q = document.getElementById('crosswalk-search').value.trim().toLowerCase();
+            const rows = crosswalkRowsCache.filter((r) => !q || `${r.body} ${r.credentialName}`.toLowerCase().includes(q));
+            document.getElementById('crosswalk-tbody').innerHTML = rows.map((r) => `
+                <tr class="${r.active ? '' : 'opacity-50'}">
+                    <td class="font-semibold text-gray-800">${escapeHtml(r.body)}</td>
+                    <td>${escapeHtml(r.credentialName)}</td>
+                    <td class="text-xs text-gray-500">${escapeHtml(r.credentialType)}</td>
+                    <td class="text-xs text-gray-500 max-w-xs">${escapeHtml(r.bodysOwnAnchor || '')}${r.sourceUrl ? `<br><a href="${escapeHtml(r.sourceUrl)}" target="_blank" class="text-primary-red hover:underline">source</a>` : '<br><span class="text-amber-600">no source URL yet</span>'}</td>
+                    <td><input type="number" data-points="${r.id}" value="${r.mtPoints}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs"></td>
+                    <td>
+                        <select data-tier="${r.id}" class="px-2 py-1 border border-gray-300 rounded text-xs">
+                            ${(window.__teachingTiers || []).map((t) => `<option value="${t.code}" ${t.code === r.proposedTier ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="text-xs text-gray-500">${escapeHtml(r.verificationMethod)}</td>
+                    <td>${r.active ? '<span class="text-green-600 text-xs font-semibold">Active</span>' : '<span class="text-gray-400 text-xs font-semibold">Inactive</span>'}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button data-save-row="${r.id}" class="px-2 py-1 bg-primary-red text-white rounded text-xs">Save</button>
+                            <button data-toggle-row="${r.id}" data-active="${r.active}" class="px-2 py-1 border border-gray-300 rounded text-xs">${r.active ? 'Deactivate' : 'Activate'}</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            document.getElementById('crosswalk-tbody').querySelectorAll('[data-save-row]').forEach((btn) => btn.addEventListener('click', async () => {
+                const id = btn.dataset.saveRow;
+                const mtPoints = Number(document.querySelector(`[data-points="${id}"]`).value);
+                const proposedTier = document.querySelector(`[data-tier="${id}"]`).value;
+                const res2 = await fetch(`/api/admin/credential-crosswalk/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mtPoints, proposedTier }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Saved.', 'success'); loadCrosswalk(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+            document.getElementById('crosswalk-tbody').querySelectorAll('[data-toggle-row]').forEach((btn) => btn.addEventListener('click', async () => {
+                const res2 = await fetch(`/api/admin/credential-crosswalk/${btn.dataset.toggleRow}/active`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: btn.dataset.active !== 'true' }) });
+                const data2 = await res2.json();
+                if (data2.success) loadCrosswalk(); else showAlert(data2.error || 'Failed.', 'error');
+            }));
+        }
+        document.getElementById('crosswalk-search').addEventListener('input', renderCrosswalk);
+
+        let dimensionsCache = [];
+        async function loadCertModules() {
+            const res = await fetch('/api/admin/cert-modules');
+            const data = await res.json();
+            dimensionsCache = data.dimensions || [];
+            document.getElementById('module-dimension').innerHTML = dimensionsCache.map((d) => `<option value="${d.code}">${escapeHtml(d.label)}</option>`).join('');
+            const modules = data.modules || [];
+            document.getElementById('modules-list').innerHTML = modules.map((m) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <span class="font-mono text-xs text-gray-400">${escapeHtml(m.code)}</span>
+                            <span class="font-semibold text-gray-800 ml-2">${escapeHtml(m.title)}</span>
+                            <span class="text-[10px] font-bold uppercase ${m.kind === 'specialist' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded-full ml-2">${escapeHtml(m.kind || 'foundation')}</span>
+                        </div>
+                        <button data-toggle-module="${m.code}" data-active="${m.active}" class="px-2 py-1 border border-gray-300 rounded text-xs">${m.active ? 'Deactivate' : 'Activate'}</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">${(m.dimensions || []).join(', ')} &middot; ${m.questions.length} questions</p>
+                    <div class="space-y-1 mb-3">${m.questions.map((q) => `<p class="text-xs text-gray-600">&middot; ${escapeHtml(q.text)} <span class="text-gray-400">(${escapeHtml(q.dimension)})</span></p>`).join('')}</div>
+                    <details>
+                        <summary class="text-xs font-semibold text-primary-red cursor-pointer">Add a question</summary>
+                        <div class="grid sm:grid-cols-2 gap-2 mt-2">
+                            <input type="text" placeholder="Question text" class="q-text px-2 py-1 border border-gray-300 rounded text-xs sm:col-span-2">
+                            <input type="text" placeholder="Option 1" class="q-opt px-2 py-1 border border-gray-300 rounded text-xs">
+                            <input type="text" placeholder="Option 2" class="q-opt px-2 py-1 border border-gray-300 rounded text-xs">
+                            <input type="text" placeholder="Option 3" class="q-opt px-2 py-1 border border-gray-300 rounded text-xs">
+                            <input type="text" placeholder="Option 4" class="q-opt px-2 py-1 border border-gray-300 rounded text-xs">
+                            <select class="q-correct px-2 py-1 border border-gray-300 rounded text-xs"><option value="0">Correct: Option 1</option><option value="1">Correct: Option 2</option><option value="2">Correct: Option 3</option><option value="3">Correct: Option 4</option></select>
+                            <select class="q-dim px-2 py-1 border border-gray-300 rounded text-xs">${dimensionsCache.map((d) => `<option value="${d.code}">${escapeHtml(d.label)}</option>`).join('')}</select>
+                        </div>
+                        <button data-add-question="${m.code}" class="mt-2 px-3 py-1.5 bg-primary-red text-white rounded text-xs font-semibold">Add Question</button>
+                    </details>
+                </div>
+            `).join('');
+            document.getElementById('modules-list').querySelectorAll('[data-toggle-module]').forEach((btn) => btn.addEventListener('click', async () => {
+                await fetch(`/api/admin/cert-modules/${btn.dataset.toggleModule}/active`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: btn.dataset.active !== 'true' }) });
+                loadCertModules();
+            }));
+            document.getElementById('modules-list').querySelectorAll('[data-add-question]').forEach((btn) => btn.addEventListener('click', async () => {
+                const card = btn.closest('details');
+                const text = card.querySelector('.q-text').value.trim();
+                const options = [...card.querySelectorAll('.q-opt')].map((i) => i.value.trim());
+                const correctIndex = Number(card.querySelector('.q-correct').value);
+                const dimension = card.querySelector('.q-dim').value;
+                if (!text || options.some((o) => !o)) return showAlert('Fill in the question and all 4 options.', 'error');
+                const res2 = await fetch(`/api/admin/cert-modules/${btn.dataset.addQuestion}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, options, correctIndex, dimension }) });
+                const data2 = await res2.json();
+                if (data2.success) { showAlert('Question added.', 'success'); loadCertModules(); } else showAlert(data2.error || 'Failed.', 'error');
+            }));
+        }
+        document.getElementById('add-module-btn').addEventListener('click', async () => {
+            const code = document.getElementById('module-code').value.trim();
+            const title = document.getElementById('module-title').value.trim();
+            const kind = document.getElementById('module-kind').value;
+            const dimension = document.getElementById('module-dimension').value;
+            if (!code || !title) return showAlert('Code and title are required.', 'error');
+            const res = await fetch('/api/admin/cert-modules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, title, kind, dimensions: dimension ? [dimension] : [] }) });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Module created - add questions below.', 'success');
+                document.getElementById('module-code').value = '';
+                document.getElementById('module-title').value = '';
+                loadCertModules();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+
+        async function loadAssignmentsPanel() {
+            const modRes = await fetch('/api/admin/cert-modules');
+            const modData = await modRes.json();
+            const moduleOptions = (modData.modules || []).map((m) => `<option value="${m.code}">${escapeHtml(m.code)} - ${escapeHtml(m.title)}</option>`).join('');
+            document.getElementById('assign-module').innerHTML = moduleOptions;
+            document.getElementById('rule-module').innerHTML = moduleOptions;
+
+            const rulesRes = await fetch('/api/admin/quiz-assignment-rules');
+            const rulesData = await rulesRes.json();
+            document.getElementById('rules-list').innerHTML = (rulesData.rules || []).map((r) => `
+                <div class="flex items-center justify-between border border-gray-200 rounded-lg p-2 text-xs">
+                    <span>${escapeHtml(r.trigger)}${r.filter && r.filter.instrument ? ` &middot; instrument=${escapeHtml(r.filter.instrument)}` : ''} &rarr; ${r.targetIds.map((t) => escapeHtml(t)).join(', ')}${r.cadence ? ` &middot; ${escapeHtml(r.cadence)}` : ''}</span>
+                    <button data-toggle-rule="${r.id}" data-active="${r.active}" class="px-2 py-1 border border-gray-300 rounded">${r.active ? 'Disable' : 'Enable'}</button>
+                </div>
+            `).join('') || '<p class="text-sm text-gray-400">No rules yet.</p>';
+            document.getElementById('rules-list').querySelectorAll('[data-toggle-rule]').forEach((btn) => btn.addEventListener('click', async () => {
+                await fetch(`/api/admin/quiz-assignment-rules/${btn.dataset.toggleRule}/active`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: btn.dataset.active !== 'true' }) });
+                loadAssignmentsPanel();
+            }));
+
+            const queueRes = await fetch('/api/admin/quiz-assignments');
+            const queueData = await queueRes.json();
+            const statusColor = { assigned: 'text-gray-600', started: 'text-blue-600', completed: 'text-green-600', overdue: 'text-red-600', waived: 'text-gray-400' };
+            document.getElementById('assignment-queue-tbody').innerHTML = (queueData.items || []).map((item) => `
+                <tr>
+                    <td>#${item.assignedTo}</td>
+                    <td>${escapeHtml(item.targetType)}:${escapeHtml(item.targetId)}</td>
+                    <td class="text-xs text-gray-500 max-w-xs">${escapeHtml(item.reason || '')}</td>
+                    <td class="text-xs text-gray-500">${item.dueAt ? new Date(item.dueAt).toLocaleDateString() : '-'}</td>
+                    <td class="text-xs font-semibold ${statusColor[item.status] || ''}">${escapeHtml(item.status)}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            ${['assigned', 'started', 'overdue'].includes(item.status) ? `<button data-remind="${item.id}" class="px-2 py-1 border border-gray-300 rounded text-xs">Remind</button><button data-waive="${item.id}" class="px-2 py-1 bg-gray-100 rounded text-xs">Waive</button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('') || '<tr><td colspan="6" class="text-gray-400 text-center py-4">Nothing outstanding.</td></tr>';
+            document.getElementById('assignment-queue-tbody').querySelectorAll('[data-remind]').forEach((btn) => btn.addEventListener('click', async () => {
+                await fetch(`/api/admin/quiz-assignments/${btn.dataset.remind}/remind`, { method: 'POST' });
+                showAlert('Reminder sent.', 'success');
+            }));
+            document.getElementById('assignment-queue-tbody').querySelectorAll('[data-waive]').forEach((btn) => btn.addEventListener('click', async () => {
+                const reason = prompt('Reason for waiving (optional):') || '';
+                await fetch(`/api/admin/quiz-assignments/${btn.dataset.waive}/waive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+                loadAssignmentsPanel();
+            }));
+        }
+        document.getElementById('assign-btn').addEventListener('click', async () => {
+            const assignedTo = Number(document.getElementById('assign-tutor-id').value);
+            const targetId = document.getElementById('assign-module').value;
+            const reason = document.getElementById('assign-reason').value.trim();
+            const dueAtRaw = document.getElementById('assign-due').value;
+            if (!assignedTo || !targetId) return showAlert('Tutor ID and module are required.', 'error');
+            const res = await fetch('/api/admin/quiz-assignments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedTo, targetType: 'module', targetId, reason: reason || undefined, dueAt: dueAtRaw ? new Date(dueAtRaw).toISOString() : undefined }) });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Assigned.', 'success');
+                document.getElementById('assign-tutor-id').value = '';
+                document.getElementById('assign-reason').value = '';
+                document.getElementById('assign-due').value = '';
+                loadAssignmentsPanel();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+        document.getElementById('add-rule-btn').addEventListener('click', async () => {
+            const trigger = document.getElementById('rule-trigger').value;
+            const instrument = document.getElementById('rule-instrument').value.trim();
+            const targetId = document.getElementById('rule-module').value;
+            const cadence = document.getElementById('rule-cadence').value.trim();
+            if (!targetId) return showAlert('Choose a module.', 'error');
+            const res = await fetch('/api/admin/quiz-assignment-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trigger, filter: instrument ? { instrument } : {}, targetType: 'module', targetIds: [targetId], cadence: cadence || undefined }) });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Rule added.', 'success');
+                document.getElementById('rule-instrument').value = '';
+                document.getElementById('rule-cadence').value = '';
+                loadAssignmentsPanel();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+        document.getElementById('run-rules-btn').addEventListener('click', async () => {
+            const res = await fetch('/api/admin/quiz-assignment-rules/run', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { showAlert(`${data.queuedCount} new assignment(s) queued.`, 'success'); loadAssignmentsPanel(); } else showAlert(data.error || 'Failed.', 'error');
+        });
+
         loadTutorsAndRequests();
     </script>
     <script src="/assets/mobile-nav.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

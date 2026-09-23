@@ -22,6 +22,8 @@ const SNAPSHOT_FILES = [
   'addresses.json',
   'productReviews.json',
   'performers.json',
+  'performer-posts.json',
+  'marketplace-chat.json',
   'marketplaceRequests.json',
   'marketplaceOffers.json',
   'benchmarkRates.json',
@@ -30,6 +32,8 @@ const SNAPSHOT_FILES = [
   'reports.json',
   'games.json',
   'tutorOffers.json',
+  'orientation.json',
+  'orientation-progress.json',
 ];
 
 const snapshotSchema = new mongoose.Schema({

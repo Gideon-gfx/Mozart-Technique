@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Dashboard - Mozart Techniques</title>
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -293,10 +297,11 @@
             if (data.user.hasSponsorOrg) {
                 const sponsorSection = document.getElementById('sponsor-code-section');
                 if (sponsorSection) {
+                    const sponsorHref = data.user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard';
                     sponsorSection.innerHTML = `
                         <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fa-solid fa-building text-primary-red mr-2"></i>Sponsor Dashboard</h2>
                         <p class="text-sm text-gray-600 mb-4">Your organization is approved and active. You can manage students, tutors, and sponsored access from the sponsor dashboard.</p>
-                        <a href="/ngo-dashboard" class="inline-flex items-center px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
+                        <a href="${sponsorHref}" class="inline-flex items-center px-4 py-2 bg-primary-red text-white font-semibold rounded-lg hover:bg-red-700 transition">
                             Open Sponsor Dashboard <i class="fa-solid fa-arrow-right ml-2"></i>
                         </a>
                     `;
@@ -982,5 +987,6 @@
             window.MTVideo.openModal(link.dataset.url, link.dataset.title);
         });
     </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

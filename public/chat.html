@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat - Mozart Techniques</title>
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -506,6 +510,7 @@
                 <button type="button" data-clip="camera"><i class="fa-solid fa-camera"></i> Camera</button>
                 <button type="button" data-clip="audio"><i class="fa-solid fa-music"></i> Audio</button>
                 <button type="button" data-clip="library" id="clip-library-btn" class="hidden"><i class="fa-solid fa-photo-film"></i> Tutor library</button>
+                <button type="button" data-clip="teaching-tools" id="clip-tools-btn"><i class="fa-solid fa-chalkboard-user"></i> Teaching Tools</button>
                 <button type="button" data-clip="poll"><i class="fa-solid fa-square-poll-vertical"></i> Poll</button>
                 <button type="button" data-clip="location" id="clip-location-btn" class="hidden"><i class="fa-solid fa-location-dot"></i> Location</button>
             </div>
@@ -1363,8 +1368,10 @@
             closeMsgMenu(); closeReactPicker(); closeDeletePopover();
             const rect = clipBtn.getBoundingClientRect();
             clipMenu.style.left = `${Math.max(8, rect.left)}px`;
-            clipMenu.style.top = `${Math.max(8, rect.top - 268)}px`;
             clipMenu.hidden = false;
+            clipMenu.style.maxHeight = `${Math.max(120, window.innerHeight - 24)}px`;
+            clipMenu.style.overflowY = 'auto';
+            clipMenu.style.top = `${Math.max(8, rect.top - clipMenu.offsetHeight - 8)}px`;
         }
         function closeClipMenu() { clipMenu.hidden = true; }
         clipBtn.addEventListener('click', (e) => { e.stopPropagation(); clipMenu.hidden ? openClipMenu() : closeClipMenu(); });
@@ -1374,6 +1381,7 @@
             if (!btn) return;
             closeClipMenu();
             const clip = btn.dataset.clip;
+            if (clip === 'teaching-tools') { window.MozartTeachingTools.open(); return; }
             if (clip === 'doc') document.getElementById('doc-input').click();
             else if (clip === 'media') document.getElementById('media-input').click();
             else if (clip === 'audio') document.getElementById('audio-input').click();
@@ -1958,6 +1966,7 @@
         init();
     </script>
     <script src="/assets/mobile-nav.js"></script>
+    <script src="/assets/teaching-tools-launcher.js"></script>
     <script src="/assets/video-embed.js"></script>
     <script>
         document.addEventListener('click', (e) => {
@@ -1967,5 +1976,6 @@
             window.MTVideo.openModal(link.dataset.url, link.dataset.title);
         });
     </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

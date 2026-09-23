@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Education - Mozart Techniques</title>
+    <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'primary-red': '#c41822', 'primary-dark': '#1F2937' } } }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/redesign.css">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        .te-card { background: #fff; border-radius: 1rem; box-shadow: 0 1px 2px rgba(23,19,15,.05), 0 12px 30px -20px rgba(23,19,15,.25); border: 1px solid #e7dfd3; padding: 1.5rem; }
+        .te-tab { padding: .5rem 1rem; border-radius: 999px; font-size: .875rem; font-weight: 600; border: 1px solid #d1d5db; color: #4b5563; }
+        .te-tab.active { background: linear-gradient(135deg, #c41822, #ff3342); color: #fff; border-color: transparent; }
+        .te-tier-track { height: 8px; border-radius: 999px; background: #f1ebe3; overflow: hidden; }
+        .te-tier-fill { height: 100%; background: linear-gradient(90deg, #c41822, #ff3342); border-radius: 999px; }
+        .te-badge { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .55rem; border-radius: 999px; }
+    </style>
+</head>
+<body class="bg-[#fbf7f0]">
+
+    <div id="alert-box" class="fixed top-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white font-medium max-w-sm opacity-0 transition-opacity duration-500" style="background-color:#222;">
+        <span id="alert-message"></span>
+    </div>
+
+    <header class="sticky top-0 z-50 bg-white shadow-sm">
+        <nav class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+            <a href="/home" class="flex items-center space-x-3">
+                <img src="/mozartLogo.jpg" alt="Mozart Techniques logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span class="text-2xl font-extrabold serif text-[#333]">Mozart Techniques</span>
+            </a>
+            <div class="flex items-center gap-4">
+                <a href="/tutor-dashboard" class="text-gray-600 hover:text-primary-red font-medium">Back to Dashboard</a>
+                <div id="auth-state"></div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+        <h1 class="text-2xl font-bold text-gray-800 mb-1">Teacher Education</h1>
+        <p class="text-gray-500 mb-6">Two equally legitimate paths to every tier: complete MT's own certification, or bring a recognized external credential. Either way, Advanced and Professional access is always confirmed by a human reviewer, not awarded on points alone.</p>
+
+        <!-- Progress-to-next-tier widget -->
+        <div class="te-card mb-6">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Your current tier</p>
+                    <p id="te-current-tier" class="text-2xl font-bold text-gray-800">-</p>
+                </div>
+                <div id="te-practicum-flag"></div>
+            </div>
+            <p id="te-can-teach" class="text-sm text-gray-500 mb-4"></p>
+            <div class="te-tier-track mb-2"><div id="te-tier-fill" class="te-tier-fill" style="width:0%"></div></div>
+            <p id="te-next-tier-note" class="text-sm text-gray-600"></p>
+            <div id="te-points-breakdown" class="grid sm:grid-cols-2 gap-4 mt-4 text-sm"></div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-6" id="te-subnav">
+            <button type="button" data-sub="assignments" class="te-tab active">Assigned to You</button>
+            <button type="button" data-sub="modules" class="te-tab">Foundation Modules</button>
+            <button type="button" data-sub="credentials" class="te-tab">Credentials</button>
+            <button type="button" data-sub="practicum" class="te-tab">Practicum</button>
+            <button type="button" data-sub="tiers" class="te-tab">What Can I Teach?</button>
+        </div>
+
+        <div id="te-sub-assignments" class="te-card">
+            <h2 class="text-lg font-bold text-gray-800 mb-1">Assigned to You</h2>
+            <p class="text-gray-500 text-sm mb-4">Content your admin has specifically pushed to you, separate from the browsable catalog below.</p>
+            <div id="te-assignments-list" class="space-y-3"></div>
+        </div>
+
+        <div id="te-sub-modules" class="te-card hidden">
+            <h2 class="text-lg font-bold text-gray-800 mb-1">Foundation &amp; Specialist Modules</h2>
+            <p class="text-gray-500 text-sm mb-4">Pass at 80%+ overall with no competency dimension below level 3.</p>
+            <div id="te-modules-list" class="space-y-3"></div>
+        </div>
+
+        <div id="te-sub-credentials" class="te-card hidden">
+            <h2 class="text-lg font-bold text-gray-800 mb-1">Bring Your Own Credential</h2>
+            <p class="text-gray-500 text-sm mb-4">Already hold a credential from ABRSM, Trinity, RCM, MUSON, ABGMVM, or another recognized body? Submit it for MT recognition - it converts to tier-unlock points once an admin verifies it.</p>
+            <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                <div class="relative sm:col-span-2">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input id="te-cred-search" type="search" placeholder="Search credential (e.g. ABRSM LRSM, TCRG, Yamaha Teacher Grade 3)" class="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg">
+                </div>
+                <select id="te-cred-select" size="6" class="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
+                <input id="te-cred-evidence" type="text" placeholder="Evidence URL (certificate scan/photo)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                <input id="te-cred-ref" type="text" placeholder="Candidate/certificate number (optional)" class="px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <button id="te-cred-submit-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Submit for review</button>
+
+            <hr class="my-4 border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-3">My submissions</h3>
+            <div id="te-my-credentials" class="space-y-3"></div>
+        </div>
+
+        <div id="te-sub-practicum" class="te-card hidden">
+            <h2 class="text-lg font-bold text-gray-800 mb-1">Practicum Review</h2>
+            <p class="text-gray-500 text-sm mb-4">Neither path unlocks Advanced or Professional on its own - both require a reviewed teaching-evidence submission: a short video, your lesson plan, and a student-outcome note.</p>
+            <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                <select id="te-prac-stage" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="advanced_specialist">Advanced-Specialist (unlocks Advanced)</option>
+                    <option value="professional">Professional cohort/mentorship (unlocks Professional)</option>
+                </select>
+                <input id="te-prac-video" type="text" placeholder="Video URL" class="px-3 py-2 border border-gray-300 rounded-lg">
+                <input id="te-prac-plan" type="text" placeholder="Lesson plan URL" class="px-3 py-2 border border-gray-300 rounded-lg">
+                <input id="te-prac-note" type="text" placeholder="Student outcome note" class="px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <button id="te-prac-submit-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Submit for review</button>
+
+            <hr class="my-4 border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-3">My submissions</h3>
+            <div id="te-my-practicum" class="space-y-3"></div>
+        </div>
+
+        <div id="te-sub-tiers" class="te-card hidden">
+            <h2 class="text-lg font-bold text-gray-800 mb-1">What Can I Teach at Each Tier?</h2>
+            <p class="text-gray-500 text-sm mb-4">Mozart Techniques' own policy - shown here in full, not left implicit.</p>
+            <div id="te-tiers-list" class="space-y-3"></div>
+        </div>
+    </main>
+
+    <script>
+        const alertBox = document.getElementById('alert-box');
+        const alertMessage = document.getElementById('alert-message');
+        function showAlert(message, type = 'info') {
+            alertMessage.textContent = message;
+            alertBox.style.backgroundColor = type === 'error' ? '#B91C1C' : type === 'success' ? '#059669' : '#1F2937';
+            alertBox.style.opacity = '1';
+            setTimeout(() => { alertBox.style.opacity = '0'; }, 4000);
+        }
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        let TIERS = [];
+        let CROSSWALK = [];
+
+        async function loadTiers() {
+            const res = await fetch('/api/teaching-tiers');
+            const data = await res.json();
+            TIERS = data.tiers || [];
+        }
+
+        function renderTiersList() {
+            document.getElementById('te-tiers-list').innerHTML = TIERS.map((t) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <p class="font-semibold text-gray-800">${escapeHtml(t.label)}</p>
+                    <p class="text-sm text-gray-500 mt-1">Can teach up to: ${escapeHtml(t.canTeachStudentLevel)}</p>
+                    <p class="text-xs text-gray-400 mt-1">Unlocks at ${t.mtPointsFloor} MT points</p>
+                </div>
+            `).join('');
+        }
+
+        async function loadStanding() {
+            const res = await fetch('/api/teacher-ed/standing');
+            const data = await res.json();
+            if (!data.success) return;
+            const s = data.standing;
+            const tier = TIERS.find((t) => t.code === s.unlockedTier);
+            document.getElementById('te-current-tier').textContent = tier ? tier.label : s.unlockedTier;
+            document.getElementById('te-can-teach').textContent = tier ? `You can teach up to: ${tier.canTeachStudentLevel}` : '';
+            document.getElementById('te-practicum-flag').innerHTML = s.practicumGated
+                ? '<span class="te-badge bg-amber-100 text-amber-700">Practicum review needed to go further</span>'
+                : '';
+            const next = TIERS.find((t) => t.code === s.nextTier);
+            const pct = next ? Math.min(100, Math.round((s.totalPoints / next.mtPointsFloor) * 100)) : 100;
+            document.getElementById('te-tier-fill').style.width = `${pct}%`;
+            document.getElementById('te-next-tier-note').textContent = next
+                ? `${s.totalPoints} MT points - ${s.pointsToNext} more to reach ${next.label}.`
+                : `${s.totalPoints} MT points - you've reached the top tier.`;
+            document.getElementById('te-points-breakdown').innerHTML = `
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase mb-1">MT-native (${s.nativePoints} pts)</p>
+                    ${s.nativeBreakdown.length ? s.nativeBreakdown.map((b) => `<p class="text-gray-600">${escapeHtml(b.source)} - +${b.points}</p>`).join('') : '<p class="text-gray-400">Nothing yet - start with the Foundation modules below.</p>'}
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase mb-1">External credentials (${s.externalPoints} pts)</p>
+                    ${s.externalBreakdown.length ? s.externalBreakdown.map((b) => `<p class="text-gray-600">${escapeHtml(b.source)} - +${b.points}${b.capped ? ' <span class=\"text-amber-600\">(capped - see Practicum)</span>' : ''}</p>`).join('') : '<p class="text-gray-400">None submitted yet.</p>'}
+                </div>
+            `;
+        }
+
+        // --- Sub-nav ---
+        function selectSub(key) {
+            document.querySelectorAll('#te-subnav [data-sub]').forEach((b) => b.classList.toggle('active', b.dataset.sub === key));
+            ['assignments', 'modules', 'credentials', 'practicum', 'tiers'].forEach((s) => document.getElementById(`te-sub-${s}`).classList.toggle('hidden', s !== key));
+            if (key === 'assignments') loadAssignments();
+            if (key === 'modules') loadModules();
+            if (key === 'credentials') { loadCrosswalk(); loadMyCredentials(); }
+            if (key === 'practicum') loadMyPracticum();
+            if (key === 'tiers') renderTiersList();
+        }
+        document.querySelectorAll('#te-subnav [data-sub]').forEach((btn) => btn.addEventListener('click', () => selectSub(btn.dataset.sub)));
+
+        // --- Assigned to you ---
+        async function loadAssignments() {
+            const res = await fetch('/api/teacher-ed/my-assignments');
+            const data = await res.json();
+            const items = data.items || [];
+            const statusBadge = { assigned: 'bg-gray-100 text-gray-600', started: 'bg-blue-100 text-blue-700', completed: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700', waived: 'bg-gray-100 text-gray-400' };
+            document.getElementById('te-assignments-list').innerHTML = items.length ? items.map((item) => `
+                <div class="border border-gray-200 rounded-lg p-4 flex items-start justify-between gap-3">
+                    <div>
+                        <span class="te-badge ${statusBadge[item.status] || ''}">${escapeHtml(item.status)}</span>
+                        <p class="font-semibold text-gray-800 mt-1">${escapeHtml(item.targetType)}: ${escapeHtml(item.targetId)}</p>
+                        ${item.reason ? `<p class="text-sm text-gray-500 mt-1">${escapeHtml(item.reason)}</p>` : ''}
+                        ${item.dueAt ? `<p class="text-xs text-gray-400 mt-1">Due ${new Date(item.dueAt).toLocaleDateString()}</p>` : ''}
+                    </div>
+                    ${item.status === 'assigned' ? `<button data-start="${item.id}" class="px-3 py-1.5 border border-gray-300 rounded text-xs font-semibold text-gray-600 hover:border-primary-red hover:text-primary-red shrink-0">Start</button>` : ''}
+                </div>
+            `).join('') : '<p class="text-sm text-gray-400">Nothing assigned right now.</p>';
+            document.getElementById('te-assignments-list').querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', async () => {
+                await fetch(`/api/teacher-ed/my-assignments/${btn.dataset.start}/start`, { method: 'POST' });
+                selectSub('modules');
+            }));
+        }
+
+        // --- Foundation modules ---
+        async function loadModules() {
+            const res = await fetch('/api/teacher-ed/modules');
+            const data = await res.json();
+            const modules = data.modules || [];
+            document.getElementById('te-modules-list').innerHTML = modules.map((m) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-semibold text-gray-800">${escapeHtml(m.title)} <span class="text-xs text-gray-400 font-normal">(${escapeHtml(m.code)})</span></p>
+                        <span class="te-badge ${m.kind === 'specialist' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${escapeHtml(m.kind || 'foundation')}</span>
+                    </div>
+                    ${m.resource ? `<p class="text-sm text-gray-600 mb-3">${escapeHtml(m.resource.body || '')}</p>` : ''}
+                    <form class="te-quiz-form space-y-3" data-code="${m.code}">
+                        ${m.questions.map((q, qi) => `
+                            <div>
+                                <p class="text-sm font-semibold text-gray-700 mb-1">${qi + 1}. ${escapeHtml(q.text)}</p>
+                                ${q.options.map((opt, oi) => `
+                                    <label class="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                                        <input type="radio" name="q-${m.code}-${q.id}" value="${oi}" required>
+                                        ${escapeHtml(opt)}
+                                    </label>
+                                `).join('')}
+                            </div>
+                        `).join('')}
+                        <button type="submit" class="px-4 py-2 bg-primary-red text-white rounded-lg text-sm font-semibold">Submit answers</button>
+                        <span class="te-quiz-result text-sm font-semibold ml-2"></span>
+                    </form>
+                </div>
+            `).join('');
+            document.querySelectorAll('.te-quiz-form').forEach((form) => form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const code = form.dataset.code;
+                const answers = [...form.querySelectorAll('input[type=radio]:checked')].map((input) => ({
+                    questionId: Number(input.name.split('-').pop()),
+                    selectedIndex: Number(input.value),
+                }));
+                const res2 = await fetch(`/api/teacher-ed/modules/${code}/attempt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers }) });
+                const data2 = await res2.json();
+                const resultEl = form.querySelector('.te-quiz-result');
+                if (!data2.success) { resultEl.textContent = data2.error || 'Could not submit.'; resultEl.className = 'te-quiz-result text-sm font-semibold ml-2 text-red-600'; return; }
+                resultEl.textContent = data2.attempt.passed ? `Passed - ${Math.round(data2.attempt.overallPct * 100)}%` : `Not yet - ${Math.round(data2.attempt.overallPct * 100)}%, try again`;
+                resultEl.className = `te-quiz-result text-sm font-semibold ml-2 ${data2.attempt.passed ? 'text-green-600' : 'text-amber-600'}`;
+                if (data2.attempt.passed) loadStanding();
+            }));
+        }
+
+        // --- Credentials ---
+        async function loadCrosswalk() {
+            const res = await fetch('/api/credential-crosswalk');
+            const data = await res.json();
+            CROSSWALK = data.rows || [];
+            renderCrosswalkSelect();
+        }
+        function renderCrosswalkSelect() {
+            const q = document.getElementById('te-cred-search').value.trim().toLowerCase();
+            const rows = CROSSWALK.filter((r) => !q || `${r.body} ${r.credentialName}`.toLowerCase().includes(q));
+            document.getElementById('te-cred-select').innerHTML = rows.map((r) => `<option value="${r.id}">${escapeHtml(r.body)} - ${escapeHtml(r.credentialName)} (${r.mtPoints} pts)</option>`).join('');
+        }
+        document.getElementById('te-cred-search').addEventListener('input', renderCrosswalkSelect);
+        document.getElementById('te-cred-submit-btn').addEventListener('click', async () => {
+            const crosswalkId = document.getElementById('te-cred-select').value;
+            const evidenceUrl = document.getElementById('te-cred-evidence').value.trim();
+            const issuingBodyRef = document.getElementById('te-cred-ref').value.trim();
+            if (!crosswalkId) return showAlert('Select the credential you hold.', 'error');
+            const res = await fetch('/api/teacher-ed/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crosswalkId, evidenceUrl, issuingBodyRef }) });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Submitted for review.', 'success');
+                document.getElementById('te-cred-evidence').value = '';
+                document.getElementById('te-cred-ref').value = '';
+                loadMyCredentials();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+        async function loadMyCredentials() {
+            const res = await fetch('/api/teacher-ed/my-credentials');
+            const data = await res.json();
+            const items = data.submissions || [];
+            const statusBadge = { pending: 'bg-amber-100 text-amber-700', verified: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700', expired: 'bg-gray-100 text-gray-400' };
+            document.getElementById('te-my-credentials').innerHTML = items.length ? items.map((s) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <span class="te-badge ${statusBadge[s.status] || ''}">${escapeHtml(s.status)}</span>
+                    <p class="font-semibold text-gray-800 mt-1">${escapeHtml(s.crosswalkSnapshot.body)} - ${escapeHtml(s.crosswalkSnapshot.credentialName)}</p>
+                    ${s.status === 'verified' ? `<p class="text-sm text-green-700 mt-1">+${s.mtPointsAwarded} MT points awarded</p>` : ''}
+                    ${s.reviewNote ? `<p class="text-sm text-gray-500 mt-1">${escapeHtml(s.reviewNote)}</p>` : ''}
+                    ${s.status === 'rejected' ? `<button data-appeal="credential:${s.id}" class="mt-2 text-xs font-semibold text-primary-red hover:underline">Ask for another look</button>` : ''}
+                </div>
+            `).join('') : '<p class="text-sm text-gray-400">Nothing submitted yet.</p>';
+            wireAppealButtons();
+        }
+
+        // --- Practicum ---
+        document.getElementById('te-prac-submit-btn').addEventListener('click', async () => {
+            const stage = document.getElementById('te-prac-stage').value;
+            const videoUrl = document.getElementById('te-prac-video').value.trim();
+            const lessonPlanUrl = document.getElementById('te-prac-plan').value.trim();
+            const outcomeNote = document.getElementById('te-prac-note').value.trim();
+            const res = await fetch('/api/teacher-ed/practicum', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, videoUrl, lessonPlanUrl, outcomeNote }) });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('Submitted for review.', 'success');
+                document.getElementById('te-prac-video').value = '';
+                document.getElementById('te-prac-plan').value = '';
+                document.getElementById('te-prac-note').value = '';
+                loadMyPracticum();
+            } else showAlert(data.error || 'Failed.', 'error');
+        });
+        async function loadMyPracticum() {
+            const res = await fetch('/api/teacher-ed/my-practicum');
+            const data = await res.json();
+            const items = data.reviews || [];
+            const statusBadge = { pending: 'bg-amber-100 text-amber-700', passed: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' };
+            document.getElementById('te-my-practicum').innerHTML = items.length ? items.map((r) => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <span class="te-badge ${statusBadge[r.status] || ''}">${escapeHtml(r.status)}</span>
+                    <p class="font-semibold text-gray-800 mt-1">${escapeHtml(r.stage.replace('_', ' '))}</p>
+                    ${r.reviewNote ? `<p class="text-sm text-gray-500 mt-1">${escapeHtml(r.reviewNote)}</p>` : ''}
+                    ${r.status === 'rejected' ? `<button data-appeal="practicum:${r.id}" class="mt-2 text-xs font-semibold text-primary-red hover:underline">Ask for another look</button>` : ''}
+                </div>
+            `).join('') : '<p class="text-sm text-gray-400">Nothing submitted yet.</p>';
+            wireAppealButtons();
+        }
+
+        function wireAppealButtons() {
+            document.querySelectorAll('[data-appeal]').forEach((btn) => btn.addEventListener('click', async () => {
+                const [kind, id] = btn.dataset.appeal.split(':');
+                const message = prompt('What would you like reviewed again?');
+                if (!message) return;
+                const res = await fetch('/api/teacher-ed/appeals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id, message }) });
+                const data = await res.json();
+                if (data.success) { showAlert('Sent to review.', 'success'); loadMyCredentials(); loadMyPracticum(); } else showAlert(data.error || 'Failed.', 'error');
+            }));
+        }
+
+        (async () => {
+            await loadTiers();
+            await loadStanding();
+            loadAssignments();
+        })();
+    </script>
+    <script src="/assets/nav-auth.js"></script>
+    <script src="/assets/mobile-nav.js"></script>
+    <script src="/assets/footer.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
+</body>
+</html>

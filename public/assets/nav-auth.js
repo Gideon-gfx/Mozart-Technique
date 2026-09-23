@@ -210,7 +210,24 @@
     const paymentMethodsLink = !user.hasTutorProfile && user.role !== 'admin' ? `<a href="/payment-methods"><i class="fa-solid fa-credit-card"></i> Manage Payment Methods</a>` : '';
     const adminLink = user.role === 'admin' ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i> Admin</a>` : '';
     const tutorLink = user.hasTutorProfile ? `<a href="/tutor"><i class="fa-solid fa-chalkboard-user"></i> Tutor Profile</a>` : '';
-    const sponsorLink = user.hasSponsorAccess ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>` : '';
+    const teacherEdLink = user.hasTutorProfile ? `<a href="/teacher-education"><i class="fa-solid fa-award"></i> Teacher Education</a>` : '';
+    // Sponsor Dashboard shows for ANY owned org. An Individual Sponsor gets
+    // the real ongoing-use dashboard (wallet, billing, codes, messaging) at
+    // /sponsor-dashboard; an NGO/Institution owner still lands on
+    // /become-sponsor's application/codes/subscription status panel, since
+    // their real day-to-day workspace is the separate Organization Dashboard
+    // link (below) - not a replacement, so an NGO/Institution owner sees
+    // BOTH links at once, each pointing at a genuinely different page. An
+    // account that only holds a redeemed *membership* (not ownership) keeps
+    // the prior fallback behavior.
+    const sponsorLink = user.hasSponsorOrg
+      ? `<a href="${user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor'}"><i class="fa-solid fa-building"></i> Sponsor Dashboard</a>`
+      : (user.hasSponsorAccess
+          ? `<a href="${user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard'}"${user.hasTutorProfile ? ' target="_blank" rel="noopener"' : ''}><i class="fa-solid fa-building"></i> ${user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard'}</a>`
+          : '');
+    const organizationLink = (user.hasSponsorOrg && user.sponsorOrgType === 'ngo')
+      ? `<a href="/ngo-dashboard"><i class="fa-solid fa-building"></i> ${user.sponsorOrgKind === 'institution' ? 'Institution Dashboard' : 'NGO Dashboard'}</a>`
+      : '';
     const supportLink = (user.supportAgent || user.role === 'support_agent') ? `<a href="/support-agent"><i class="fa-solid fa-headset"></i> Support Agent</a>` : '';
     target.innerHTML = `
       <div class="mt-auth-wrap">
@@ -225,8 +242,10 @@
           ${editProfileLink}
           ${paymentMethodsLink}
           ${sponsorLink}
+          ${organizationLink}
           ${adminLink}
           ${tutorLink}
+          ${teacherEdLink}
           ${supportLink}
           <button type="button" data-mt-logout><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
         </div>
@@ -343,6 +362,117 @@
     } catch (e) { /* Web Audio unavailable in this browser/context - no chime, not fatal */ }
   }
 
+  // A new store product pops up as a real full-size card centered over
+  // whatever page you're on (big cover image, name, close button) - the
+  // point is to actually show the product off, not just mention it
+  // happened. Reuses this same 20s poll rather than opening a second one,
+  // and the same lastSeenId > 0 guard as the chime below so a fresh
+  // session doesn't replay the whole product catalog on first load.
+  function showNewProductPopup(notification) {
+    let overlay = document.getElementById('mt-product-popup');
+    if (!overlay) {
+      const style = document.createElement('style');
+      style.textContent =
+        '#mt-product-popup{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;' +
+        'padding:20px;background:rgba(0,0,0,0);transition:background .25s ease}' +
+        '#mt-product-popup.visible{background:rgba(0,0,0,.55)}' +
+        '#mt-product-popup-card{position:relative;width:100%;max-width:420px;background:#17130f;color:#fff;border-radius:24px;' +
+        'overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.45);font-family:Helvetica,Arial,sans-serif;' +
+        'opacity:0;transform:scale(.88);transition:opacity .25s ease,transform .25s ease}' +
+        '#mt-product-popup.visible #mt-product-popup-card{opacity:1;transform:scale(1)}' +
+        '#mt-product-popup-link{display:block;color:inherit;text-decoration:none}' +
+        '#mt-product-popup img{display:block;width:100%;height:min(52vh,420px);object-fit:cover;background:#2a2620}' +
+        '#mt-product-popup-text{padding:22px}' +
+        '#mt-product-popup-text span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.7}' +
+        '#mt-product-popup-text strong{display:block;font-size:22px;line-height:1.25;margin-top:6px;font-weight:800}' +
+        '#mt-product-popup-text em{display:block;margin-top:12px;font-style:normal;font-size:14px;font-weight:700;color:#ff6b78}' +
+        '#mt-product-popup-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:18px;' +
+        'display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);border:none;color:#fff;' +
+        'font-size:22px;line-height:1;cursor:pointer}';
+      document.head.appendChild(style);
+      overlay = document.createElement('div');
+      overlay.id = 'mt-product-popup';
+      overlay.innerHTML = '<div id="mt-product-popup-card"></div>';
+      overlay.addEventListener('click', (event) => { if (event.target === overlay) hide(); });
+      document.body.appendChild(overlay);
+    }
+    function hide() { overlay.classList.remove('visible'); }
+    const card = overlay.querySelector('#mt-product-popup-card');
+    card.innerHTML =
+      `<a id="mt-product-popup-link" href="${escapeHtml(notification.href || '/store')}"><img src="${escapeHtml(notification.imageUrl)}" alt="">` +
+      `<span id="mt-product-popup-text"><span>New in the store</span><strong>${escapeHtml(notification.message)}</strong><em>View in store →</em></span></a>` +
+      '<button id="mt-product-popup-close" type="button" aria-label="Dismiss">&times;</button>';
+    card.querySelector('#mt-product-popup-close').addEventListener('click', (event) => { event.preventDefault(); hide(); });
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+  }
+
+  // A one-off admin-broadcast poll (data/polls.js) - no right answer, shown
+  // as a popup on whichever page the user happens to be on. Checked once
+  // per page load (init(), below) rather than on the 20s notification
+  // timer, since a poll isn't a notification - it's a standalone question
+  // that must be answered or dismissed before anything else continues.
+  function showPollPopup(poll) {
+    let overlay = document.getElementById('mt-poll-popup');
+    if (!overlay) {
+      const style = document.createElement('style');
+      style.textContent =
+        '#mt-poll-popup{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;' +
+        'padding:20px;background:rgba(0,0,0,0);transition:background .25s ease}' +
+        '#mt-poll-popup.visible{background:rgba(0,0,0,.55)}' +
+        '#mt-poll-popup-card{position:relative;width:100%;max-width:420px;background:#17130f;color:#fff;border-radius:24px;' +
+        'overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.45);font-family:Helvetica,Arial,sans-serif;padding:26px 22px 22px;' +
+        'opacity:0;transform:scale(.88);transition:opacity .25s ease,transform .25s ease}' +
+        '#mt-poll-popup.visible #mt-poll-popup-card{opacity:1;transform:scale(1)}' +
+        '#mt-poll-popup-kicker{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-bottom:8px}' +
+        '#mt-poll-popup-question{display:block;font-size:19px;line-height:1.3;font-weight:800;margin-bottom:18px}' +
+        '.mt-poll-option{display:block;width:100%;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);' +
+        'color:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:14px;font-weight:600;cursor:pointer;' +
+        'transition:background .15s ease,border-color .15s ease;font-family:inherit}' +
+        '.mt-poll-option:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}' +
+        '#mt-poll-popup-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:18px;' +
+        'display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);border:none;color:#fff;' +
+        'font-size:22px;line-height:1;cursor:pointer}';
+      document.head.appendChild(style);
+      overlay = document.createElement('div');
+      overlay.id = 'mt-poll-popup';
+      overlay.innerHTML = '<div id="mt-poll-popup-card"></div>';
+      overlay.addEventListener('click', (event) => { if (event.target === overlay) dismiss(); });
+      document.body.appendChild(overlay);
+    }
+    function hide() { overlay.classList.remove('visible'); }
+    function dismiss() {
+      hide();
+      fetch(`/api/polls/${poll.id}/dismiss`, { method: 'POST' }).catch(() => {});
+    }
+    function answer(index) {
+      hide();
+      fetch(`/api/polls/${poll.id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionIndex: index }),
+      }).catch(() => {});
+    }
+    const card = overlay.querySelector('#mt-poll-popup-card');
+    card.innerHTML =
+      '<span id="mt-poll-popup-kicker">Quick question</span>' +
+      `<span id="mt-poll-popup-question">${escapeHtml(poll.question)}</span>` +
+      poll.options.map((opt, i) => `<button type="button" class="mt-poll-option" data-i="${i}">${escapeHtml(opt)}</button>`).join('') +
+      '<button id="mt-poll-popup-close" type="button" aria-label="Dismiss">&times;</button>';
+    card.querySelector('#mt-poll-popup-close').addEventListener('click', (event) => { event.preventDefault(); dismiss(); });
+    card.querySelectorAll('.mt-poll-option').forEach((btn) => {
+      btn.addEventListener('click', () => answer(Number(btn.dataset.i)));
+    });
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+  }
+
+  async function checkActivePoll() {
+    try {
+      const res = await fetch('/api/polls/active');
+      const data = await res.json();
+      if (data.success && data.poll) showPollPopup(data.poll);
+    } catch { /* not fatal - just skip it for this page load */ }
+  }
+
   // Polls the same list the notification bell links to, tracking the
   // newest id already heard in sessionStorage - a fresh session baselines
   // silently (no chime replay for a visitor's whole notification history
@@ -358,8 +488,13 @@
       try {
         const data = await fetch('/api/notifications').then((r) => r.json());
         if (!data.success) return;
-        const maxId = (data.notifications || []).reduce((max, n) => Math.max(max, n.id || 0), 0);
-        if (maxId > lastSeenId && lastSeenId > 0) playNotificationChime();
+        const notifications = data.notifications || [];
+        const maxId = notifications.reduce((max, n) => Math.max(max, n.id || 0), 0);
+        if (maxId > lastSeenId && lastSeenId > 0) {
+          playNotificationChime();
+          const newProduct = notifications.find((n) => n.id > lastSeenId && n.type === 'new_product' && n.imageUrl);
+          if (newProduct) showNewProductPopup(newProduct);
+        }
         if (maxId !== lastSeenId) {
           lastSeenId = maxId;
           sessionStorage.setItem(STORAGE_KEY, String(lastSeenId));
@@ -409,6 +544,7 @@
         hideBecomeTutorLinks();
       }
       targets.forEach((target) => render(target, user));
+      if (user) checkActivePoll();
     } catch {
       targets.forEach((target) => render(target, null));
     }

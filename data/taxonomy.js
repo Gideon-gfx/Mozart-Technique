@@ -74,7 +74,7 @@ function levelForScore(score) {
 // when this module was first required, not any addPerformerCategory/
 // addEventType call made since.
 const PERFORMER_CATEGORIES_DEFAULT = [
-  'Solo Musician', 'Live Band', 'DJ', 'Solo Vocalist', 'Dance Troupe', 'Theater Actor', 'MC / Host', 'Comedian',
+  'Solo Musician', 'Live Band', 'DJ', 'DJing', 'Solo Vocalist', 'Dance Troupe', 'Theater Actor', 'MC / Host', 'Comedian', 'Studio Performance',
 ];
 const EVENT_TYPES_DEFAULT = [
   'Wedding', 'Corporate Event', 'Birthday Party', 'Concert', 'Private Party', 'Festival', 'Religious Ceremony', 'Other',

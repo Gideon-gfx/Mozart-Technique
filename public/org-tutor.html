@@ -4,12 +4,17 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Organization Tutor Dashboard</title>
   <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={theme:{extend:{colors:{'primary-red':'#cc0000'}}}}</script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/chat-kit.css">
+  <script src="/assets/teaching-tools-launcher.js" defer></script>
   <style>
     .org-tutor-roster{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;height:32rem}
     .org-tutor-roster-list{border:1px solid #eaded8;border-radius:14px;background:#fff8f6;padding:12px;overflow-y:auto}
@@ -177,5 +182,6 @@
     }
     document.getElementById('org-tutor-mobile').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.toggle('open'));document.getElementById('org-tutor-sidebar-toggle').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.remove('open'));document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{await fetch('/api/notifications/read-all',{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})});});document.getElementById('schedule-class').addEventListener('click',()=>activate('classes'));document.getElementById('create-group-chat').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();activate('students');};});load().catch(()=>location.href='/tutor');
   </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

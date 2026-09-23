@@ -158,7 +158,7 @@ function listForStudent(studentId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-function sendMessage(conversationId, { senderId, senderType, senderName, text, attachment, replyToId, poll, location }) {
+function sendMessage(conversationId, { senderId, senderType, senderName, text, attachment, replyToId, poll, location, libraryItem }) {
   const db = load();
   const conv = db.conversations.find((c) => c.id === Number(conversationId));
   if (!conv) return null;
@@ -170,6 +170,10 @@ function sendMessage(conversationId, { senderId, senderType, senderName, text, a
     senderName,
     text: text || '',
     attachment: attachment || null,
+    // A shared clip from the tutor's own library or the organization's
+    // library (Org Tutor mode's clip picker) - just a title/url pointer,
+    // not a real attachment upload.
+    libraryItem: libraryItem ? { title: libraryItem.title, url: libraryItem.url } : null,
     replyToId: replyToId ? Number(replyToId) : null,
     poll: poll ? { question: poll.question, options: poll.options.map((text2, i) => ({ id: i + 1, text: text2 })), votes: [] } : null,
     location: location ? { lat: location.lat, lng: location.lng } : null,

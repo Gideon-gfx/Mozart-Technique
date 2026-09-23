@@ -40,4 +40,10 @@ async function convertFromUsd(amountUsd, currencyCode) {
   return amountUsd * rate;
 }
 
-module.exports = { getRatesUSD, convertFromUsd };
+async function convertToUsd(amountLocal, currencyCode) {
+  const rates = await getRatesUSD();
+  const rate = rates[currencyCode] || 1;
+  return Number(amountLocal) / rate;
+}
+
+module.exports = { getRatesUSD, convertFromUsd, convertToUsd };

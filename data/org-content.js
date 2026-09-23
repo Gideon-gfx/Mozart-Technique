@@ -62,9 +62,30 @@ function create({ orgId, type, title, text, url, fileUrl, coverUrl, category, vi
     replyToId: replyToId ? Number(replyToId) : null,
     createdByUserId: Number(createdByUserId),
     createdByName: String(createdByName || '').trim() || 'Organization',
+    reactions: [],
     createdAt: new Date().toISOString(),
   };
   db.items.push(item);
+  persist(db);
+  return item;
+}
+
+function findById(contentId) {
+  return load().items.find((item) => item.id === Number(contentId)) || null;
+}
+
+// One reaction per user per post - reacting with the same emoji again
+// removes it (toggle off), a different emoji replaces the old one. Same
+// rule as chat.js/orientation.js's addReaction.
+function addReaction(contentId, userId, emoji) {
+  const db = load();
+  const item = db.items.find((entry) => entry.id === Number(contentId));
+  if (!item) return null;
+  if (!Array.isArray(item.reactions)) item.reactions = [];
+  const existing = item.reactions.find((r) => r.userId === userId);
+  if (existing && existing.emoji === emoji) item.reactions = item.reactions.filter((r) => r.userId !== userId);
+  else if (existing) existing.emoji = emoji;
+  else item.reactions.push({ userId, emoji });
   persist(db);
   return item;
 }
@@ -106,4 +127,4 @@ function removeById(contentId) {
   return true;
 }
 
-module.exports = { listForOrg, create, updateById, removeById, listSubmissionsFor, load, persist };
+module.exports = { listForOrg, create, updateById, removeById, listSubmissionsFor, findById, addReaction, load, persist };

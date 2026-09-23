@@ -78,7 +78,21 @@
         margin: 0 !important;
         max-height: calc(100vh - 76px);
         overflow-y: auto;
-        animation: mtNavDrop .16s ease;
+        animation: mtNavDrop .32s cubic-bezier(.22,1,.36,1) both;
+      }
+      .mt-mobile-nav-open.mt-mobile-nav-closing {
+        animation: mtNavClose .24s cubic-bezier(.4,0,.2,1) both;
+        pointer-events: none;
+      }
+      .mt-mobile-panel-open { animation: mtNavDrop .32s cubic-bezier(.22,1,.36,1) both; }
+      .mt-mobile-panel-closing { animation: mtNavClose .24s cubic-bezier(.4,0,.2,1) both; pointer-events: none; }
+      @keyframes mtNavClose {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(-8px); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mt-mobile-nav-open, .mt-mobile-panel-open { animation-duration: 1ms; }
+        .mt-mobile-nav-open.mt-mobile-nav-closing, .mt-mobile-panel-closing { animation-duration: 1ms; }
       }
       @keyframes mtNavDrop {
         from { opacity: 0; transform: translateY(-8px); }
@@ -227,9 +241,14 @@
   }
 
   function closeNav(nav, toggle) {
-    nav.classList.remove('mt-mobile-nav-open');
-    nav.classList.add('hidden');
+    if (!nav.classList.contains('mt-mobile-nav-open')) return;
+    window.clearTimeout(nav._mtMobileCloseTimer);
+    nav.classList.add('mt-mobile-nav-closing');
     toggle.innerHTML = '<i class="fa-solid fa-bars"></i>';
+    nav._mtMobileCloseTimer = window.setTimeout(() => {
+      nav.classList.remove('mt-mobile-nav-open', 'mt-mobile-nav-closing');
+      nav.classList.add('hidden');
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250);
   }
 
   // Some pages ship their own hamburger markup (a #mobile-nav-toggle button
@@ -242,11 +261,22 @@
     if (!toggle || !panel || toggle.dataset.mtMobileWired) return false;
     toggle.dataset.mtMobileWired = 'true';
 
+    let panelCloseTimer;
     const setOpen = (open) => {
-      panel.classList.toggle('hidden', !open);
-      toggle.innerHTML = open
-        ? '<i class="fa-solid fa-xmark text-xl"></i>'
-        : '<i class="fa-solid fa-bars text-xl"></i>';
+      window.clearTimeout(panelCloseTimer);
+      if (open) {
+        panel.classList.remove('mt-mobile-panel-closing');
+        panel.classList.add('mt-mobile-panel-open');
+        panel.classList.remove('hidden');
+      } else if (!panel.classList.contains('hidden')) {
+        panel.classList.remove('mt-mobile-panel-open');
+        panel.classList.add('mt-mobile-panel-closing');
+        panelCloseTimer = window.setTimeout(() => {
+          panel.classList.remove('mt-mobile-panel-open', 'mt-mobile-panel-closing');
+          panel.classList.add('hidden');
+        }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250);
+      }
+      toggle.innerHTML = open ? '<i class="fa-solid fa-xmark text-xl"></i>' : '<i class="fa-solid fa-bars text-xl"></i>';
     };
 
     toggle.addEventListener('click', (e) => {
@@ -317,9 +347,21 @@
     rightGroup.appendChild(toggle);
 
     toggle.addEventListener('click', () => {
-      const isOpen = nav.classList.toggle('mt-mobile-nav-open');
-      nav.classList.toggle('hidden', !isOpen);
-      toggle.innerHTML = isOpen ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-bars"></i>';
+      if (nav.classList.contains('mt-mobile-nav-open')) {
+        if (nav.classList.contains('mt-mobile-nav-closing')) {
+          window.clearTimeout(nav._mtMobileCloseTimer);
+          nav.classList.remove('mt-mobile-nav-closing');
+          toggle.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        } else {
+          closeNav(nav, toggle);
+        }
+        return;
+      }
+      window.clearTimeout(nav._mtMobileCloseTimer);
+      nav.classList.remove('mt-mobile-nav-closing');
+      nav.classList.add('mt-mobile-nav-open');
+      nav.classList.remove('hidden');
+      toggle.innerHTML = '<i class="fa-solid fa-xmark"></i>';
     });
 
     nav.addEventListener('click', (e) => {

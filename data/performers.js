@@ -47,14 +47,31 @@ function slugify(text) {
 function findBySlug(slug) {
   if (!slug) return null;
   const s = String(slug).toLowerCase();
-  return listAll().find((p) => String(p.id) === s || slugify(p.name) === s) || null;
+  const all = listAll();
+  return all.find((p) => String(p.id) === s || publicSlug(p, all) === s) || all.find((p) => slugify(p.name) === s) || null;
+}
+
+function publicSlug(performer, all = listAll()) {
+  const used = new Set(all.filter(p => p.slug).map(p => p.slug));
+  if (performer.slug) return performer.slug;
+  const rows = all.some(p => p.id === performer.id) ? all : [...all, performer];
+  for (const p of [...rows].sort((a, b) => Number(a.id) - Number(b.id))) {
+    if (p.slug) continue;
+    const base = slugify(p.stageName || p.name) || 'performer';
+    let slug = /^\d+$/.test(base) ? `performer-${base}` : base;
+    if (used.has(slug)) slug = `${slug}-${p.id}`;
+    while (used.has(slug)) slug += '-profile';
+    used.add(slug);
+    if (p.id === performer.id) return slug;
+  }
 }
 
 async function apply({
   userId, name, email, phone, performerType, groupSize, categories, city, address,
-  travelRadiusKm, bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit,
+  travelRadiusKm, bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit, hourlyRateUsd, eventRateUsd,
   photoUrl, socialLinks, agreementAccepted,
 }) {
+  if (performerType === 'group' && (!Number.isInteger(Number(groupSize)) || Number(groupSize) < 2)) throw new Error("Group size can't be lower than 2 and must be a whole number.");
   const db = load();
   const coords = address || city ? await geocodeAddress(address || city) : null;
   const performer = {
@@ -64,7 +81,7 @@ async function apply({
     email,
     phone: phone || null,
     performerType: performerType === 'group' ? 'group' : 'individual',
-    groupSize: performerType === 'group' ? Math.max(2, Number(groupSize) || 2) : null,
+    groupSize: performerType === 'group' ? Number(groupSize) : 0,
     categories: Array.isArray(categories) ? categories : [],
     city: city || null,
     address: address || null,
@@ -76,7 +93,11 @@ async function apply({
     experienceYears: Number(experienceYears) || 0,
     qualifications: qualifications || '',
     styleTags: Array.isArray(styleTags) ? styleTags : [],
-    baseRateUsd: Math.max(0, Number(baseRateUsd) || 0),
+    // Keep the legacy rate fields for old web clients, while retaining two
+    // independent prices for the native performer marketplace.
+    hourlyRateUsd: Math.max(0, Number(hourlyRateUsd) || (rateUnit === 'per_hour' ? Number(baseRateUsd) : 0) || 0),
+    eventRateUsd: Math.max(0, Number(eventRateUsd) || (rateUnit !== 'per_hour' ? Number(baseRateUsd) : 0) || 0),
+    baseRateUsd: Math.max(0, Number(baseRateUsd) || Number(eventRateUsd) || Number(hourlyRateUsd) || 0),
     rateUnit: rateUnit === 'per_hour' ? 'per_hour' : 'per_event',
     photoUrl: photoUrl || null,
     galleryPhotos: [],
@@ -98,9 +119,27 @@ async function apply({
     activationPaid: false,
     activationPaidAt: null,
     agreementAcceptedAt: agreementAccepted ? new Date().toISOString() : null,
+    // The mandatory 14-screen Performer Orientation modal's acceptance
+    // record - mirrors data/tutors.js's tutorOrientationAcceptedAt. Null
+    // gates the modal open on next dashboard visit.
+    performerOrientationAcceptedAt: null,
+    performerOrientationVersion: null,
     createdAt: new Date().toISOString(),
   };
+  performer.slug = publicSlug(performer, db.performers);
   db.performers.push(performer);
+  persist(db);
+  return performer;
+}
+
+// Records acceptance of the mandatory Performer Orientation modal - see
+// data/tutors.js's acknowledgeTutorOrientation for the tutor equivalent.
+function acknowledgePerformerOrientation(id, version) {
+  const db = load();
+  const performer = db.performers.find((p) => p.id === Number(id));
+  if (!performer) return null;
+  performer.performerOrientationAcceptedAt = new Date().toISOString();
+  performer.performerOrientationVersion = String(version || '').slice(0, 40) || null;
   persist(db);
   return performer;
 }
@@ -112,6 +151,7 @@ function setStatus(id, status, reviewedByUserId = null) {
   performer.status = status;
   performer.reviewedAt = new Date().toISOString();
   if (status === 'approved' && reviewedByUserId) performer.approvedByUserId = Number(reviewedByUserId);
+  if (reviewedByUserId) performer.reviewedByUserId = Number(reviewedByUserId);
   persist(db);
   return performer;
 }
@@ -147,12 +187,42 @@ function setCategories(id, categories) {
   return performer;
 }
 
-function setRate(id, { baseRateUsd, rateUnit }) {
+// A performer may keep their public introduction current after approval, but
+// this deliberately excludes identity, location, category, approval and
+// payment fields.  Those remain part of the reviewed application.
+function updateAbout(id, { bio, experienceYears, qualifications, styleTags }) {
   const db = load();
   const performer = db.performers.find((p) => p.id === Number(id));
   if (!performer) return null;
+  performer.bio = typeof bio === 'string' ? bio : performer.bio || '';
+  performer.experienceYears = Number.isFinite(Number(experienceYears))
+    ? Math.max(0, Math.min(100, Math.floor(Number(experienceYears))))
+    : Number(performer.experienceYears) || 0;
+  performer.qualifications = typeof qualifications === 'string'
+    ? qualifications
+    : performer.qualifications || '';
+  performer.styleTags = Array.isArray(styleTags) ? styleTags : performer.styleTags || [];
+  performer.aboutUpdatedAt = new Date().toISOString();
+  persist(db);
+  return performer;
+}
+
+function setRate(id, { baseRateUsd, rateUnit, hourlyRateUsd, eventRateUsd }) {
+  const db = load();
+  const performer = db.performers.find((p) => p.id === Number(id));
+  if (!performer) return null;
+  if (hourlyRateUsd != null) performer.hourlyRateUsd = Math.max(0, Number(hourlyRateUsd) || 0);
+  if (eventRateUsd != null) performer.eventRateUsd = Math.max(0, Number(eventRateUsd) || 0);
   if (baseRateUsd != null) performer.baseRateUsd = Math.max(0, Number(baseRateUsd) || 0);
   if (rateUnit) performer.rateUnit = rateUnit === 'per_hour' ? 'per_hour' : 'per_event';
+  // Older pages still read baseRateUsd/rateUnit. Point those at an actual
+  // saved rate without overwriting the new, independent hourly/event values.
+  if (hourlyRateUsd != null || eventRateUsd != null) {
+    const hourly = Number(performer.hourlyRateUsd) || 0;
+    const event = Number(performer.eventRateUsd) || 0;
+    performer.baseRateUsd = event || hourly;
+    performer.rateUnit = event ? 'per_event' : 'per_hour';
+  }
   persist(db);
   return performer;
 }
@@ -241,8 +311,8 @@ function markActivationPaid(id) {
 }
 
 module.exports = {
-  listAll, listApproved, findById, findByUserId, findBySlug, slugify, apply,
-  setStatus, suspend, unsuspend, setCategories, setRate, setPhoto,
+  listAll, listApproved, findById, findByUserId, findBySlug, slugify, publicSlug, apply,
+  setStatus, suspend, unsuspend, setCategories, updateAbout, setRate, setPhoto,
   addGalleryPhoto, removeGalleryPhoto, addVideo, removeVideo, setSocialLinks,
-  setRealLocation, markActivationPaid,
+  setRealLocation, markActivationPaid, acknowledgePerformerOrientation,
 };

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Organization - Mozart Techniques</title>
 <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -29,6 +33,11 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .content-card-body { padding: 10px 12px; }
 .content-card-title { font-weight: 700; font-size: .86rem; margin: 0 0 3px; }
 .content-card-text { font-size: .8rem; color: var(--mz-muted); margin: 0; }
+
+.event-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); background: #fff; padding: 14px 16px; margin-bottom: 12px; }
+.event-card-title { font-weight: 700; font-size: .92rem; margin: 0 0 4px; }
+.event-card-meta { font-size: .8rem; color: var(--mz-muted); margin: 0; }
+.event-card-join { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; background: var(--mz-red); color: #fff; border: none; border-radius: 999px; padding: 8px 16px; font-size: .8rem; font-weight: 700; text-decoration: none; }
 
 .chat-panel { display: flex; flex-direction: column; height: 520px; border: 1px solid var(--mz-border); border-radius: var(--mz-radius-lg); overflow: hidden; background: #fff; }
 .chat-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--mz-border); }
@@ -66,6 +75,8 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 
     <div class="market-tabs">
       <button type="button" class="market-tab-btn active" data-tab="content"><i class="fa-solid fa-photo-film"></i> Updates</button>
+      <button type="button" class="market-tab-btn" data-tab="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
+      <button type="button" class="market-tab-btn" data-tab="library"><i class="fa-solid fa-book-open"></i> Library</button>
       <button type="button" class="market-tab-btn" data-tab="messages"><i class="fa-solid fa-comments"></i> Message Organization</button>
       <button type="button" class="market-tab-btn" data-tab="games"><i class="fa-solid fa-gamepad"></i> Games</button>
     </div>
@@ -73,6 +84,16 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
     <div class="market-tab-panel" id="tab-content">
       <div class="content-grid" id="content-grid"></div>
       <div id="content-empty" class="market-empty" hidden><i class="fa-solid fa-inbox"></i><h3>No updates yet</h3><p>Announcements and materials from your organization will show up here.</p></div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-events" hidden>
+      <div id="events-list"></div>
+      <div id="events-empty" class="market-empty" hidden><i class="fa-solid fa-calendar-days"></i><h3>No events scheduled</h3><p>Events your organization schedules will show up here.</p></div>
+    </div>
+
+    <div class="market-tab-panel" id="tab-library" hidden>
+      <div class="content-grid" id="library-grid"></div>
+      <div id="library-empty" class="market-empty" hidden><i class="fa-solid fa-book-open"></i><h3>No library items yet</h3><p>Shared materials from your organization will show up here.</p></div>
     </div>
 
     <div class="market-tab-panel" id="tab-messages" hidden>
@@ -95,6 +116,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 <div class="market-toast" id="toast"></div>
 
 <script src="/assets/nav-auth.js" defer></script>
+<script src="/assets/teaching-tools-launcher.js"></script>
 <script src="/assets/chat-kit.js"></script>
 <script src="/assets/note-game.js"></script>
 <script>
@@ -111,14 +133,16 @@ function showToast(message, type) {
 let currentUserId = null;
 let org = null;
 
-const TABS = ['content', 'messages', 'games'];
+const TABS = ['content', 'events', 'library', 'messages', 'games'];
 let chatKitController = null;
 let conversationId = null;
+let libraryLoaded = false;
 function activateTab(tab) {
   document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
   TABS.forEach((t) => { document.getElementById(`tab-${t}`).hidden = t !== tab; });
   if (tab === 'messages') mountChat();
   if (tab === 'games') initGamesTab();
+  if (tab === 'library' && !libraryLoaded) { libraryLoaded = true; loadLibrary(); }
 }
 document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
 
@@ -166,6 +190,7 @@ async function loadOrg() {
   document.getElementById('org-meta').textContent = `${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'} - ${org.subscriptionStatus === 'active' ? 'Active sponsorship' : 'Sponsorship inactive'}`;
 
   loadContent();
+  renderEvents();
 }
 
 async function loadContent() {
@@ -175,6 +200,39 @@ async function loadContent() {
   const items = data.content || data.items || [];
   document.getElementById('content-empty').hidden = items.length > 0;
   document.getElementById('content-grid').innerHTML = items.map(contentCardHtml).join('');
+}
+
+function renderEvents() {
+  const events = org.events || [];
+  document.getElementById('events-empty').hidden = events.length > 0;
+  document.getElementById('events-list').innerHTML = events.map((event) => `
+    <div class="event-card">
+      <p class="event-card-title">${escapeHtml(event.title)}</p>
+      <p class="event-card-meta">${escapeHtml(new Date(event.scheduledAt).toLocaleString())}</p>
+      ${event.meetLink ? `<a class="event-card-join" href="${escapeHtml(event.meetLink)}" target="_blank" rel="noopener"><i class="fa-solid fa-video"></i> Join meeting</a>` : ''}
+    </div>
+  `).join('');
+}
+
+async function loadLibrary() {
+  const res = await fetch('/api/organizations/library');
+  const data = await res.json();
+  if (!data.success) return;
+  // A student sees what the org uploaded for everyone (general) plus
+  // whatever it shared specifically with students (shared) - "From the
+  // org" (mine, the linked tutor's own uploads/submissions) isn't a real
+  // concept for a student viewer, so it's left out here.
+  const items = [...(data.general || []), ...(data.shared || [])];
+  document.getElementById('library-empty').hidden = items.length > 0;
+  document.getElementById('library-grid').innerHTML = items.map((item) => `
+    <div class="content-card">
+      <div class="content-card-body">
+        <p class="content-card-title">${escapeHtml(item.title)}</p>
+        ${item.text ? `<p class="content-card-text">${escapeHtml(item.text)}</p>` : ''}
+        ${item.fileUrl ? `<a href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener" class="market-section-link"><i class="fa-solid fa-file-arrow-down"></i> Open</a>` : item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="market-section-link">Open link</a>` : ''}
+      </div>
+    </div>
+  `).join('');
 }
 
 async function mountChat() {
@@ -251,5 +309,6 @@ function startGame(tier) {
 
 loadOrg();
 </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

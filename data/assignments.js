@@ -173,6 +173,12 @@ function createRequest({
     tutorName: null,
     tutorEmail: null,
     tutorPhone: null,
+    // Locked in at assignTutor() time - the rate this specific student
+    // actually pays this tutor for THIS assignment, which can differ from
+    // the tutor's live public hourlyRateUsd once a negotiated/suggested
+    // amount was accepted. Every session logged against this record bills
+    // against this field, not the tutor's profile rate.
+    agreedRateUsd: null,
     matchDistanceKm: null,
     meetingLink: null,
     scheduledAt: null,
@@ -239,7 +245,12 @@ function addRecording(requestId, { url, title, postedBy }) {
   return item;
 }
 
-function assignTutor(requestId, tutor, distKm) {
+// agreedRateUsd is the rate this assignment actually bills at - pass the
+// negotiated/suggested amount the caller resolved (offer.counterAmountUsd,
+// offer.suggestedAmountUsd, or record.suggestedAmountUsd, depending on which
+// flow is assigning), or omit it to fall back to the tutor's current listed
+// rate for requests that were never negotiated.
+function assignTutor(requestId, tutor, distKm, agreedRateUsd) {
   const db = load();
   const record = db.records.find((r) => r.id === Number(requestId));
   if (!record) return null;
@@ -247,11 +258,24 @@ function assignTutor(requestId, tutor, distKm) {
   record.tutorName = tutor.name;
   record.tutorEmail = tutor.email;
   record.tutorPhone = tutor.phone || null;
+  record.agreedRateUsd = agreedRateUsd != null ? Number(agreedRateUsd) : tutor.hourlyRateUsd;
   record.matchDistanceKm = distKm != null ? Math.round(distKm * 10) / 10 : null;
   record.status = 'active';
   record.assignedAt = new Date().toISOString();
   persist(db);
   return record;
+}
+
+// A student withdrawing their own request before any tutor is matched -
+// only ever valid while it's still 'pending' (an active/ended assignment
+// is a real relationship by then, not something to just delete).
+function removeRequest(requestId, studentId) {
+  const db = load();
+  const index = db.records.findIndex((r) => r.id === Number(requestId) && r.studentId === studentId);
+  if (index === -1 || db.records[index].status !== 'pending') return null;
+  const [removed] = db.records.splice(index, 1);
+  persist(db);
+  return removed;
 }
 
 function endAssignment(requestId) {
@@ -489,7 +513,7 @@ function rateSession(requestId, sessionId, role, { score, professionalism, comme
 }
 
 module.exports = {
-  listAll, listForStudent, listForTutor, findById, createRequest, assignTutor, endAssignment,
+  listAll, listForStudent, listForTutor, findById, createRequest, assignTutor, endAssignment, removeRequest,
   generateCandidates, addSession, startLesson, markTutorReached, confirmStudentSawTutor, markStudentReachedStudio, confirmTutorSawStudent, cancelSession, consumeLessonTimer, confirmSession, setSessionPaymentIntent, setSessionStripeTransfer, rateSession, setMeetingLink, scheduleSession, addRecording, listReviewsForTutor, setTutorAcknowledgements,
   setIntakeResponses,
   LEVEL_ORDER, LESSON_TYPES, TRAVEL_FEE_USD, PLATFORM_COMMISSION_RATE, COUNTRY_ADMIN_TUTOR_COMMISSION_RATE,

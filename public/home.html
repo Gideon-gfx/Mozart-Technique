@@ -6,6 +6,10 @@
     <title>Mozart Techniques</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -96,6 +100,145 @@
             animation: music-drift-4 11s ease-in-out infinite 0.8s;
             color: #ff4d5a;
         }
+
+        .store-badges-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .store-badge {
+            min-width: 172px;
+            display: inline-flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px 16px;
+            color: #fff;
+            text-decoration: none;
+            background: linear-gradient(135deg, #19191d, #050506);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 13px;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+        }
+
+        .store-badge:hover,
+        .store-badge:focus-visible {
+            color: #fff;
+            transform: translateY(-3px);
+            border-color: rgba(255, 96, 108, 0.9);
+            box-shadow: 0 15px 32px rgba(0, 0, 0, 0.32), 0 0 0 4px rgba(220, 31, 48, 0.14);
+            outline: none;
+        }
+
+        /* Both official badge images are already complete pills of their
+           own (background, border, logo, wordmark) - this modifier drops
+           the .store-badge card chrome so neither is double-boxed. Apple's
+           and Google's source art have different native aspect ratios
+           (135:40 vs 646:250), so a shared height alone renders them at
+           different widths - fixing both width AND height to Apple's own
+           proportions, with object-fit: contain, is what makes the two
+           buttons genuinely equal-sized instead of just equal-tall. */
+        .store-badge-img {
+            width: 140px;
+            max-width: 140px;
+            min-width: 0;
+            height: 42px;
+            max-height: 42px;
+            padding: 0;
+            background: none;
+            border: none;
+            box-shadow: none;
+            border-radius: 11px;
+            overflow: hidden;
+            flex: 0 0 140px;
+        }
+
+        .store-badge-img:hover,
+        .store-badge-img:focus-visible {
+            box-shadow: 0 15px 32px rgba(0, 0, 0, 0.32);
+        }
+
+        .store-badge-img img {
+            /* fill, not contain: verified via a real rendered screenshot
+               that contain was the actual bug - Apple's source art (ratio
+               3.375) is close to this box's own ratio and fills nearly all
+               of it, while Google's (ratio 2.584) is narrower and was
+               shrinking to fit, leaving invisible padding on its sides.
+               Same box, visibly different badge size. fill stretches both
+               to the exact same pixel footprint - the badges are simple
+               bold graphics, not photos, so the slight non-uniform scale
+               isn't noticeable. */
+            display: block;
+            width: 140px;
+            max-width: 140px;
+            height: 42px;
+            max-height: 42px;
+            object-fit: fill;
+            border-radius: 11px;
+        }
+
+        .store-badge svg {
+            flex: 0 0 auto;
+            width: 25px;
+            height: 29px;
+        }
+
+        .store-badge-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.08;
+        }
+
+        .store-badge-text small {
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: .025em;
+            opacity: .78;
+        }
+
+        .store-badge-text strong {
+            margin-top: 2px;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -.025em;
+        }
+
+        .store-download {
+            box-sizing: border-box;
+            width: 176px;
+            min-width: 176px;
+            height: 54px;
+            flex: 0 0 176px;
+            padding: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        /* Keep the stores' original artwork and colours, not a theme tint. */
+        .store-download[href*="apps.apple.com"] {
+            background: url('/assets/apple-appstore-badge.svg') center / 176px 54px no-repeat;
+        }
+        .store-download[href*="play.google.com"] {
+            /* The supplied Google badge has transparent margins around its artwork. */
+            background: url('/assets/google-play-badge.png') center / 202px 81px no-repeat;
+        }
+        .store-download > .store-logo,
+        .store-download > .store-badge-text { visibility: hidden; }
+        .store-download .store-logo {
+            width: 27px;
+            height: 32px;
+            flex: 0 0 27px;
+            font-size: 27px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .store-download .store-badge-text { white-space: nowrap; }
 
         .playful-gallery {
             position: relative;
@@ -199,9 +342,12 @@
             color: #f4f4f4;
             box-shadow: 0 0 0 1px rgba(255,77,90,0.15), 0 28px 70px rgba(0, 0, 0, 0.22);
             overflow: hidden;
-            transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.38s cubic-bezier(.22,.61,.36,1), box-shadow 0.38s ease, border-color 0.38s ease;
             border: 1px solid rgba(255,77,90,0.15);
-            animation: slide-in 0.6s ease-out;
+        }
+
+        .ways-section .way-card.mt-reveal {
+            transition: opacity 0.75s cubic-bezier(.22,.61,.36,1), scale 0.75s cubic-bezier(.22,.61,.36,1), transform 0.38s cubic-bezier(.22,.61,.36,1), box-shadow 0.38s ease, border-color 0.38s ease;
         }
 
         .way-card::before {
@@ -243,12 +389,12 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.45s ease;
+            transition: transform 0.6s cubic-bezier(.22,.61,.36,1), filter 0.45s ease;
             filter: brightness(0.9) saturate(0.95);
         }
 
         .way-card:hover .way-image img {
-            transform: scale(1.1);
+            transform: scale(1.06);
             filter: brightness(1) saturate(1.1);
         }
 
@@ -390,6 +536,16 @@
                 <p class="hero-sub typing-subtitle">Mozart Techniques connects students with verified instructors for playful, focused, and inspiring music lessons — online or in-person. Start with a short lesson and watch curiosity turn into confidence.</p>
                 <div class="hero-cta-row">
                     <a href="/find-tutor" class="explore-btn rt-cta">Browse Tutors</a>
+                </div>
+                <div class="store-badges-row">
+                    <a class="store-badge store-download" href="https://apps.apple.com/search?term=Mozart%20Techniques" target="_blank" rel="noopener" aria-label="Install Mozart Techniques from the App Store">
+                        <svg class="store-logo" viewBox="11 5 24 29" aria-hidden="true" focusable="false"><path fill="currentColor" d="M30.128,19.784c-0.029-3.223,2.639-4.791,2.761-4.864c-1.511-2.203-3.853-2.504-4.676-2.528c-1.967-0.207-3.875,1.177-4.877,1.177c-1.022,0-2.565-1.157-4.228-1.123c-2.14,0.033-4.142,1.272-5.24,3.196c-2.266,3.923-0.576,9.688,1.595,12.859c1.086,1.553,2.355,3.287,4.016,3.226c1.625-0.067,2.232-1.036,4.193-1.036c1.943,0,2.513,1.036,4.207,0.997c1.744-0.028,2.842-1.56,3.89-3.127c1.255-1.78,1.759-3.533,1.779-3.623C33.507,24.924,30.161,23.647,30.128,19.784zM26.928,10.306c0.874-1.093,1.472-2.58,1.306-4.089c-1.265,0.056-2.847,0.875-3.758,1.944c-0.806,0.942-1.526,2.486-1.34,3.938C24.557,12.205,26.016,11.382,26.928,10.306z"/></svg>
+                        <span class="store-badge-text"><small>Download on the</small><strong>App Store</strong></span>
+                    </a>
+                    <a class="store-badge store-download" href="https://play.google.com/store/apps/details?id=com.mozarttechniques.app" target="_blank" rel="noopener" aria-label="Install Mozart Techniques from Google Play">
+                        <i class="fa-brands fa-google-play store-logo" aria-hidden="true"></i>
+                        <span class="store-badge-text"><small>GET IT ON</small><strong>Google Play</strong></span>
+                    </a>
                 </div>
                 <div class="hero-fact-row">
                     <div class="mini-fact">
@@ -534,7 +690,10 @@
         <p class="section-sub writing-loop tutor-copy-stream">A sample of the verified roster — browse the full list to find the right match.</p>
         <div id="tutor-grid"></div>
         <p id="no-tutors" class="empty-note">New tutors are joining soon — check back shortly.</p>
-        <a href="/find-tutor" class="explore-btn see-all-tutors">See All Tutors</a>
+        <div class="home-roster-actions">
+            <a href="/find-tutor" class="explore-btn see-all-tutors">See All Tutors</a>
+            <a href="/find-performer" class="explore-btn find-performer-btn">Find a Performer</a>
+        </div>
     </section>
 
     <section class="about-section wrap reveal">
@@ -634,5 +793,6 @@
     <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/geo-location.js"></script>
     <script src="/assets/footer.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

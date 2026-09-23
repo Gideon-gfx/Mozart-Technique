@@ -138,7 +138,16 @@ function markOthersNotSelected(requestId, keepOfferId) {
   persist(db);
 }
 
+// Called when a student deletes their own still-pending request - clears
+// out every tutor's invite/offer for it too, so nothing orphaned is left
+// pointing at a request that no longer exists.
+function removeByRequest(requestId) {
+  const db = load();
+  db.offers = db.offers.filter((o) => o.requestId !== Number(requestId));
+  persist(db);
+}
+
 module.exports = {
   listByRequest, listByTutor, findById, createInvites,
-  accept, counter, decline, select, markOthersNotSelected,
+  accept, counter, decline, select, markOthersNotSelected, removeByRequest,
 };

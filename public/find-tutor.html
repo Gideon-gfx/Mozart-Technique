@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browse Tutors - Mozart Techniques</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+    <script src="/assets/tutor-discovery-map.js" defer></script>
     <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -466,6 +473,13 @@
         </div>
     </header>
 
+    <div id="assign-student-banner" class="hidden max-w-6xl mx-auto px-4 sm:px-6 pt-4">
+        <div class="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-primary-red">
+            <i class="fa-solid fa-user-plus"></i>
+            <span id="assign-student-banner-text">Matching a student with a tutor</span>
+        </div>
+    </div>
+
     <section class="browse-hero">
         <div class="max-w-6xl mx-auto px-4 sm:px-6">
             <div class="hero-grid">
@@ -501,7 +515,12 @@
                 <div class="tab-link" data-type="physical"><i class="fa-solid fa-van-shuttle"></i>In-Person</div>
                 <div class="tab-link" data-type="studio"><i class="fa-solid fa-house"></i>In-Studio</div>
             </div>
-            <div class="flex flex-wrap gap-6 items-end">
+            <section id="tutor-map-panel" hidden style="width:100%;order:1;border:1px solid #e7dfd3;border-radius:18px;padding:16px">
+                <h2>Explore tutors near you</h2>
+                <div id="tutor-discovery-map" style="height:360px;margin-top:12px;border-radius:12px;z-index:0" aria-label="Tutor teaching areas"></div>
+                <p id="tutor-map-status" role="status"></p>
+            </section>
+            <div class="flex flex-wrap gap-6 items-end" style="width:100%;order:2">
                 <div>
                     <label class="block text-xs font-semibold text-[#9C9384] mb-1 uppercase tracking-wide">Subject</label>
                     <select id="filter-category" class="field-underline">
@@ -710,8 +729,10 @@
         }
 
         let activeLessonType = '';
+        let rosterRequest = 0;
 
         async function loadTutors() {
+            const requestVersion = ++rosterRequest;
             const category = document.getElementById('filter-category').value;
             const city = document.getElementById('filter-city').value;
             const params = new URLSearchParams();
@@ -722,6 +743,8 @@
             const res = await fetch(`/api/tutors?${params}`);
             const data = await res.json();
             // refresh student's active assignments so buttons can reflect assigned tutors
+            if (requestVersion !== rosterRequest) return;
+            window.dispatchEvent(new CustomEvent('mozart:tutor-map', { detail: { tutors: data.success ? data.tutors : [], mode: activeLessonType } }));
             myAssignedTutorIds = new Set();
             myRequestedTutorIds = new Set();
             if (currentUser) {
@@ -781,6 +804,13 @@
 
         const lessonTypeLabels = { online: 'Online - live class over Google Meet', physical: 'In-Person - tutor travels to you', studio: 'In-Studio - you go to the tutor' };
 
+        // Set when a sponsor arrives here from the Sponsor Dashboard's
+        // "Assign a tutor" action (?assignStudentId=X&assignStudentName=Y) -
+        // every request sent while this is set is addressed to that
+        // sponsored student instead of the signed-in sponsor, matching the
+        // server's existing assignStudentId support in POST /api/tutor-requests.
+        let assignForStudent = null;
+
         function openRequestModal(tutor) {
             const options = ['online', 'physical', 'studio'].filter((lt) => {
                 if (lt === 'online') return tutor.teachesOnline;
@@ -793,7 +823,7 @@
                 <div class="flex items-center gap-3 mb-4">
                     ${avatarHtml(tutor)}
                     <div>
-                        <h2 class="text-lg font-bold text-[#17130F]">Request ${escapeHtml(tutor.name)}</h2>
+                        <h2 class="text-lg font-bold text-[#17130F]">${assignForStudent ? `Match ${escapeHtml(assignForStudent.name)} with ${escapeHtml(tutor.name)}` : `Request ${escapeHtml(tutor.name)}`}</h2>
                         <p class="text-xs text-[#9C9384]">${tutor.categories.map(escapeHtml).join(', ')}</p>
                     </div>
                 </div>
@@ -836,13 +866,15 @@
                         notes: fd.get('notes').trim(),
                         preferredTutorIds: [tutor.id],
                         suggestedAmountUsd: suggestedAmountUsd ? Number(suggestedAmountUsd) : null,
+                        assignStudentId: assignForStudent ? assignForStudent.id : undefined,
                     }),
                 });
                 const data = await res.json();
                 if (data.success) {
                     myRequestedTutorIds.add(tutor.id);
-                    showAlert('Requested. Your tutor will review and accept your request; we will notify you when your dashboard is ready.', 'success');
+                    showAlert(assignForStudent ? `Sent. ${tutor.name} will be notified and can accept the match with ${assignForStudent.name}.` : 'Requested. Your tutor will review and accept your request; we will notify you when your dashboard is ready.', 'success');
                     closeModal();
+                    if (assignForStudent) { window.location.href = '/sponsor-dashboard#students'; return; }
                     loadTutors();
                 } else {
                     showAlert(data.error || 'Could not send request.', 'error');
@@ -1137,6 +1169,14 @@
             const tutorId = params.get('tutorId');
             const lessonType = params.get('lessonType');
             const requestTutorId = params.get('requestTutorId');
+            const assignStudentId = params.get('assignStudentId');
+            const assignStudentName = params.get('assignStudentName');
+
+            if (assignStudentId && assignStudentName) {
+                assignForStudent = { id: Number(assignStudentId), name: assignStudentName };
+                document.getElementById('assign-student-banner-text').textContent = `Matching ${assignStudentName} with a tutor`;
+                document.getElementById('assign-student-banner').classList.remove('hidden');
+            }
 
             if (lessonType && ['online', 'physical', 'studio'].includes(lessonType)) {
                 const tab = document.querySelector(`.tab-link[data-type="${lessonType}"]`);
@@ -1182,5 +1222,6 @@
     <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/geo-location.js"></script>
     <script src="/assets/footer.js"></script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

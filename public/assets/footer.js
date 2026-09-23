@@ -66,6 +66,10 @@ document.addEventListener('DOMContentLoaded', function () {
         border-radius: 0 .375rem .375rem 0; font-weight: 600; cursor: pointer;
       }
       .mt-footer-newsletter button:hover { background: #990000; }
+      .mt-footer-newsletter button:disabled { opacity: .6; cursor: default; }
+      .mt-footer-newsletter-msg { margin: .5rem 0 0; font-size: .8125rem; line-height: 1.4; }
+      .mt-footer-newsletter-msg.success { color: #1a7f37; }
+      .mt-footer-newsletter-msg.error { color: #cc0000; }
       .mt-footer-bottom {
         max-width: 1180px; margin: 1.6rem auto 0; padding-top: 1rem;
         border-top: 1px solid rgba(204,0,0,.2); text-align: center;
@@ -121,14 +125,48 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       <div>
         <h4>Newsletter</h4>
-        <form class="mt-footer-newsletter" onsubmit="return false;">
-          <input type="email" placeholder="Your Email">
-          <button type="submit">Subscribe</button>
+        <form class="mt-footer-newsletter" id="mt-newsletter-form">
+          <input type="email" placeholder="Your Email" id="mt-newsletter-email" required>
+          <button type="submit" id="mt-newsletter-submit">Subscribe</button>
         </form>
+        <p class="mt-footer-newsletter-msg" id="mt-newsletter-msg" hidden></p>
       </div>
     </div>
     <div class="mt-footer-bottom">&copy; 2026 Mozart Techniques. All Rights Reserved.</div>
   `;
 
   document.body.appendChild(footer);
+
+  const newsletterForm = document.getElementById('mt-newsletter-form');
+  const newsletterMsg = document.getElementById('mt-newsletter-msg');
+  newsletterForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const emailInput = document.getElementById('mt-newsletter-email');
+    const submitBtn = document.getElementById('mt-newsletter-submit');
+    const email = emailInput.value.trim();
+    if (!email) return;
+    submitBtn.disabled = true;
+    newsletterMsg.hidden = true;
+    try {
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.success === false) {
+        throw new Error((data && data.error) || 'Could not subscribe right now.');
+      }
+      newsletterMsg.textContent = "Thanks for subscribing! We'll send you updates - check your email for a confirmation.";
+      newsletterMsg.className = 'mt-footer-newsletter-msg success';
+      newsletterMsg.hidden = false;
+      emailInput.value = '';
+    } catch (err) {
+      newsletterMsg.textContent = err.message || 'Could not subscribe right now. Please try again.';
+      newsletterMsg.className = 'mt-footer-newsletter-msg error';
+      newsletterMsg.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
 });

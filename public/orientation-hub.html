@@ -1,4 +1,119 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orientation | Mozart Techniques</title><link rel="stylesheet" href="/assets/site.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet"><style>body{font-family:'Montserrat',Arial,sans-serif;background:#fff8f8;margin:0;color:#252525}.wrap{max-width:850px;margin:45px auto;padding:20px}.card{background:#fff;border-radius:18px;padding:30px;box-shadow:0 10px 34px #3d111119}.tag{color:#c41822;font-weight:bold;text-transform:uppercase;letter-spacing:.1em}video,iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:12px;margin:20px 0}.back{color:#c41822;font-weight:bold;text-decoration:none}</style></head><body><main class="wrap"><a class="back" href="/dashboard">← Dashboard</a><section class="card"><p class="tag" id="audience">Orientation</p><h1 id="title">Loading your orientation…</h1><div id="video"></div><div id="notes"></div><form id="orientation-quiz" class="hidden" style="margin-top:24px"></form><p id="quiz-status" style="margin-top:14px;color:#736c66"></p></section></main><script>const e=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));fetch('/api/orientation').then(r=>r.json()).then(d=>{
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orientation | Mozart Techniques</title><link rel="stylesheet" href="/assets/site.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet"><style>body{font-family:'Montserrat',Arial,sans-serif;background:#fff8f8;margin:0;color:#252525}.wrap{max-width:850px;margin:45px auto;padding:20px}.card{background:#fff;border-radius:18px;padding:30px;box-shadow:0 10px 34px #3d111119}.tag{color:#c41822;font-weight:bold;text-transform:uppercase;letter-spacing:.1em}video,iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:12px;margin:20px 0}.back{color:#c41822;font-weight:bold;text-decoration:none}
+.updates{margin-top:34px}.updates h2{font-size:1.15rem;margin:0 0 14px}.update-empty{color:#9c9384;font-size:.9rem}.date-heading{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#9c9384;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}.date-heading::before,.date-heading::after{content:'';flex:1;height:1px;background:#e7dfd3}.post{background:#fff;border:1px solid #e7dfd3;border-radius:14px;padding:16px;margin-bottom:12px}.post-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.75rem;color:#9c9384}.post-author{color:#c41822;font-weight:700}.post-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}.post-title{font-size:1rem;font-weight:800;margin:0}.post-notes{font-size:.88rem;line-height:1.55;color:#5b5449;white-space:pre-wrap}.post video,.post iframe{margin:10px 0}
+.required-pill{font-size:.65rem;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e}.required-pill.done{background:#d1fae5;color:#065f46}
+.reactions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}.reactions button{border:1px solid #e7dfd3;background:#fff8f8;border-radius:999px;padding:4px 10px;font-size:.95rem;cursor:pointer;line-height:1.4}.reactions button.active{border-color:#c41822;background:#c4182212}.reactions .count{font-size:.75rem;color:#9c9384;align-self:center}
+.attachment{display:flex;align-items:center;gap:8px;background:#fff8f8;border-radius:10px;padding:10px;margin-top:10px;text-decoration:none;color:#252525;font-size:.85rem;font-weight:700}
+.post-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.comment-toggle{border:0;background:none;color:#9c9384;font-size:.78rem;font-weight:700;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:5px}
+.comments{margin-top:10px;border-top:1px solid #e7dfd3;padding-top:10px;display:none}.comments.open{display:block}
+.comment-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.comment-author{font-size:.75rem;font-weight:700}.comment-text{font-size:.82rem;color:#5b5449;margin-top:1px}
+.comment-del{border:0;background:none;color:#9c9384;cursor:pointer;font-size:.9rem}
+.comment-form{display:flex;gap:8px;margin-top:4px}.comment-form input{flex:1;border:1px solid #e7dfd3;border-radius:999px;padding:8px 14px;font-size:.82rem;font-family:inherit}.comment-form button{border:0;background:#c41822;color:#fff;border-radius:999px;padding:8px 16px;font-size:.8rem;font-weight:700;cursor:pointer}
+.done-row{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.85rem;font-weight:700;color:#059669}
+.finish-btn{width:100%;background:#c41822;color:#fff;border:0;border-radius:10px;padding:11px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:10px}
+.quiz-flow{background:#fff8f8;border:1px solid #e7dfd3;border-radius:12px;padding:14px;margin-top:10px}
+.quiz-progress{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9c9384;margin:0 0 6px}
+.quiz-question{font-size:.92rem;font-weight:700;margin:0 0 8px}
+.quiz-option{display:block;font-size:.85rem;margin:6px 0;cursor:pointer}
+.quiz-next{background:#c41822;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:8px}
+.quiz-next:disabled{opacity:.5;cursor:not-allowed}
+.score-pass{font-weight:800;color:#059669;margin:0}.score-fail{font-weight:800;color:#dc2626;margin:0}
+.retry-hint{color:#9c9384;font-size:.82rem;margin:4px 0 0}
+.retry-btn{background:#c41822;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:10px}
+.review-block{margin-top:12px;padding-top:12px;border-top:1px solid #e7dfd3}
+.review-q{font-size:.85rem;font-weight:700;margin:0 0 6px}
+.review-opt{font-size:.82rem;padding:3px 0;color:#5b5449}
+.review-opt.correct{color:#059669;font-weight:700}.review-opt.wrong{color:#dc2626;font-weight:700}
+</style></head><body><main class="wrap"><a class="back" href="/dashboard">← Dashboard</a><section class="card"><p class="tag" id="audience">Orientation</p><h1 id="title">Loading your orientation…</h1><div id="video"></div><div id="notes"></div><form id="orientation-quiz" class="hidden" style="margin-top:24px"></form><p id="quiz-status" style="margin-top:14px;color:#736c66"></p>
+<div class="updates"><h2>Updates</h2><div id="updates-list"><p class="update-empty">Loading…</p></div></div>
+</section></main><script>const e=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const REACTIONS=['👍','❤️','😂','😢','🙏'];
+let currentUserId=null;
+let isAdminViewer=false;
+function embedUrl(u){const m=u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/i);return m?`https://www.youtube-nocookie.com/embed/${m[1]}`:u;}
+function dayLabel(iso){const d=new Date(iso),t=new Date(),y=new Date();y.setDate(t.getDate()-1);if(d.toDateString()===t.toDateString())return'Today';if(d.toDateString()===y.toDateString())return'Yesterday';return d.toLocaleDateString(undefined,{month:'long',day:'numeric',year:d.getFullYear()===t.getFullYear()?undefined:'numeric'});}
+function timeLabel(iso){return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});}
+async function react(id,emoji){await fetch(`/api/orientation/posts/${id}/react`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({emoji})});loadUpdates();}
+async function sendComment(id,text){if(!text.trim())return;await fetch(`/api/orientation/posts/${id}/comment`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.trim()})});loadUpdates();}
+async function deleteComment(postId,commentId){await fetch(`/api/orientation/posts/${postId}/comment/${commentId}`,{method:'DELETE'});loadUpdates();}
+
+// The Finished -> (roll-down quiz, if any) -> score -> retry-until-pass
+// flow. A failed attempt shows a "Finished - retake quiz" button that
+// restarts finishPost() fresh, rather than looping straight back into
+// another attempt - re-clicking Finished is what restarts the MCQs.
+async function finishPost(id,hasQuiz){
+  await fetch(`/api/orientation/posts/${id}/finish`,{method:'POST'});
+  if(!hasQuiz){loadUpdates();return;}
+  const data=await fetch(`/api/orientation/posts/${id}/quiz`).then(r=>r.json());
+  renderQuiz(id,data.questions||[],0,{});
+}
+function renderQuiz(id,questions,qi,answers){
+  const box=document.querySelector(`#progress-${id}`);
+  if(!box)return;
+  const q=questions[qi];
+  if(!q)return;
+  const isLast=qi===questions.length-1;
+  const already=answers[q.index];
+  box.innerHTML=`<div class="quiz-flow"><p class="quiz-progress">Question ${qi+1} of ${questions.length}</p><p class="quiz-question">${e(q.question)}</p>${q.options.map((opt,oi)=>`<label class="quiz-option"><input type="radio" name="quiz-${id}" value="${oi}" ${already===oi?'checked':''}> ${e(opt)}</label>`).join('')}<button class="quiz-next" ${already===undefined?'disabled':''}>${isLast?'Submit':'Next'}</button></div>`;
+  const btn=box.querySelector('.quiz-next');
+  box.querySelectorAll(`input[name="quiz-${id}"]`).forEach(input=>input.addEventListener('change',()=>{btn.disabled=false;}));
+  btn.addEventListener('click',async()=>{
+    const picked=box.querySelector(`input[name="quiz-${id}"]:checked`);
+    if(!picked)return;
+    const nextAnswers={...answers,[q.index]:Number(picked.value)};
+    if(isLast){
+      const ordered=questions.map(qq=>nextAnswers[qq.index]);
+      const result=await fetch(`/api/orientation/posts/${id}/quiz/submit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:ordered})}).then(r=>r.json());
+      renderResult(id,result);
+    }else{
+      renderQuiz(id,questions,qi+1,nextAnswers);
+    }
+  });
+}
+function renderResult(id,result){
+  const box=document.querySelector(`#progress-${id}`);
+  if(!box)return;
+  if(result.passed){
+    const review=(result.review||[]).map((r,i)=>`<div class="review-block"><p class="review-q">${i+1}. ${e(r.question)}</p>${r.options.map((opt,oi)=>{const correct=oi===r.correctIndex,yours=oi===r.yourAnswer;return `<div class="review-opt ${correct?'correct':''} ${yours&&!correct?'wrong':''}">${e(opt)}</div>`;}).join('')}</div>`).join('');
+    box.innerHTML=`<p class="score-pass">Passed - ${result.correct}/${result.total}</p>${review}`;
+  }else{
+    box.innerHTML=`<p class="score-fail">Not yet - ${result.correct}/${result.total} (${Math.round(result.score*100)}%, need 70%)</p><p class="retry-hint">Review the material above, then try again.</p><button class="retry-btn" data-id="${id}">Finished - retake quiz</button>`;
+    box.querySelector('.retry-btn').addEventListener('click',()=>finishPost(id,true));
+  }
+}
+
+function renderPost(p){
+  const videoUrl=p.videoUrl?e(p.videoUrl):null;
+  const videoHtml=videoUrl?(/youtu/.test(videoUrl)?`<iframe src="${embedUrl(videoUrl)}"></iframe>`:`<video controls src="${videoUrl}"></video>`):'';
+  const attachmentHtml=p.attachmentUrl?`<a class="attachment" href="${e(p.attachmentUrl)}" target="_blank" rel="noopener">📎 ${e(p.attachmentName||'Attachment')}</a>`:'';
+  const counts={};(p.reactions||[]).forEach(r=>{counts[r.emoji]=(counts[r.emoji]||0)+1;});
+  const totalReactions=(p.reactions||[]).length;
+  const reactionButtons=REACTIONS.map(em=>`<button data-id="${p.id}" data-emoji="${em}" class="${p.myReaction===em?'active':''}">${em}${counts[em]?` ${counts[em]}`:''}</button>`).join('');
+  const comments=p.comments||[];
+  const commentRows=comments.map(c=>`<div class="comment-row"><div><div class="comment-author">${e(c.userName)}</div><div class="comment-text">${e(c.text)}</div></div>${(c.userId===currentUserId||isAdminViewer)?`<button class="comment-del" data-post="${p.id}" data-comment="${c.id}" title="Delete comment">✕</button>`:''}</div>`).join('');
+  const requiredPill=p.required?`<span class="required-pill ${p.done?'done':''}">${p.done?'Completed':'Required'}</span>`:'';
+  const progressHtml=p.done
+    ?`<div class="done-row">✅ ${p.hasQuiz?'Completed - quiz passed':'Viewed'}</div>`
+    :`<div id="progress-${p.id}"><button class="finish-btn" data-id="${p.id}" data-quiz="${p.hasQuiz?1:0}">${p.attempts>0?"I've reviewed it again":'Finished'}</button></div>`;
+  return `<article class="post"><div class="post-head"><span class="post-author">${e(p.createdByName)}</span><span>·</span><span>${dayLabel(p.createdAt)} ${timeLabel(p.createdAt)}</span></div><div class="post-title-row"><h3 class="post-title">${e(p.title)}</h3>${requiredPill}</div>${videoHtml}${p.notes?`<p class="post-notes">${e(p.notes)}</p>`:''}${attachmentHtml}${progressHtml}<div class="post-footer"><div class="reactions">${reactionButtons}${totalReactions?`<span class="count">${totalReactions} reacted</span>`:''}</div><button class="comment-toggle" data-toggle="${p.id}">💬 ${comments.length?`${comments.length} comment${comments.length>1?'s':''}`:'Comment'}</button></div><div class="comments" id="comments-${p.id}">${commentRows}<form class="comment-form" data-post="${p.id}"><input type="text" placeholder="Write a comment…" required><button type="submit">Send</button></form></div></article>`;
+}
+async function loadUpdates(){
+  const list=document.querySelector('#updates-list');
+  const data=await fetch('/api/orientation/posts').then(r=>r.json()).catch(()=>null);
+  if(!data||!data.success){list.innerHTML='<p class="update-empty">Could not load updates.</p>';return;}
+  const posts=data.posts||[];
+  if(!posts.length){list.innerHTML='<p class="update-empty">Nothing posted here yet.</p>';return;}
+  let html='',lastLabel=null;
+  posts.forEach(p=>{const label=dayLabel(p.createdAt);if(label!==lastLabel){html+=`<div class="date-heading">${label}</div>`;lastLabel=label;}html+=renderPost(p);});
+  list.innerHTML=html;
+  list.querySelectorAll('.reactions button').forEach(btn=>btn.addEventListener('click',()=>react(btn.dataset.id,btn.dataset.emoji)));
+  list.querySelectorAll('.comment-toggle').forEach(btn=>btn.addEventListener('click',()=>{document.querySelector(`#comments-${btn.dataset.toggle}`).classList.toggle('open');}));
+  list.querySelectorAll('.comment-form').forEach(form=>form.addEventListener('submit',(ev)=>{ev.preventDefault();const input=form.querySelector('input');sendComment(form.dataset.post,input.value);}));
+  list.querySelectorAll('.comment-del').forEach(btn=>btn.addEventListener('click',()=>deleteComment(btn.dataset.post,btn.dataset.comment)));
+  list.querySelectorAll('.finish-btn').forEach(btn=>btn.addEventListener('click',()=>finishPost(btn.dataset.id,btn.dataset.quiz==='1')));
+}
+fetch('/api/session').then(r=>r.json()).then(d=>{currentUserId=d&&d.user?d.user.id:null;isAdminViewer=!!(d&&d.user&&d.user.role==='admin');loadUpdates();}).catch(()=>loadUpdates());
+fetch('/api/orientation').then(r=>r.json()).then(d=>{
   const c=d.content||{}, quiz=document.querySelector('#orientation-quiz'), status=document.querySelector('#quiz-status');
   document.querySelector('#audience').textContent=(d.audience||'your')+' orientation';
   document.querySelector('#title').textContent=c.title||'Welcome to Mozart Techniques';
@@ -10,4 +125,5 @@
     quiz.innerHTML=`<h2 style="margin:0 0 14px">Orientation questionnaire</h2>${questions.map((q,qi)=>`<fieldset style="border:0;padding:0;margin:0 0 18px"><legend style="font-weight:bold;margin-bottom:8px">${qi+1}. ${e(q.question)}</legend>${(q.options||[]).map((option,oi)=>`<label style="display:block;margin:7px 0"><input required type="radio" name="q${qi}" value="${oi}"> ${e(option)}</label>`).join('')}</fieldset>`).join('')}<button style="background:#c41822;color:white;border:0;border-radius:10px;padding:12px 18px;font-weight:bold;cursor:pointer">Submit questionnaire</button>`;
     quiz.onsubmit=async(ev)=>{ev.preventDefault();const answers=questions.map((q,qi)=>Number(new FormData(quiz).get(`q${qi}`)));const result=await fetch('/api/tutors/orientation/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers})}).then(r=>r.json());status.textContent=!result.success?(result.error||'Could not submit questionnaire.'):result.passed?'Questionnaire completed successfully.':'Please review the material and try again.';};
   }
-});</script></body></html>
+});</script>  <script src="/assets/scroll-reveal.js?v=1" defer></script>
+</body></html>

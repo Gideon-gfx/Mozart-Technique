@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performer Profile - Mozart Techniques</title>
 <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#c41822">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <script src="/assets/install-prompt.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
@@ -27,6 +31,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .counter-form { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .counter-form input { flex: 1; min-width: 120px; }
 </style>
+<link rel="stylesheet" href="/assets/performer-typography.css">
 </head>
 <body class="market-body">
 
@@ -156,7 +161,12 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
       </div>
       <div class="market-card" style="margin-top:16px;">
         <h3 class="market-card-title">Video Clips</h3>
+        <p class="market-muted market-small" style="margin:0 0 10px;">Upload a clip or add a video link (YouTube, Vimeo, or any public video URL).</p>
         <input type="file" id="media-video-input" accept="video/*">
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <input class="market-input" id="media-video-link" type="url" placeholder="https://example.com/video" style="flex:1;min-width:220px;">
+          <button type="button" id="add-video-link-btn" class="market-btn market-btn-outline market-btn-sm">Add Video Link</button>
+        </div>
         <div class="gallery-grid" id="media-video-grid" style="margin-top:12px;"></div>
       </div>
     </div>
@@ -228,7 +238,7 @@ async function init() {
 
 async function initPublicView() {
   let performer = null;
-  const idMatch = location.pathname.match(/^\/performers\/(\d+)/);
+  const idMatch = location.pathname.match(/^\/performers\/(\d+)\/?$/);
   if (idMatch) {
     const res = await fetch(`/api/performers/${idMatch[1]}/public`);
     const data = await res.json();
@@ -255,10 +265,18 @@ async function initPublicView() {
   }
   if (performer.videoClips && performer.videoClips.length) {
     document.getElementById('pub-video-card').hidden = false;
-    document.getElementById('pub-videos').innerHTML = performer.videoClips.map((url) => `<video src="${escapeHtml(url)}" controls></video>`).join('');
+    document.getElementById('pub-videos').innerHTML = performer.videoClips.map((url) => videoMediaHtml(url, false)).join('');
   }
   const socialHtml = socialLinksHtml(performer.socialLinks);
   if (socialHtml) { document.getElementById('pub-social-card').hidden = false; document.getElementById('pub-social').innerHTML = socialHtml; }
+}
+
+function isEmbedVideoUrl(url) { return /(?:youtube\.com|youtu\.be|vimeo\.com)/i.test(String(url || '')); }
+function videoMediaHtml(url, removable) {
+  const safeUrl = escapeHtml(url);
+  const remove = removable ? `<button type="button" class="remove-video-btn" data-url="${safeUrl}" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:11px;cursor:pointer;">&times;</button>` : '';
+  if (isEmbedVideoUrl(url)) return `<div style="position:relative;"><a href="${safeUrl}" target="_blank" rel="noopener" style="display:block;width:100%;aspect-ratio:1/1;border-radius:8px;background:#111;color:#fff;padding:18px;text-align:center;box-sizing:border-box;"><i class="fa-solid fa-arrow-up-right-from-square"></i><br><span style="font-size:.8rem;">Open video link</span></a>${remove}</div>`;
+  return `<div style="position:relative;"><video src="${safeUrl}" ${removable ? 'muted' : 'controls'} style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;"></video>${remove}</div>`;
 }
 
 let myProfile = null;
@@ -380,10 +398,7 @@ function renderMediaGrids() {
     <div style="position:relative;"><img src="${escapeHtml(url)}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;">
     <button type="button" class="remove-gallery-btn" data-url="${escapeHtml(url)}" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:11px;cursor:pointer;">&times;</button></div>
   `).join('');
-  document.getElementById('media-video-grid').innerHTML = (myProfile.videoClips || []).map((url) => `
-    <div style="position:relative;"><video src="${escapeHtml(url)}" muted style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;"></video>
-    <button type="button" class="remove-video-btn" data-url="${escapeHtml(url)}" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:11px;cursor:pointer;">&times;</button></div>
-  `).join('');
+  document.getElementById('media-video-grid').innerHTML = (myProfile.videoClips || []).map((url) => videoMediaHtml(url, true)).join('');
   document.querySelectorAll('.remove-gallery-btn').forEach((btn) => btn.addEventListener('click', async () => {
     const res = await fetch('/api/performers/me/gallery', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: btn.dataset.url }) });
     const data = await res.json();
@@ -429,9 +444,20 @@ document.getElementById('media-video-input').addEventListener('change', async (e
   } catch (err) { showToast(err.message, 'error'); }
   e.target.value = '';
 });
+document.getElementById('add-video-link-btn').addEventListener('click', async () => {
+  const input = document.getElementById('media-video-link');
+  const url = input.value.trim();
+  try { new URL(url); } catch { return showToast('Enter a valid video URL.', 'error'); }
+  const res = await fetch('/api/performers/me/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+  const data = await res.json();
+  if (data.success) { myProfile = data.profile; input.value = ''; renderMediaGrids(); showToast('Video link added.', 'success'); }
+  else showToast(data.error || 'Could not add the video link.', 'error');
+});
 
 function offerCardHtml(o) {
   const r = o.request || {};
+  const eventMediaHtml = (r.eventMedia || []).map((item) => `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="market-btn market-btn-outline market-btn-sm"><i class="fa-solid ${item.type === 'image' ? 'fa-image' : item.type === 'video' ? 'fa-video' : 'fa-link'}"></i> ${escapeHtml(item.name || 'Event attachment')}</a>`).join('');
+  const requestDetailsHtml = `<p class="market-small market-muted" style="margin:8px 0;white-space:pre-wrap;">${escapeHtml(r.notes || 'No additional event description provided.')}</p><div class="market-small market-muted" style="margin:8px 0;">Duration: ${escapeHtml(r.eventDurationHours || 'TBD')} hour(s)</div>${eventMediaHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;">${eventMediaHtml}</div>` : ''}`;
   if (o.status === 'invited') {
     return `
       <div class="offer-card" data-offer-id="${o.id}">
@@ -439,7 +465,7 @@ function offerCardHtml(o) {
           <div><strong>${escapeHtml(r.eventType || '')}</strong> - ${escapeHtml(r.performerCategory || '')}<div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || 'Date TBD'} ${o.distanceKm != null ? `&middot; ${o.distanceKm}km away` : ''}</div></div>
           <div style="font-weight:800;">$${o.proposedAmountUsd}</div>
         </div>
-        <p class="market-small market-muted" style="margin:8px 0;">${escapeHtml(r.notes || '')}</p>
+        ${requestDetailsHtml}
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="market-btn market-btn-primary market-btn-sm accept-offer-btn" data-id="${o.id}">Accept $${o.proposedAmountUsd}</button>
           <button type="button" class="market-btn market-btn-outline market-btn-sm counter-toggle-btn" data-id="${o.id}">Counter Offer</button>
@@ -460,6 +486,7 @@ function offerCardHtml(o) {
         <div><strong>${escapeHtml(r.eventType || '')}</strong> - ${escapeHtml(r.performerCategory || '')}<div class="market-muted market-small">${escapeHtml(r.eventLocation || '')} &middot; ${r.eventDate || 'Date TBD'}</div></div>
         <span class="market-badge market-badge-${badgeVariant}">${escapeHtml(o.status.replace(/_/g, ' '))}</span>
       </div>
+      ${requestDetailsHtml}
     </div>
   `;
 }
@@ -508,5 +535,6 @@ async function loadHistory() {
 
 init();
 </script>
+  <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

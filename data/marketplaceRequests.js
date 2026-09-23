@@ -7,8 +7,9 @@
 // same table without a schema rewrite - nothing here assumes that usage yet.
 const fs = require('fs');
 const path = require('path');
-const { geocodeAddress } = require('./geocode');
+const { geocodeAddress, distanceKm } = require('./geocode');
 const { findMatchingPerformers } = require('./marketplaceMatching');
+const performers = require('./performers');
 
 const DATA_FILE = path.join(__dirname, 'marketplaceRequests.json');
 
@@ -39,6 +40,17 @@ function listByRequester(userId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+function isSafeMediaUrl(value) {
+  const url = String(value || '').trim();
+  if (url.startsWith('/uploads/')) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 // Geocodes the event location once, finds the initial candidate pool (for
 // display/record-keeping - the actual invites are created separately by the
 // caller via marketplaceOffers.createInvites, mirroring how
@@ -46,15 +58,32 @@ function listByRequester(userId) {
 async function create({
   requesterId, requesterName, requesterEmail, requesterPhone,
   eventType, performerCategory, eventDate, eventDurationHours, eventLocation,
-  radiusKm, proposedAmountUsd, notes,
+  radiusKm, proposedAmountUsd, notes, eventMedia, targetPerformerId,
 }) {
   const db = load();
   const coords = eventLocation ? await geocodeAddress(eventLocation) : null;
-  const matches = findMatchingPerformers({
-    category: performerCategory,
-    eventCoords: coords,
-    radiusKm: Math.max(1, Number(radiusKm) || 25),
-  });
+  // A "Request" button on one specific performer's card/profile skips the
+  // broadcast radius match entirely and invites only them - same request
+  // record shape either way, so everything downstream (offers, requester's
+  // "my requests" list, accept/counter/decline) needs no special-casing.
+  const targetPerformer = targetPerformerId ? performers.findById(targetPerformerId) : null;
+  const matches = targetPerformer
+    ? [{
+        performer: targetPerformer,
+        distanceKm: (coords && targetPerformer.lat != null && targetPerformer.lng != null)
+          ? distanceKm(coords, { lat: targetPerformer.lat, lng: targetPerformer.lng })
+          : null,
+      }]
+    // A broadcast can otherwise invite the requester's own performer
+    // profile right alongside everyone else's, if they happen to match
+    // their own category + radius - silently skip that one instead of
+    // erroring the whole request, same as the explicit "You can't request
+    // yourself" above does for a targeted one.
+    : findMatchingPerformers({
+        category: performerCategory,
+        eventCoords: coords,
+        radiusKm: Math.max(1, Number(radiusKm) || 25),
+      }).filter((m) => m.performer.userId !== requesterId);
   const request = {
     id: db.nextId++,
     domain: 'performance',
@@ -73,6 +102,7 @@ async function create({
     radiusKm: Math.max(1, Number(radiusKm) || 25),
     proposedAmountUsd: Math.max(0, Number(proposedAmountUsd) || 0),
     notes: notes || '',
+    eventMedia: Array.isArray(eventMedia) ? eventMedia.filter((item) => item && isSafeMediaUrl(item.url) && ['image', 'video', 'link'].includes(item.type)).slice(0, 6).map((item) => ({ type: item.type, url: String(item.url).trim(), name: String(item.name || '').trim().slice(0, 160) })) : [],
     candidatePerformerIds: matches.map((m) => m.performer.id),
     status: 'open', // open | closed | cancelled
     selectedOfferId: null,

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Teaching tools · Mozart Techniques</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: Bravura;
+        src: url("./bravura.woff2");
+      }
+      @font-face {
+        font-family: Academico;
+        src: url("./academico.woff2");
+      }
+    </style>
+    <header>
+      <div>
+        <small>MOZART TECHNIQUES</small>
+        <h1>Teaching studio</h1>
+        <p>Music, Dance and Theatre tools for your lesson. Your files stay on this device.</p>
+      </div>
+      <button id="stop-all" class="secondary">Stop all audio</button>
+    </header>
+    <nav aria-label="Teaching tools" id="tabs"></nav>
+    <p id="status" role="status" aria-live="polite"></p>
+    <main id="tool"></main>
+    <footer>
+      Use headphones to avoid feedback. Audio starts only after you tap a
+      control. This studio does not transmit sound to your lesson call.
+    </footer>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

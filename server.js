@@ -15,6 +15,15 @@ const currency = require('./data/currency');
 const tutors = require('./data/tutors');
 const assignments = require('./data/assignments');
 const taxonomy = require('./data/taxonomy');
+const { categoryMatchesQuery, matchesAnyCategory } = require('./data/searchSynonyms');
+const polls = require('./data/polls');
+const teachingTiers = require('./data/teachingTiers');
+const credentialCrosswalk = require('./data/credentialCrosswalk');
+const certModules = require('./data/certModules');
+const externalCredentials = require('./data/externalCredentials');
+const practicumReviews = require('./data/practicumReviews');
+const tierEngine = require('./data/tierEngine');
+const quizAssignments = require('./data/quizAssignments');
 const assessments = require('./data/assessments');
 const curriculum = require('./data/curriculum');
 const reels = require('./data/reels');
@@ -24,6 +33,7 @@ const payouts = require('./data/payouts');
 const chat = require('./data/chat');
 const supportChat = require('./data/support-chat');
 const orientation = require('./data/orientation');
+const orientationProgress = require('./data/orientation-progress');
 const orgChat = require('./data/org-chat');
 const { REACTIONS, isValidReaction } = require('./data/reaction-emoji');
 const reports = require('./data/reports');
@@ -36,12 +46,15 @@ const orders = require('./data/orders');
 const addresses = require('./data/addresses');
 const productReviews = require('./data/productReviews');
 const performers = require('./data/performers');
+const performerPosts = require('./data/performer-posts');
 const marketplaceRequests = require('./data/marketplaceRequests');
 const marketplaceOffers = require('./data/marketplaceOffers');
+const marketplaceChat = require('./data/marketplace-chat');
 const tutorOffers = require('./data/tutorOffers');
 const marketplaceMatching = require('./data/marketplaceMatching');
 const benchmarkRates = require('./data/benchmarkRates');
 const mailer = require('./data/mailer');
+const newsletter = require('./data/newsletter');
 const stripeClient = require('./data/stripe-client');
 const cloudinaryClient = require('./data/cloudinary-client');
 const realtime = require('./data/realtime');
@@ -116,6 +129,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Every signed-in request, any role, web or app - store.markSeen() is
+// day-granular and self-guards its own writes, so this is cheap even
+// running on literally every request. This is what the "gone quiet for
+// 2-3 weeks" win-back email (checkReengagementEmails, below) reads from -
+// separate from markActive()'s student-dashboard streak/badge tracking,
+// which shouldn't fire for a tutor or sponsor just checking their own
+// dashboard.
+app.use((req, res, next) => {
+  if (req.session && req.session.userId) store.markSeen(req.session.userId);
+  next();
+});
+
 // When Cloudinary is configured, every upload goes there (and survives
 // redeploys); otherwise this falls back to the original local-disk
 // behavior, unchanged. Decided once at boot since it depends only on env
@@ -155,6 +180,32 @@ async function resolveUploadedFileUrl(file, folder) {
 function isOwnChatAttachmentUrl(url) {
   if (typeof url !== 'string') return false;
   return url.startsWith('/uploads/chat/') || /^https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image|video|raw)\/upload\/.*\/mozart-techniques\/chat\//.test(url);
+}
+
+// Blocks exchanging contact info (email/phone) inside any chat surface -
+// students and tutors are expected to keep lesson coordination and payment
+// on-platform rather than moving it off to avoid fees/matching. Applied at
+// send time on every chat surface (lesson chat, group chat, org chat) so it
+// can't be bypassed by picking a different thread type. Deliberately a
+// heuristic, not a perfect filter, tuned to two distinct phone shapes
+// rather than "any 7+ digits" (which flagged lesson times, dates, prices,
+// order numbers - ordinary numbers in ordinary sentences):
+//   1. Punctuated groups (555-123-4567, 555.123.4567, +234 803 123 4567) -
+//      the group/separator pattern itself is distinctly phone-shaped, no
+//      other kind of number in normal chat is written that way.
+//   2. A bare run of 9+ digits with no separators at all - long enough
+//      that a date (8 digits, YYYYMMDD), a price, or an order/reference
+//      number essentially never reaches it, while an unformatted phone
+//      number (most are 10-13 digits) still does.
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+const PHONE_FORMATTED_RE = /(?:\+?\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}\b/;
+const PHONE_BARE_RE = /\d{9,15}/;
+function containsContactInfo(text) {
+  if (!text) return false;
+  if (EMAIL_RE.test(text)) return true;
+  if (PHONE_FORMATTED_RE.test(text)) return true;
+  if (PHONE_BARE_RE.test(text)) return true;
+  return false;
 }
 
 // Shared by every chat-send route (lesson chat and every org-chat surface)
@@ -281,7 +332,7 @@ const GATED_HTML_FILES = [
   '/orientation.html', '/tutor-evaluation.html', '/notifications.html',
   '/chat.html', '/library.html', '/messages.html', '/store-profile.html',
   '/order-confirmation.html', '/become-performer.html', '/performance-requests.html',
-  '/my-organization.html',
+  '/my-organization.html', '/sponsor-dashboard.html',
 ];
 app.use((req, res, next) => {
   if (GATED_HTML_FILES.includes(req.path.toLowerCase())) {
@@ -295,8 +346,48 @@ app.use(express.static(PUBLIC_DIR));
 // --- AUTH HELPERS ---
 function currentUser(req) {
   if (!req.session || !req.session.userId) return null;
-  return store.findById(req.session.userId);
+  const user = store.findById(req.session.userId);
+  // A primary owner can intentionally open their Country Admin console. The
+  // client signal can only narrow that owner's real permissions (and only
+  // when a country scope exists); it can never grant a non-admin anything.
+  if (user && req.get('X-Mozart-Admin-View') === 'country' && user.adminCountryCode) {
+    return { ...user, forceCountryAdminScope: true };
+  }
+  return user;
 }
+
+// expo-file-system's native uploadAsync (mobile/src/utils/uploadFile.ts)
+// doesn't share this app's cookie jar the way fetch() does - it builds its
+// own OkHttp client with a fresh, never-populated ReactCookieJarContainer,
+// so every upload from it arrives with no session cookie at all and would
+// otherwise always fail with "You must be signed in" despite the user
+// genuinely being logged in. A short-lived, single-use token - minted
+// through a normal (cookie-authenticated) API call right before the
+// upload starts, then passed back as a query param on the upload request
+// itself - substitutes for the missing cookie on exactly these routes.
+const uploadTokens = new Map(); // token -> { userId, expiresAt }
+const UPLOAD_TOKEN_TTL_MS = 2 * 60 * 1000;
+
+function hydrateUploadToken(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    const token = req.query.uploadToken;
+    if (token) {
+      const entry = uploadTokens.get(token);
+      if (entry && entry.expiresAt > Date.now()) {
+        uploadTokens.delete(token);
+        req.session = req.session || {};
+        req.session.userId = entry.userId;
+      }
+    }
+  }
+  next();
+}
+
+app.post('/api/uploads/token', requireAuthApi, (req, res) => {
+  const token = crypto.randomBytes(24).toString('hex');
+  uploadTokens.set(token, { userId: currentUser(req).id, expiresAt: Date.now() + UPLOAD_TOKEN_TTL_MS });
+  res.json({ success: true, token });
+});
 
 function requireAuthPage(req, res, next) {
   if (!currentUser(req)) {
@@ -409,24 +500,97 @@ function publicUser(user) {
   const hasSponsorOrg = Boolean(org && org.status === 'approved');
   const memberships = user.organizationMemberships || (user.sponsor ? [user.sponsor] : []);
   const hasSponsorAccess = Boolean(memberships.length || hasSponsorOrg);
+  // Which of those organizations this account holds a *tutor* code for
+  // (org.members' own per-membership role, not the user-level
+  // organizationMemberships list, which isn't role-tagged) - lets the
+  // Profile menu show one real "<Org name> Tutor" row per organization a
+  // tutor has redeemed a code for, instead of one generic destination.
+  const organizationTutorMemberships = tutorProfile
+    ? organizationMembershipsForUser(user)
+        .filter((o) => (o.members || []).some((m) => Number(m.studentId) === Number(user.id) && m.role === 'tutor'))
+        .map((o) => ({ id: o.id, name: o.name || o.contactName }))
+    : [];
+  // A student linked to an NGO/Institution (not an Individual Sponsor - a
+  // different relationship, see become-sponsor.html's own form split) gets
+  // its own "<Org name> Student" row in Profile, the same way a linked
+  // tutor gets "<Org name> Tutor" above - independent of it, since the same
+  // account could hold both relationships to different organizations.
+  const organizationStudentMemberships = organizationMembershipsForUser(user)
+    .filter((o) => o.sponsorType === 'ngo' && (o.members || []).some((m) => Number(m.studentId) === Number(user.id) && m.role !== 'tutor'))
+    .map((o) => ({ id: o.id, name: o.name || o.contactName }));
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role || 'user',
+    // Country Admin (scoped to one country) and Main Admin (supersedes
+    // every country restriction) are two different destinations on
+    // Profile, not one generic "Admin" row - an account can hold both at
+    // once (isPrimaryAdmin here doesn't require adminCountryCode to be
+    // unset, just that this account's email is on the owner allowlist).
+    adminCountryCode: user.adminCountryCode || null,
+    // Resolved once here (same curated list resolveRegionFilter itself
+    // reads) so the mobile app can show a real country name/flag without
+    // needing its own copy of the country database.
+    adminCountryName: user.adminCountryCode && geo.COUNTRY_CURRENCY[user.adminCountryCode] ? geo.COUNTRY_CURRENCY[user.adminCountryCode].name : null,
+    isPrimaryAdmin: isPrimaryAdmin(user),
     supportAgent: Boolean(user.supportAgent || user.role === 'support_agent'),
     countryCode: user.countryCode || null,
     photoUrl: user.photoUrl || (tutorProfile && tutorProfile.photoUrl) || null,
     hasTutorProfile: Boolean(tutorProfile),
     tutorProfileId: tutorProfile ? tutorProfile.id : null,
     tutorStatus: tutorProfile ? tutorProfile.status : null,
+    // Gates the mandatory Tutor Orientation modal - true exactly once, the
+    // first time an approved tutor's own dashboard would otherwise be
+    // reachable, until they tap "I Understand & Agree" on its final screen.
+    // Distinct from the existing orientationCompleted/orientation-posts
+    // system (data/tutors.js's apply()) - that's an unrelated admin content
+    // feed + quiz, not this onboarding gate.
+    needsTutorOrientation: Boolean(tutorProfile && tutorProfile.status === 'approved' && !tutorProfile.tutorOrientationAcceptedAt),
     hasPerformerProfile: Boolean(performerProfile),
     performerProfileId: performerProfile ? performerProfile.id : null,
     performerStatus: performerProfile ? performerProfile.status : null,
+    // Mirrors needsTutorOrientation above, for the Performer Orientation modal.
+    needsPerformerOrientation: Boolean(performerProfile && performerProfile.status === 'approved' && !performerProfile.performerOrientationAcceptedAt),
     sponsor: user.sponsor || null,
     organizationMemberships: memberships,
     hasSponsorOrg,
     hasSponsorAccess,
+    // The account's own sponsor organization application status (Individual
+    // Sponsor or NGO/Institution) - null until they've actually applied, so
+    // the Dashboard's RoleStatusBanner can show the same pending/approved/
+    // rejected treatment tutor/performer applications already get.
+    sponsorOrgStatus: org ? org.status : null,
+    // The owned org's own kind ('individual' or 'ngo') - lets Profile show
+    // the right ONE destination for the account's single owned org: "Sponsor
+    // Dashboard" for an Individual Sponsor, "Organization Dashboard" (its
+    // own separate mode/tabs, not a relabeled Sponsor Dashboard) for an
+    // NGO/Institution.
+    sponsorOrgType: org ? org.sponsorType || null : null,
+    // Only meaningful when sponsorOrgType is 'ngo' - which of the two forms
+    // an NGO/Institution filled in on the application decides whether the
+    // Organization Dashboard itself is labeled "NGO Dashboard" or
+    // "Institution Dashboard", not a generic "Organization Dashboard".
+    sponsorOrgKind: org ? org.organizationType || null : null,
+    // The org's own registered/approved name - Profile labels the
+    // Organization Dashboard row with this (e.g. "Slum2School Dashboard")
+    // instead of the generic "NGO Dashboard"/"Institution Dashboard".
+    sponsorOrgName: org ? (org.name || org.contactName || null) : null,
+    organizationTutorMemberships,
+    organizationStudentMemberships,
+    // Gates the mobile app's first-run feature walkthrough (OnboardingScreen,
+    // shown post-login rather than the copy of it AuthStack shows before
+    // sign-in). Defaults true for every account, including ones that existed
+    // before this field did (undefined !== false) - the app was mid-build
+    // when this was added and every existing user should see the walkthrough
+    // at least once too, not just newly-created accounts. Web ignores this;
+    // there's no equivalent walkthrough there.
+    needsAppOnboarding: user.needsAppOnboarding !== false,
+    // Which per-dashboard coachmark tours (student home, tutor home, Find a
+    // Tutor, etc.) this account has already clicked through - see
+    // markTourSeen. Empty for every existing account until each screen's
+    // tour is actually reached and finished.
+    seenTours: user.seenTours || [],
   };
 }
 
@@ -456,21 +620,37 @@ function resolveOrgForUser(user) {
 // calling. Tutor participants are keyed by tutor PROFILE id (matching how
 // org-chat conversations already store them, e.g. server.js:3330), student
 // participants by their user id.
-function resolveOrgChatAccess(user, conversationId) {
+// preferredRole exists for the (real) case where one account holds more
+// than one relationship to the same conversation - it owns the org AND
+// also has its own tutor profile linked to it. Without a hint, a message
+// sent from Org Tutor mode would still resolve as role 'org' (checked
+// first below) and never mark readByTutor true on its own message,
+// making every message that account sends show up as unread for the
+// tutor side. The caller passes whichever mode it's actually in
+// (RoleModeContext) so the right side of a shared identity gets credited;
+// unset (or a role that doesn't actually apply here) falls back to the
+// original org > tutor > student priority.
+function resolveOrgChatAccess(user, conversationId, preferredRole) {
   const conversation = orgChat.findById(conversationId);
   if (!conversation) return null;
   const org = organizations.findByUserId(user.id);
-  if (org && org.id === conversation.orgId) {
-    return { conversation, role: 'org', participantId: org.id, participantName: org.name || org.contactName };
-  }
   const tutorProfile = tutors.findByUserId(user.id);
+  const candidates = [];
+  if (org && org.id === conversation.orgId) {
+    candidates.push({ conversation, role: 'org', participantId: org.id, participantName: org.name || org.contactName });
+  }
   if (tutorProfile && conversation.participants.some((p) => p.type === 'tutor' && Number(p.id) === tutorProfile.id)) {
-    return { conversation, role: 'tutor', participantId: tutorProfile.id, participantName: tutorProfile.name };
+    candidates.push({ conversation, role: 'tutor', participantId: tutorProfile.id, participantName: tutorProfile.name });
   }
   if (conversation.participants.some((p) => p.type === 'student' && Number(p.id) === user.id)) {
-    return { conversation, role: 'student', participantId: user.id, participantName: user.name };
+    candidates.push({ conversation, role: 'student', participantId: user.id, participantName: user.name });
   }
-  return null;
+  if (!candidates.length) return null;
+  if (preferredRole) {
+    const preferred = candidates.find((c) => c.role === preferredRole);
+    if (preferred) return preferred;
+  }
+  return candidates[0];
 }
 
 // Notifies every admin of a new tutor/org/student request - both in-app
@@ -548,6 +728,68 @@ function inViewerCountry(tutor, viewerCountryName) {
   return !tutorCountry || !viewerCountryName || sameCountry(tutorCountry, viewerCountryName);
 }
 
+// Same precedence both /api/orientation and /api/orientation/posts use to
+// pick whose orientation a signed-in account sees - resolved from the
+// account itself, not the current RoleModeContext mode, matching
+// orientation-hub.html's own server-driven behavior. Tutor is checked
+// before sponsor: an approved tutor who also redeemed an organization code
+// (Organization Tutor) still gets their tutor orientation/questionnaire,
+// not the plain "sponsored student" bucket - "sponsor" here means a
+// student whose access is funded by an org, not a tutor with org access.
+function resolveOrientationAudience(user) {
+  return user.role === 'admin'
+    ? 'admin'
+    : user.role === 'support_agent'
+      ? 'support_agent'
+      : organizations.findByUserId(user.id)
+        ? 'organization'
+        : tutors.findByUserId(user.id)
+          ? 'tutor'
+          : user.sponsor
+            ? 'sponsor'
+            : 'student';
+}
+
+// Every real user account whose resolveOrientationAudience() resolves to
+// the given audience - used to fan out a notification to everyone a new
+// orientation post targets.
+function usersForOrientationAudience(audience) {
+  return store.listUsers().filter((u) => resolveOrientationAudience(u) === audience);
+}
+
+// A post has a quiz iff questions were attached to it via the
+// 'orientation-post' assessments key. Shared by /api/orientation/status,
+// the withdrawal gate below, and the quiz submit route so "does this post
+// need a pass, or just a Finished tap" is decided the same way everywhere.
+function orientationPostQuestions(postId) {
+  return assessments.getQuestionsForAdmin('orientation-post', String(postId));
+}
+
+// Every required post targeted at `user`'s own resolved audience, with
+// this user's completion state layered on - the single source of truth
+// for both /api/orientation/status and the tutor withdrawal gate.
+function requiredOrientationStatus(user) {
+  const audience = resolveOrientationAudience(user);
+  const required = orientation.list(audience).filter((p) => p.required);
+  const posts = required.map((post) => {
+    const questions = orientationPostQuestions(post.id);
+    const hasQuiz = questions.length > 0;
+    const progress = orientationProgress.getProgress(user.id, post.id);
+    const done = orientationProgress.isPostDone(user.id, post, hasQuiz);
+    return {
+      id: post.id,
+      title: post.title,
+      hasQuiz,
+      finished: Boolean(progress && progress.finishedAt),
+      passed: Boolean(progress && progress.passed),
+      attempts: (progress && progress.attempts) || 0,
+      bestScore: (progress && progress.bestScore) || 0,
+      done,
+    };
+  });
+  return { audience, posts, blocked: posts.some((p) => !p.done) };
+}
+
 function notifySupportAgents({ message, subject, excludeUserId, href = '/support-agent' }) {
   store.listUsers()
     .filter((u) => (u.supportAgent || u.role === 'support_agent') && u.id !== excludeUserId)
@@ -570,39 +812,151 @@ function requireSupportAgentApi(req, res, next) {
 }
 
 function isPrimaryAdmin(user) {
-  // The platform owner must keep access to every account even after a country
-  // is selected on their profile.  Country administrators stay limited to
-  // their own country.
-  const ownerEmail = String(process.env.PRIMARY_ADMIN_EMAIL || 'mozarttechniques@gmail.com').trim().toLowerCase();
-  return Boolean(user && user.role === 'admin' && (!user.adminCountryCode || String(user.email || '').trim().toLowerCase() === ownerEmail));
+  // The platform owner(s) must keep access to every account even after a
+  // country is selected on their profile - Country administrators otherwise
+  // stay limited to their own country. PRIMARY_ADMIN_EMAIL accepts a
+  // comma-separated list so more than one account can hold unrestricted
+  // "Main Admin" access at once, not just a single hardcoded owner.
+  const ownerEmails = String(process.env.PRIMARY_ADMIN_EMAIL || 'mozarttechniques@gmail.com')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  return Boolean(user && !user.forceCountryAdminScope && user.role === 'admin' && (!user.adminCountryCode || ownerEmails.includes(String(user.email || '').trim().toLowerCase())));
+}
+
+// Sent alongside web push (see sendPushNotifications below) - `channelId`
+// routes to the Android notification channel the app creates on launch,
+// and `threadId` is what makes iOS stack multiple notifications from this
+// app into one expandable group instead of a separate banner each time
+// (Android does the equivalent automatically once an app has a few
+// un-grouped notifications showing, no extra field needed there). No
+// `tag` is set on purpose - that field *replaces* a previously-shown
+// notification instead of accumulating alongside it, which is the
+// opposite of what "notifications stacking under the first" means.
+const EXPO_PUSH_THREAD_ID = 'mozart-notifications';
+
+async function sendExpoPushNotifications(user, pending) {
+  const tokens = user.expoPushTokens || [];
+  if (!tokens.length || !pending.length) return;
+  // Sent so the app-icon badge is right even if the app never opens to
+  // trigger the client's own foreground badge sync (NotificationsContext) -
+  // this is the count *after* the notifications this send delivers arrive.
+  const badgeCount = (user.notifications || []).filter((item) => !item.read).length;
+  const messages = [];
+  tokens.forEach((token) => {
+    pending.forEach((notification) => {
+      messages.push({
+        to: token,
+        title: 'Mozart Techniques',
+        body: notification.message,
+        sound: 'default',
+        channelId: 'default',
+        threadId: EXPO_PUSH_THREAD_ID,
+        badge: badgeCount,
+        data: { href: notification.href },
+      });
+    });
+  });
+  try {
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(messages),
+    });
+    const data = await response.json().catch(() => null);
+    // A token Expo reports as no longer registered (app uninstalled, etc.)
+    // is pruned so future sends don't keep retrying it.
+    const invalidTokens = new Set();
+    if (data && Array.isArray(data.data)) {
+      data.data.forEach((ticket, index) => {
+        if (ticket && ticket.status === 'error' && ticket.details && ticket.details.error === 'DeviceNotRegistered') {
+          invalidTokens.add(messages[index].to);
+        }
+      });
+    }
+    if (invalidTokens.size) {
+      const refreshed = store.findById(user.id);
+      if (refreshed) refreshed.expoPushTokens = (refreshed.expoPushTokens || []).filter((token) => !invalidTokens.has(token));
+    }
+  } catch {
+    // Best-effort, same as the web-push loop below - a failed send here
+    // doesn't retry, matching the existing behavior for web subscriptions.
+  }
 }
 
 async function sendPushNotifications(user) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !user || !(user.pushSubscriptions || []).length) return;
+  if (!user) return;
   const pending = (user.notifications || []).filter((item) => item.pushPending).slice(0, 10);
-  const active = [];
-  for (const subscription of user.pushSubscriptions) {
-    try {
-      for (const notification of pending) await webpush.sendNotification(subscription, JSON.stringify({ title: 'Mozart Techniques', body: notification.message, icon: '/mozartLogo.jpg', data: { href: notification.href } }));
-      active.push(subscription);
+  if (!pending.length) return;
+  const hasWebPush = VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && (user.pushSubscriptions || []).length;
+  const hasExpoPush = (user.expoPushTokens || []).length;
+  if (!hasWebPush && !hasExpoPush) return;
+
+  if (hasWebPush) {
+    const active = [];
+    for (const subscription of user.pushSubscriptions) {
+      try {
+        for (const notification of pending) await webpush.sendNotification(subscription, JSON.stringify({ title: 'Mozart Techniques', body: notification.message, icon: '/mozartLogo.jpg', data: { href: notification.href } }));
+        active.push(subscription);
+      }
+      catch (error) { if (error.statusCode !== 404 && error.statusCode !== 410) active.push(subscription); }
     }
-    catch (error) { if (error.statusCode !== 404 && error.statusCode !== 410) active.push(subscription); }
+    if (active.length !== (user.pushSubscriptions || []).length) {
+      const refreshed = store.findById(user.id);
+      if (refreshed) refreshed.pushSubscriptions = active;
+    }
   }
-  if (active.length !== (user.pushSubscriptions || []).length) {
-    const refreshed = store.findById(user.id);
-    if (refreshed) refreshed.pushSubscriptions = active;
-  }
+
+  if (hasExpoPush) await sendExpoPushNotifications(user, pending);
+
   pending.forEach((notification) => store.clearPushPending(user.id, notification.id));
 }
 
-setInterval(() => store.listUsers().filter((user) => (user.pushSubscriptions || []).length && (user.notifications || []).some((item) => item.pushPending)).forEach((user) => sendPushNotifications(user).catch(() => {})), 5000);
+setInterval(() => store.listUsers().filter((user) => ((user.pushSubscriptions || []).length || (user.expoPushTokens || []).length) && (user.notifications || []).some((item) => item.pushPending)).forEach((user) => sendPushNotifications(user).catch(() => {})), 5000);
 
+// user.countryCode (IP-detected at signup) is the fast path, but it's only
+// ever set on the plain /api/signup flow - Google sign-up never sets it (see
+// /api/auth/google), and plenty of real accounts predate/skip it - so for
+// most tutors and performers this fell through to nothing, which is why a
+// Country Admin was seeing empty tutor/user lists for their own country
+// instead of the real, full set. Falls through to whichever profile this
+// account actually has a geocoded locality on (student/tutor/performer),
+// converting the country NAME each of those stores (locality.country, e.g.
+// "Nigeria") to the ISO code canManageUser compares against - the same
+// conversion countryForOrganization already does for organizations.
 function countryForUser(user) {
-  return user && (user.countryCode || (user.studentProfile && user.studentProfile.locality && user.studentProfile.locality.countryCode)) || null;
+  if (!user) return null;
+  if (user.countryCode) return user.countryCode;
+  const studentCountryName = user.studentProfile && user.studentProfile.locality && user.studentProfile.locality.country;
+  if (studentCountryName) return geo.countryCodeForName(studentCountryName);
+  const tutorProfile = tutors.findByUserId(user.id);
+  if (tutorProfile && tutorProfile.locality && tutorProfile.locality.country) return geo.countryCodeForName(tutorProfile.locality.country);
+  const performerProfile = performers.findByUserId(user.id);
+  if (performerProfile && performerProfile.locality && performerProfile.locality.country) return geo.countryCodeForName(performerProfile.locality.country);
+  return null;
 }
 
 function canManageUser(admin, user) {
   return isPrimaryAdmin(admin) || Boolean(admin && admin.adminCountryCode && admin.adminCountryCode === countryForUser(user));
+}
+
+// A Country Admin is a local moderator, never a peer administrator. Keep
+// privileged accounts out of both their list and their mutation surface even
+// if one happens to share the same country code.
+function canCountryAdminViewUser(admin, user) {
+  if (!canManageUser(admin, user)) return false;
+  return isPrimaryAdmin(admin) || !['admin', 'demo', 'country_admin'].includes(user && user.role);
+}
+
+function countryForOrganization(organization) {
+  const countryName = organization && organization.locality && organization.locality.country;
+  return countryName ? geo.countryCodeForName(countryName) : null;
+}
+
+function canManageOrganization(admin, organization) {
+  return isPrimaryAdmin(admin) || Boolean(
+    admin && admin.adminCountryCode && admin.adminCountryCode === countryForOrganization(organization),
+  );
 }
 
 function requirePrimaryAdminApi(req, res, next) {
@@ -645,8 +999,12 @@ app.get('/forgot-password', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'forgot-password.html'));
 });
 
+// The reset flow is now OTP-based (a 6-digit code entered by hand, see
+// forgot-password.html) instead of a clickable link with a token in the
+// URL, so there's no more standalone token-bearing link to land on -
+// redirect anyone with an old bookmarked link to the flow that replaced it.
 app.get('/reset-password', (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'reset-password.html'));
+  res.redirect('/forgot-password');
 });
 
 app.get('/dashboard', requireAuthPage, (req, res) => {
@@ -654,7 +1012,7 @@ app.get('/dashboard', requireAuthPage, (req, res) => {
   if (user && user.role !== 'admin') {
     const org = organizations.findByUserId(user.id);
     if (org && org.status === 'approved') {
-      return res.redirect('/ngo-dashboard');
+      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard');
     }
   }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
@@ -672,7 +1030,7 @@ app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
   if (user && user.role !== 'admin') {
     const org = organizations.findByUserId(user.id);
     if (org && org.status === 'approved') {
-      return res.redirect('/ngo-dashboard');
+      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard');
     }
   }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
@@ -680,6 +1038,10 @@ app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
 
 app.get('/ngo-dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
+});
+
+app.get('/sponsor-dashboard', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'sponsor-dashboard.html'));
 });
 
 app.get('/my-organization', requireAuthPage, (req, res) => {
@@ -803,8 +1165,10 @@ app.get('/find-performer', (req, res) => {
 });
 
 app.get('/performers/:id', (req, res) => {
-  const performer = performers.findById(req.params.id);
+  const performer = performers.findBySlug(req.params.id);
   if (!performer || performer.status !== 'approved' || performer.suspended) return res.redirect('/find-performer');
+  const slug = performers.publicSlug(performer);
+  if (req.params.id !== slug) return res.redirect(302, `/performers/${encodeURIComponent(slug)}`);
   res.sendFile(path.join(PUBLIC_DIR, 'performer.html'));
 });
 
@@ -851,12 +1215,27 @@ app.get('/support-agent', requireAuthPage, requireSupportAgentPage, (req, res) =
 app.get('/library', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
 });
+app.get('/teacher-education', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'teacher-education.html'));
+});
 app.get('/library/:id', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'library.html'));
 });
 app.get('/schedule', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'schedule.html'));
 });
+
+// Existing accounts never get a mobile-flavored welcome email at signup
+// time - they signed up on the web, sometimes years before the app existed.
+// This sends that same email once, the first time such an account is used
+// from the app (any login route, password or Google), so every user
+// encountering the app gets the same orientation a brand-new mobile signup
+// already gets - not on every login, just the first one.
+function maybeSendMobileReturnEmail(user, req) {
+  if (req.get('X-Mozart-Client') !== 'mobile' || user.mobileWelcomeEmailSentAt) return;
+  mailer.sendWelcomeEmail(user, true).catch((err) => console.error('Mobile return email failed:', err.message));
+  store.markMobileWelcomeEmailSent(user.id);
+}
 
 // --- AUTH API ---
 app.post('/api/signup', async (req, res) => {
@@ -877,8 +1256,32 @@ app.post('/api/signup', async (req, res) => {
   req.session.userId = user.id;
 
   store.addNotification(user.id, { type: 'welcome', message: `Welcome to Mozart Techniques, ${user.name}!` });
+  // Fire-and-forget - sendWelcomeEmail/sendMail already catch and log their
+  // own errors, so a slow or misconfigured mail server can never delay or
+  // fail this response, and registration always succeeds regardless.
+  const isMobileSignup = req.get('X-Mozart-Client') === 'mobile';
+  mailer.sendWelcomeEmail(user, isMobileSignup).catch((err) => console.error('Welcome email failed:', err.message));
+  // Prevents maybeSendMobileReturnEmail from sending a second, near-
+  // identical email the moment this same account next logs into the app.
+  if (isMobileSignup) store.markMobileWelcomeEmailSent(user.id);
 
   res.json({ success: true, user: publicUser(user) });
+});
+
+// The footer newsletter form on every public page (public/assets/
+// footer.js) - no login required, just an email address. Idempotent
+// (resubscribing is a success, not an error) and always tries to send the
+// confirmation email regardless of whether this address was already on
+// the list, so re-submitting still gets you a fresh "you're subscribed"
+// email if the first one got lost.
+app.post('/api/newsletter/subscribe', async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+  }
+  const { alreadySubscribed } = newsletter.subscribe(email);
+  mailer.sendNewsletterConfirmationEmail(email).catch((err) => console.error('Newsletter confirmation email failed:', err.message));
+  res.json({ success: true, alreadySubscribed });
 });
 
 app.post('/api/login', async (req, res) => {
@@ -893,6 +1296,7 @@ app.post('/api/login', async (req, res) => {
   }
 
   req.session.userId = user.id;
+  maybeSendMobileReturnEmail(user, req);
   res.json({ success: true, user: publicUser(user) });
 });
 
@@ -900,11 +1304,14 @@ app.get('/api/config', (req, res) => {
   res.json({ success: true, googleClientId: GOOGLE_CLIENT_ID });
 });
 
-// No SMTP is configured, so there's nowhere to deliver an emailed reset
-// link - the reset URL is handed straight back to the requesting browser
-// instead. Still token-based and time-limited (1 hour, single-use), just
-// delivered in-app rather than by email.
-app.post('/api/auth/forgot-password', (req, res) => {
+// Emails a 6-digit OTP (data/store.js's createResetToken) via the same
+// Gmail transporter the welcome email uses. Awaited here (unlike the
+// welcome email) since the request's whole point is getting that code to
+// the user - but sendMail() still never throws, so a failed send just
+// comes back as sent:false rather than a 500. In non-production, the code
+// also rides along in the response as devCode purely so local development
+// keeps working without a real inbox to check - never present in prod.
+app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ success: false, error: 'Email is required.' });
 
@@ -912,19 +1319,37 @@ app.post('/api/auth/forgot-password', (req, res) => {
   if (!user) {
     return res.status(404).json({ success: false, error: 'No account found with that email.' });
   }
-  res.json({ success: true, resetUrl: `/reset-password?token=${user.resetToken}` });
+  const { sent } = await mailer.sendPasswordResetEmail(user, user.resetToken);
+  res.json({
+    success: true,
+    emailSent: sent,
+    ...(process.env.NODE_ENV !== 'production' ? { devCode: user.resetToken } : {}),
+  });
+});
+
+// Lets the client check a code on its own screen, before the person has
+// even typed a new password yet - reuses findByResetToken's same lookup
+// as reset-password below, just without consuming it (no password change
+// happens here).
+app.post('/api/auth/verify-reset-code', (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ success: false, error: 'Reset code is required.' });
+  if (!store.findByResetToken(token)) {
+    return res.status(400).json({ success: false, error: 'This code is invalid or has expired.' });
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !password) {
-    return res.status(400).json({ success: false, error: 'Reset token and new password are required.' });
+    return res.status(400).json({ success: false, error: 'Reset code and new password are required.' });
   }
   if (password.length < 6) {
     return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
   }
   if (!store.findByResetToken(token)) {
-    return res.status(400).json({ success: false, error: 'This reset link is invalid or has expired.' });
+    return res.status(400).json({ success: false, error: 'This code is invalid or has expired.' });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -963,10 +1388,17 @@ app.post('/api/auth/google', async (req, res) => {
       user = store.linkGoogleId(user.id, payload.sub);
     } else {
       user = store.createUser({ name: payload.name || payload.email, email: payload.email, googleId: payload.sub });
+      // Same first-time-registration event as the password signup route
+      // above, just reached via Google instead - same reusable function,
+      // same fire-and-forget guarantee.
+      const isMobileSignup = req.get('X-Mozart-Client') === 'mobile';
+      mailer.sendWelcomeEmail(user, isMobileSignup).catch((err) => console.error('Welcome email failed:', err.message));
+      if (isMobileSignup) store.markMobileWelcomeEmailSent(user.id);
     }
   }
 
   req.session.userId = user.id;
+  maybeSendMobileReturnEmail(user, req);
   res.json({ success: true, user: publicUser(user) });
 });
 
@@ -1000,7 +1432,7 @@ app.post('/api/mozart-ai/message', requireAuthApi, async (req, res) => {
   res.json({ success: true, thread: escalated, reply: null });
 });
 
-app.post('/api/mozart-ai/attachment', requireAuthApi, (req, res) => {
+app.post('/api/mozart-ai/attachment', hydrateUploadToken, requireAuthApi, (req, res) => {
   chatUpload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
     if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file first.' });
@@ -1068,7 +1500,7 @@ app.post('/api/support-agent/threads/:id/message', requireSupportAgentApi, (req,
   store.addNotification(added.thread.userId, { type: 'support_reply', message: 'A Mozart Techniques support agent replied to your live support request.', href: '/dashboard?open-live-support=1' });
   res.json({ success: true, thread: added.thread });
 });
-app.post('/api/support-agent/threads/:id/attachment', requireSupportAgentApi, (req, res) => {
+app.post('/api/support-agent/threads/:id/attachment', hydrateUploadToken, requireSupportAgentApi, (req, res) => {
   chatUpload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, error: err.message || 'Could not upload that file.' });
     const agent = currentUser(req); const thread = supportChat.findById(req.params.id);
@@ -1109,6 +1541,17 @@ app.post('/api/geo/set-location', async (req, res) => {
   }
 
   req.session.gpsCountry = resolved.country;
+  // Also corrects the account's own countryCode, not just this session -
+  // countryCode is set once at signup from an IP-based guess (server.js's
+  // /api/signup), which mobile-carrier/VPN IPs can easily get wrong and
+  // nothing else ever revisits. Without this, a real GPS fix here only
+  // lasts until the next login, since a fresh session has no gpsCountry of
+  // its own and resolveCountryCode falls straight back to that same stale
+  // stored code.
+  if (req.session && req.session.userId) {
+    const code = geo.countryCodeForName(resolved.country);
+    if (code) store.setCountry(req.session.userId, code);
+  }
   const geoInfo = await getGeoInfo(req);
   res.json({ success: true, ...geoInfo, city: resolved.city, state: resolved.state });
 });
@@ -1133,7 +1576,7 @@ app.post('/api/profile/name', requireAuthApi, (req, res) => {
   res.json({ success: true, user: publicUser(updated) });
 });
 
-app.post('/api/profile/photo', requireAuthApi, photoUpload.single('photo'), async (req, res) => {
+app.post('/api/profile/photo', hydrateUploadToken, requireAuthApi, photoUpload.single('photo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No file uploaded.' });
   }
@@ -1256,6 +1699,16 @@ app.post('/api/profile/location', requireAuthApi, async (req, res) => {
   });
 });
 
+// Only the signed-in user's saved coordinates; never part of the public roster.
+app.get('/api/profile/map-origin', requireAuthApi, (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  const user = currentUser(req);
+  const profile = user.studentProfile || tutors.findByUserId(user.id) || {};
+  const lat = Number(profile.lat), lng = Number(profile.lng);
+  const valid = profile.lat != null && profile.lng != null && profile.lat !== '' && profile.lng !== '' && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  res.json({ success: true, location: valid ? { lat, lng } : null });
+});
+
 app.get('/api/dashboard', requireAuthApi, async (req, res) => {
   const user = store.markActive(currentUser(req).id);
   const geoInfo = await getGeoInfo(req);
@@ -1336,6 +1789,37 @@ app.delete('/api/push/subscribe', requireAuthApi, (req, res) => {
   res.json({ success: true });
 });
 
+// Native (Expo) push token registration - mirrors the web subscribe/
+// unsubscribe pair above, just with a flat token string instead of a
+// subscription object.
+app.post('/api/push/expo-token', requireAuthApi, (req, res) => {
+  const token = req.body && req.body.token;
+  if (!token || typeof token !== 'string') return res.status(400).json({ success: false, error: 'Invalid push token.' });
+  store.setExpoPushToken(currentUser(req).id, token);
+  res.json({ success: true });
+});
+
+app.delete('/api/push/expo-token', requireAuthApi, (req, res) => {
+  store.removeExpoPushToken(currentUser(req).id, String(req.body && req.body.token || ''));
+  res.json({ success: true });
+});
+
+// Dismisses the mobile app's first-run feature walkthrough for this
+// account permanently (see publicUser's needsAppOnboarding) - called once
+// it's finished or skipped, not on every screen of it.
+app.post('/api/me/onboarding-complete', requireAuthApi, (req, res) => {
+  const updated = store.markAppOnboardingSeen(currentUser(req).id);
+  res.json({ success: true, user: publicUser(updated) });
+});
+
+// Marks one per-dashboard coachmark tour finished (see publicUser's
+// seenTours) - :tourId is client-defined, not validated against a fixed
+// list, since new tours get added on the client side over time.
+app.post('/api/me/tours/:tourId/seen', requireAuthApi, (req, res) => {
+  const updated = store.markTourSeen(currentUser(req).id, String(req.params.tourId));
+  res.json({ success: true, user: publicUser(updated) });
+});
+
 app.post('/api/notifications/read-all', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const updated = store.markNotificationsRead(user.id);
@@ -1356,7 +1840,10 @@ app.get('/api/search', async (req, res) => {
   const geoInfo = await getGeoInfo(req);
   const matchedTutors = tutors.listApproved().filter((t) => inViewerCountry(t, geoInfo.name) && (
     t.name.toLowerCase().includes(q)
-    || t.categories.some((c) => c.toLowerCase().includes(q))
+    // Also resolves everyday terms like "singing"/"voice" to the Vocals
+    // category (see data/searchSynonyms.js), not just an exact/substring
+    // match against the taxonomy string itself.
+    || matchesAnyCategory(t.categories, q)
     || (t.genres || []).some((g) => g.toLowerCase().includes(q))
     || (t.bio || '').toLowerCase().includes(q)
   )).slice(0, 12);
@@ -1375,7 +1862,7 @@ app.get('/api/search', async (req, res) => {
       const ownerAllowed = (item.ownerScope || 'mozart') === 'mozart' || item.ownerScope === 'tutor';
       if (!ownerAllowed) return false;
       const searchText = [item.title, item.description, item.category, item.genre, librarySlug(item.title), item.url].filter(Boolean).join(' ').toLowerCase();
-      return searchText.includes(q) || searchText.includes(librarySearchTerm);
+      return searchText.includes(q) || searchText.includes(librarySearchTerm) || categoryMatchesQuery(item.category, q) || categoryMatchesQuery(item.category, librarySearchTerm);
     })
     .slice(0, 12)
     .map((item) => ({
@@ -1391,6 +1878,329 @@ app.get('/api/search', async (req, res) => {
     }));
 
   res.json({ success: true, tutors: tutorResults, videos: matchedVideos });
+});
+
+// --- POLLS: one-off admin-broadcast opinion polls (data/polls.js) ---
+// Separate from Tutor/Performer Orientation (mandatory, one screen) and
+// from Orientation Updates' quiz questions (graded, audience-scoped) - a
+// poll has no correct answer and goes to every signed-in user once.
+app.post('/api/admin/polls', requireAdminApi, (req, res) => {
+  const { question, options } = req.body || {};
+  const cleanQuestion = String(question || '').trim();
+  const cleanOptions = Array.isArray(options) ? options.map((o) => String(o || '').trim()).filter(Boolean) : [];
+  if (!cleanQuestion) return res.status(400).json({ success: false, error: 'Enter a question.' });
+  if (cleanOptions.length < 2) return res.status(400).json({ success: false, error: 'Add at least 2 options.' });
+  const poll = polls.create({ question: cleanQuestion, options: cleanOptions, createdByUserId: currentUser(req).id });
+  res.json({ success: true, poll: polls.results(poll) });
+});
+
+app.get('/api/admin/polls', requireAdminApi, (req, res) => {
+  res.json({ success: true, polls: polls.listAll().map(polls.results) });
+});
+
+app.post('/api/admin/polls/:id/close', requireAdminApi, (req, res) => {
+  const poll = polls.close(req.params.id);
+  if (!poll) return res.status(404).json({ success: false, error: 'Poll not found.' });
+  res.json({ success: true, poll: polls.results(poll) });
+});
+
+app.delete('/api/admin/polls/:id', requireAdminApi, (req, res) => {
+  const ok = polls.remove(req.params.id);
+  if (!ok) return res.status(404).json({ success: false, error: 'Poll not found.' });
+  res.json({ success: true });
+});
+
+// The next poll this user hasn't seen yet (question/options only - no
+// counts, this is the respondent's view, not the admin's).
+app.get('/api/polls/active', requireAuthApi, (req, res) => {
+  const poll = polls.nextForUser(currentUser(req).id);
+  if (!poll) return res.json({ success: true, poll: null });
+  res.json({ success: true, poll: { id: poll.id, question: poll.question, options: poll.options } });
+});
+
+app.post('/api/polls/:id/respond', requireAuthApi, (req, res) => {
+  const poll = polls.findById(req.params.id);
+  if (!poll || !poll.active) return res.status(404).json({ success: false, error: 'Poll not found.' });
+  const optionIndex = Number(req.body?.optionIndex);
+  if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= poll.options.length) {
+    return res.status(400).json({ success: false, error: 'Invalid option.' });
+  }
+  polls.respond(poll.id, currentUser(req).id, optionIndex);
+  res.json({ success: true });
+});
+
+// Closed without answering - still marks it seen so it never shows again.
+app.post('/api/polls/:id/dismiss', requireAuthApi, (req, res) => {
+  const poll = polls.findById(req.params.id);
+  if (!poll) return res.status(404).json({ success: false, error: 'Poll not found.' });
+  polls.markSeen(poll.id, currentUser(req).id);
+  res.json({ success: true });
+});
+
+// --- TEACHER EDUCATION: admin-assigned quizzes, the MT certification +
+// external-credential portal, and the tier-equivalency engine. Tutor
+// identity throughout is the tutor PROFILE id (tutors.findById), not the
+// user id - same convention req.tutorProfile already uses everywhere else
+// in this file. ---
+
+// Part 0 - shown next to every tier reference on both the teacher portal
+// and the admin console, per the spec's own instruction to answer "what
+// can I teach at this tier" before anyone has to ask.
+app.get('/api/teaching-tiers', (req, res) => {
+  res.json({ success: true, tiers: teachingTiers.listAll() });
+});
+
+// --- Credential crosswalk (Part 3.3) ---
+app.get('/api/credential-crosswalk', (req, res) => {
+  const { q } = req.query;
+  res.json({ success: true, rows: credentialCrosswalk.search(q) });
+});
+app.get('/api/admin/credential-crosswalk', requireAdminApi, (req, res) => {
+  res.json({ success: true, rows: credentialCrosswalk.listAll({ activeOnly: false }), policyVersion: credentialCrosswalk.currentPolicyVersion() });
+});
+app.post('/api/admin/credential-crosswalk', requireAdminApi, (req, res) => {
+  const { body, credentialName, credentialType, bodysOwnAnchor, disciplineScope, mtPoints, proposedTier, sourceUrl, verificationMethod } = req.body || {};
+  if (!body || !credentialName || !credentialType || !proposedTier) return res.status(400).json({ success: false, error: 'body, credentialName, credentialType and proposedTier are required.' });
+  if (!teachingTiers.findByCode(proposedTier)) return res.status(400).json({ success: false, error: 'Unknown tier code.' });
+  const row = credentialCrosswalk.create({ body, credentialName, credentialType, bodysOwnAnchor, disciplineScope, mtPoints, proposedTier, sourceUrl, verificationMethod });
+  res.json({ success: true, row });
+});
+app.post('/api/admin/credential-crosswalk/:id', requireAdminApi, (req, res) => {
+  if (req.body?.proposedTier && !teachingTiers.findByCode(req.body.proposedTier)) return res.status(400).json({ success: false, error: 'Unknown tier code.' });
+  const row = credentialCrosswalk.update(req.params.id, req.body || {});
+  if (!row) return res.status(404).json({ success: false, error: 'Crosswalk row not found.' });
+  res.json({ success: true, row });
+});
+app.post('/api/admin/credential-crosswalk/:id/active', requireAdminApi, (req, res) => {
+  const row = credentialCrosswalk.setActive(req.params.id, req.body?.active !== false);
+  if (!row) return res.status(404).json({ success: false, error: 'Crosswalk row not found.' });
+  res.json({ success: true, row });
+});
+
+// --- Foundation / specialist cert modules ---
+app.get('/api/teacher-ed/modules', requireTutorProfileApi, (req, res) => {
+  res.json({ success: true, modules: certModules.listModules(), dimensions: certModules.listDimensions() });
+});
+app.post('/api/teacher-ed/modules/:code/attempt', requireTutorProfileApi, (req, res) => {
+  const answers = Array.isArray(req.body?.answers) ? req.body.answers : [];
+  const attempt = certModules.recordAttempt(req.tutorProfile.id, req.params.code, answers);
+  if (!attempt) return res.status(404).json({ success: false, error: 'Module not found.' });
+  const completedAssignments = quizAssignments.markCompletedIfPassed(req.tutorProfile.id, req.params.code);
+  res.json({ success: true, attempt, assignmentsCompleted: completedAssignments.length });
+});
+app.get('/api/admin/cert-modules', requireAdminApi, (req, res) => {
+  res.json({ success: true, modules: certModules.listModules({ activeOnly: false }), dimensions: certModules.listDimensions() });
+});
+app.post('/api/admin/cert-modules', requireAdminApi, (req, res) => {
+  const { code, title, dimensions, resource, kind } = req.body || {};
+  if (!code || !title) return res.status(400).json({ success: false, error: 'code and title are required.' });
+  const module = certModules.createModule({ code, title, dimensions: dimensions || [], resource: resource || null, kind });
+  if (!module) return res.status(409).json({ success: false, error: 'A module with that code already exists.' });
+  res.json({ success: true, module });
+});
+app.post('/api/admin/cert-modules/:code/questions', requireAdminApi, (req, res) => {
+  const { text, options, correctIndex, dimension } = req.body || {};
+  if (!text || !Array.isArray(options) || options.length < 2 || correctIndex == null || !dimension) {
+    return res.status(400).json({ success: false, error: 'text, at least 2 options, correctIndex and dimension are required.' });
+  }
+  const question = certModules.addQuestion(req.params.code, { text, options, correctIndex: Number(correctIndex), dimension });
+  if (!question) return res.status(404).json({ success: false, error: 'Module not found.' });
+  res.json({ success: true, question });
+});
+app.post('/api/admin/cert-modules/:code/active', requireAdminApi, (req, res) => {
+  const module = certModules.setModuleActive(req.params.code, req.body?.active !== false);
+  if (!module) return res.status(404).json({ success: false, error: 'Module not found.' });
+  res.json({ success: true, module });
+});
+
+// --- Quiz assignments: admin-pushed content (Part 1) ---
+app.get('/api/teacher-ed/my-assignments', requireTutorProfileApi, (req, res) => {
+  quizAssignments.sweepOverdue();
+  res.json({ success: true, items: quizAssignments.listQueue({ tutorId: req.tutorProfile.id }) });
+});
+app.post('/api/teacher-ed/my-assignments/:id/start', requireTutorProfileApi, (req, res) => {
+  const item = quizAssignments.findQueueItem(req.params.id);
+  if (!item || item.assignedTo !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  res.json({ success: true, item: quizAssignments.markStarted(item.id) });
+});
+app.get('/api/admin/quiz-assignments', requireAdminApi, (req, res) => {
+  quizAssignments.sweepOverdue();
+  const { tutorId, orgId } = req.query;
+  res.json({ success: true, items: quizAssignments.listQueue({ tutorId: tutorId || undefined, orgId: orgId || undefined }) });
+});
+app.post('/api/admin/quiz-assignments', requireAdminApi, (req, res) => {
+  const { orgId, assignedTo, targetType, targetId, reason, dueAt } = req.body || {};
+  if (!assignedTo || !targetType || !targetId) return res.status(400).json({ success: false, error: 'assignedTo, targetType and targetId are required.' });
+  const item = quizAssignments.assign({ orgId: orgId || null, assignedByUserId: currentUser(req).id, assignedTo, targetType, targetId, reason, dueAt: dueAt || null });
+  const tutor = tutors.findById(assignedTo);
+  if (tutor) {
+    store.addNotification(tutor.userId, {
+      type: 'quiz_assignment',
+      message: reason ? `New professional development item: ${reason}` : 'You have a new professional development item assigned.',
+      href: '/teacher-education',
+    });
+  }
+  res.json({ success: true, item });
+});
+app.post('/api/admin/quiz-assignments/:id/waive', requireAdminApi, (req, res) => {
+  const item = quizAssignments.waive(req.params.id, currentUser(req).id, req.body?.reason);
+  if (!item) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  res.json({ success: true, item });
+});
+app.post('/api/admin/quiz-assignments/:id/remind', requireAdminApi, (req, res) => {
+  const item = quizAssignments.findQueueItem(req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  const tutor = tutors.findById(item.assignedTo);
+  if (tutor) {
+    store.addNotification(tutor.userId, {
+      type: 'quiz_assignment',
+      message: `Reminder: ${item.reason || 'a professional development item'} is due${item.dueAt ? ` ${new Date(item.dueAt).toLocaleDateString()}` : ''}.`,
+      href: '/teacher-education',
+    });
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/admin/quiz-assignment-rules', requireAdminApi, (req, res) => {
+  res.json({ success: true, rules: quizAssignments.listRules() });
+});
+app.post('/api/admin/quiz-assignment-rules', requireAdminApi, (req, res) => {
+  const { orgId, trigger, filter, targetType, targetIds, cadence } = req.body || {};
+  if (!trigger || !targetType || !Array.isArray(targetIds) || !targetIds.length) {
+    return res.status(400).json({ success: false, error: 'trigger, targetType and at least one targetId are required.' });
+  }
+  const rule = quizAssignments.createRule({ orgId: orgId || null, trigger, filter: filter || {}, targetType, targetIds, cadence: cadence || null, createdByUserId: currentUser(req).id });
+  res.json({ success: true, rule });
+});
+app.post('/api/admin/quiz-assignment-rules/:id/active', requireAdminApi, (req, res) => {
+  const rule = quizAssignments.setRuleActive(req.params.id, req.body?.active !== false);
+  if (!rule) return res.status(404).json({ success: false, error: 'Rule not found.' });
+  res.json({ success: true, rule });
+});
+// Runs every manual-trigger and new_hire-trigger rule against every
+// approved tutor right now, rather than waiting for a scheduled job this
+// deployment has no cron runner for - the admin console's "Run rules now"
+// button.
+app.post('/api/admin/quiz-assignment-rules/run', requireAdminApi, (req, res) => {
+  const candidates = tutors.listApproved().map((t) => ({ id: t.id, categories: t.categories, orgId: null }));
+  const queued = [
+    ...quizAssignments.applyRules('manual', candidates, currentUser(req).id),
+    ...quizAssignments.applyRules('new_hire', candidates, currentUser(req).id),
+    ...quizAssignments.applyRules('low_score', candidates, currentUser(req).id),
+    ...quizAssignments.applyRules('recurring', candidates, currentUser(req).id),
+  ];
+  queued.forEach((item) => {
+    const tutor = tutors.findById(item.assignedTo);
+    if (tutor) store.addNotification(tutor.userId, { type: 'quiz_assignment', message: item.reason, href: '/teacher-education' });
+  });
+  res.json({ success: true, queuedCount: queued.length });
+});
+
+// --- External credential submission + review (Part 2.2/2.4) ---
+app.get('/api/teacher-ed/my-credentials', requireTutorProfileApi, (req, res) => {
+  res.json({ success: true, submissions: externalCredentials.listForTutor(req.tutorProfile.id) });
+});
+app.post('/api/teacher-ed/credentials', requireTutorProfileApi, (req, res) => {
+  const { crosswalkId, evidenceUrl, issuingBodyRef } = req.body || {};
+  if (!crosswalkId) return res.status(400).json({ success: false, error: 'Select the credential you\'re submitting.' });
+  const submission = externalCredentials.submit({ tutorId: req.tutorProfile.id, crosswalkId, evidenceUrl, issuingBodyRef });
+  if (!submission) return res.status(404).json({ success: false, error: 'That credential is not on the crosswalk list.' });
+  res.json({ success: true, submission });
+});
+app.get('/api/admin/external-credentials', requireAdminApi, (req, res) => {
+  const { pendingOnly } = req.query;
+  res.json({ success: true, submissions: pendingOnly ? externalCredentials.listPending() : externalCredentials.listAll() });
+});
+app.post('/api/admin/external-credentials/:id/verify', requireAdminApi, (req, res) => {
+  const submission = externalCredentials.verify(req.params.id, currentUser(req).id, { note: req.body?.note, expiresAt: req.body?.expiresAt || null });
+  if (!submission) return res.status(404).json({ success: false, error: 'Submission not found.' });
+  const tutor = tutors.findById(submission.tutorId);
+  if (tutor) store.addNotification(tutor.userId, { type: 'credential_review', message: `Your ${submission.crosswalkSnapshot.credentialName} submission was verified.`, href: '/teacher-education' });
+  res.json({ success: true, submission });
+});
+app.post('/api/admin/external-credentials/:id/reject', requireAdminApi, (req, res) => {
+  const submission = externalCredentials.reject(req.params.id, currentUser(req).id, req.body?.reason);
+  if (!submission) return res.status(404).json({ success: false, error: 'Submission not found.' });
+  const tutor = tutors.findById(submission.tutorId);
+  if (tutor) store.addNotification(tutor.userId, { type: 'credential_review', message: `Your ${submission.crosswalkSnapshot.credentialName} submission needs attention: ${req.body?.reason || 'see the review note'}.`, href: '/teacher-education' });
+  res.json({ success: true, submission });
+});
+app.post('/api/admin/external-credentials/:id/more-evidence', requireAdminApi, (req, res) => {
+  const submission = externalCredentials.requestMoreEvidence(req.params.id, currentUser(req).id, req.body?.note);
+  if (!submission) return res.status(404).json({ success: false, error: 'Submission not found.' });
+  const tutor = tutors.findById(submission.tutorId);
+  if (tutor) store.addNotification(tutor.userId, { type: 'credential_review', message: `More evidence needed for your ${submission.crosswalkSnapshot.credentialName} submission.`, href: '/teacher-education' });
+  res.json({ success: true, submission });
+});
+
+// --- Practicum review (Part 3.5) ---
+app.get('/api/teacher-ed/my-practicum', requireTutorProfileApi, (req, res) => {
+  res.json({ success: true, reviews: practicumReviews.listForTutor(req.tutorProfile.id) });
+});
+app.post('/api/teacher-ed/practicum', requireTutorProfileApi, (req, res) => {
+  const { stage, videoUrl, lessonPlanUrl, outcomeNote } = req.body || {};
+  const review = practicumReviews.submit({ tutorId: req.tutorProfile.id, stage, videoUrl, lessonPlanUrl, outcomeNote });
+  if (!review) return res.status(400).json({ success: false, error: 'Invalid practicum stage.' });
+  res.json({ success: true, review });
+});
+app.post('/api/admin/practicum-reviews/:id/approve', requireAdminApi, (req, res) => {
+  const review = practicumReviews.approve(req.params.id, currentUser(req).id, req.body?.note);
+  if (!review) return res.status(404).json({ success: false, error: 'Review not found.' });
+  const tutor = tutors.findById(review.tutorId);
+  if (tutor) store.addNotification(tutor.userId, { type: 'practicum_review', message: `Your ${review.stage.replace('_', ' ')} practicum review was approved.`, href: '/teacher-education' });
+  res.json({ success: true, review });
+});
+app.post('/api/admin/practicum-reviews/:id/reject', requireAdminApi, (req, res) => {
+  const review = practicumReviews.reject(req.params.id, currentUser(req).id, req.body?.reason);
+  if (!review) return res.status(404).json({ success: false, error: 'Review not found.' });
+  const tutor = tutors.findById(review.tutorId);
+  if (tutor) store.addNotification(tutor.userId, { type: 'practicum_review', message: `Your ${review.stage.replace('_', ' ')} practicum review needs attention: ${req.body?.reason || 'see the review note'}.`, href: '/teacher-education' });
+  res.json({ success: true, review });
+});
+
+// One shared review queue for both credential verification and practicum
+// review (Part 2.4/3.5's explicit instruction to build this once), composed
+// from the two underlying modules rather than merged into one table.
+app.get('/api/admin/review-queue', requireAdminApi, (req, res) => {
+  const credentialItems = externalCredentials.listPending().map((s) => ({ kind: 'credential', ...s }));
+  const practicumItems = practicumReviews.listPending().map((r) => ({ kind: 'practicum', ...r }));
+  const items = [...credentialItems, ...practicumItems].sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  res.json({ success: true, items });
+});
+
+// --- Tier standing + appeals (Part 2.3/2.5/3.4) ---
+app.get('/api/teacher-ed/standing', requireTutorProfileApi, (req, res) => {
+  res.json({ success: true, standing: tierEngine.computeStanding(req.tutorProfile.id) });
+});
+app.get('/api/admin/tutors/:tutorId/standing', requireAdminApi, (req, res) => {
+  const tutor = tutors.findById(req.params.tutorId);
+  if (!tutor) return res.status(404).json({ success: false, error: 'Tutor not found.' });
+  res.json({ success: true, standing: tierEngine.computeStanding(tutor.id) });
+});
+// A low-friction "ask a human to look at this again" button (Part 2.5) -
+// reopens the rejected item back into the same shared review queue with an
+// appeal note attached, rather than a support email buried in a help page.
+app.post('/api/teacher-ed/appeals', requireTutorProfileApi, (req, res) => {
+  const { kind, id, message } = req.body || {};
+  if (!message || !String(message).trim()) return res.status(400).json({ success: false, error: 'Explain what you\'d like reviewed again.' });
+  let record = null;
+  if (kind === 'credential') {
+    const submission = externalCredentials.findById(id);
+    if (!submission || submission.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Submission not found.' });
+    record = externalCredentials.requestMoreEvidence(id, currentUser(req).id, `Teacher appeal: ${message}`);
+  } else if (kind === 'practicum') {
+    const review = practicumReviews.findById(id);
+    if (!review || review.tutorId !== req.tutorProfile.id) return res.status(404).json({ success: false, error: 'Review not found.' });
+    // practicumReviews has no "more evidence" state - resubmit straight
+    // back into the pending queue with the appeal note visible.
+    record = practicumReviews.submit({ tutorId: review.tutorId, stage: review.stage, videoUrl: review.videoUrl, lessonPlanUrl: review.lessonPlanUrl, outcomeNote: `${review.outcomeNote || ''}\n\nAppeal: ${message}`.trim() });
+  } else {
+    return res.status(400).json({ success: false, error: 'Unknown appeal kind.' });
+  }
+  store.listUsers().filter((u) => u.role === 'admin').forEach((admin) => {
+    store.addNotification(admin.id, { type: 'appeal', message: `${req.tutorProfile.name} appealed a ${kind} review decision.`, href: '/admin' });
+  });
+  res.json({ success: true, record });
 });
 
 // --- TUTORS: applications, browsing, and matching ---
@@ -1443,6 +2253,16 @@ app.post('/api/tutors/me/hourly-rate', requireTutorProfileApi, (req, res) => {
     return res.status(400).json({ success: false, error: 'Enter a valid hourly rate.' });
   }
   const updated = tutors.setHourlyRate(req.tutorProfile.id, hourlyRateUsd);
+  res.json({ success: true, profile: updated });
+});
+
+// The rest of a tutor's editable public-facing details, same
+// self-service pattern as /categories and /hourly-rate above.
+app.post('/api/tutors/me/profile', requireTutorProfileApi, (req, res) => {
+  const { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation } = req.body || {};
+  if (publicExactLocation !== undefined && typeof publicExactLocation !== 'boolean') return res.status(400).json({ success: false, error: 'Invalid map sharing permission.' });
+  if (genres !== undefined && !Array.isArray(genres)) return res.status(400).json({ success: false, error: 'Invalid genres.' });
+  const updated = tutors.setProfileDetails(req.tutorProfile.id, { bio, qualifications, city, genres, teachesOnline, inPersonVenue, publicExactLocation });
   res.json({ success: true, profile: updated });
 });
 
@@ -1499,7 +2319,7 @@ app.post('/api/uploads/certificate', requireAuthApi, (req, res) => {
   });
 });
 
-app.post('/api/uploads/photo', requireAuthApi, (req, res) => {
+app.post('/api/uploads/photo', hydrateUploadToken, requireAuthApi, (req, res) => {
   photoUpload.single('photo')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 8MB).' : err.message;
@@ -1578,7 +2398,22 @@ function stripeConnectCountry(user) {
 
 function publicAppUrl(req) {
   const configured = process.env.BASE_URL || process.env.APP_URL;
-  if (configured) return configured.replace(/\/$/, '');
+  const configuredIsLoopback = configured && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(configured);
+  // A configured BASE_URL of "localhost" only resolves for a browser
+  // running on this same machine - a phone on the LAN hitting this server
+  // by its real IP can never reach "localhost" back (that just means the
+  // phone itself), which silently breaks any Stripe success_url/cancel_url
+  // built from it (the redirect after payment goes nowhere, so the wallet/
+  // bill never gets credited via that path - only the client's own
+  // verify-after-close fallback can save it, and only if the user notices
+  // the browser needs closing manually). Trust the configured loopback
+  // value only when the *incoming* request also came in via loopback (a
+  // desktop browser on this same machine); otherwise use the host the
+  // request actually reached this server on, which a remote device is
+  // already proven able to reach, since that's how its request got here.
+  if (configured && (!configuredIsLoopback || !req || /^(localhost|127\.0\.0\.1)$/i.test(String(req.hostname || '')))) {
+    return configured.replace(/\/$/, '');
+  }
   if (process.env.NODE_ENV === 'production') return 'https://mozarttechniques.com';
   return req ? `${req.protocol}://${req.get('host')}` : 'http://localhost:3000';
 }
@@ -1828,8 +2663,11 @@ app.post('/api/tutors/me/withdraw', requireTutorProfileApi, (req, res) => {
   const amount = Number(req.body && req.body.amount) || 0;
   const tutor = req.tutorProfile;
   if (!tutor) return res.status(404).json({ success: false, error: 'No tutor profile.' });
-  if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount.' });
   const user = currentUser(req);
+  if (requiredOrientationStatus(user).blocked) {
+    return res.status(403).json({ success: false, error: 'Complete your required orientation before requesting a withdrawal.' });
+  }
+  if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount.' });
   if (!user.payoutDetails) return res.status(400).json({ success: false, error: 'Add your bank payout details before requesting withdrawal.' });
   const withdrawable = Math.round(((tutor.balanceUsd || 0) - payouts.pendingAmountForTutor(tutor.id)) * 100) / 100;
   if (amount > withdrawable) return res.status(400).json({ success: false, error: `You can request up to $${withdrawable.toFixed(2)}.` });
@@ -1969,8 +2807,26 @@ function parseRegionFilter(req) {
   return set.size ? set : null;
 }
 
+// A country admin gets no "all countries" option on Analytics/Payouts/
+// Activity - unlike the tutor/user/performer lists (scoped via
+// canManageUser, keyed by ISO country CODE), these routes filter by
+// country NAME via the client-supplied ?regions= param, so a country
+// admin's own ?regions= choice can't be trusted. For a non-primary admin,
+// this ignores whatever the client sent and forces the filter to their
+// own country (resolved from adminCountryCode, an ISO code, via the same
+// curated currency list countryCodeForName reads) - only Main Admin can
+// pass an arbitrary/empty regions filter to see other countries or all of
+// them.
+function resolveRegionFilter(req, admin) {
+  if (isPrimaryAdmin(admin)) return parseRegionFilter(req);
+  const ownCountry = admin && admin.adminCountryCode && geo.COUNTRY_CURRENCY[admin.adminCountryCode]
+    ? geo.COUNTRY_CURRENCY[admin.adminCountryCode].name
+    : null;
+  return new Set(ownCountry ? [ownCountry.toLowerCase()] : ['__none__']);
+}
+
 app.get('/api/admin/payouts', requireAdminApi, (req, res) => {
-  const regionSet = parseRegionFilter(req);
+  const regionSet = resolveRegionFilter(req, currentUser(req));
   const list = payouts.listAll().filter((item) => {
     if (!regionSet) return true;
     const tutor = tutors.findById(item.tutorId);
@@ -2390,6 +3246,14 @@ app.post('/api/admin/products', requireAdminApi, (req, res) => {
   const colorError = validateProductColors(colors);
   if (colorError) return res.status(400).json({ success: false, error: colorError });
   const product = products.create({ name, category, description, priceUsd, coverImage, images, colors, status, createdBy: currentUser(req).id });
+  // A live product (not a draft) pops up on every signed-in user's
+  // dashboard - see QuickSearchSheet/NotificationBubbles-adjacent handling
+  // on mobile and nav-auth.js's poll on web, both keyed off type:'new_product'.
+  if (product.status !== 'draft') {
+    store.listUsers().forEach((u) => {
+      store.addNotification(u.id, { type: 'new_product', message: product.name, href: `/product?slug=${product.slug}`, imageUrl: product.coverImage });
+    });
+  }
   res.json({ success: true, product });
 });
 
@@ -2416,7 +3280,7 @@ app.delete('/api/admin/products/:id', requireAdminApi, (req, res) => {
   res.json({ success: true, product });
 });
 
-app.post('/api/admin/products/upload-image', requireAdminApi, (req, res) => {
+app.post('/api/admin/products/upload-image', hydrateUploadToken, requireAdminApi, (req, res) => {
   productImageUpload.single('image')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 8MB).' : err.message;
@@ -2472,19 +3336,47 @@ app.post('/api/admin/orders/:id/status', requireAdminApi, (req, res) => {
 const ACTIVATION_FEE_USD = 1.5;
 
 function performerPublicSummary(p) {
+  const hourlyRateUsd = Number(p.hourlyRateUsd) || (p.rateUnit === 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
+  const eventRateUsd = Number(p.eventRateUsd) || (p.rateUnit !== 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
   return {
+    slug: performers.publicSlug(p),
     id: p.id, name: p.name, performerType: p.performerType, groupSize: p.groupSize,
     categories: p.categories, city: p.city, locality: p.locality, photoUrl: p.photoUrl,
-    baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, bio: p.bio, experienceYears: p.experienceYears,
+    baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, hourlyRateUsd, eventRateUsd, bio: p.bio, experienceYears: p.experienceYears,
   };
 }
 
 function performerFullPublicView(p) {
+  const hourlyRateUsd = Number(p.hourlyRateUsd) || (p.rateUnit === 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
+  const eventRateUsd = Number(p.eventRateUsd) || (p.rateUnit !== 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
   return {
     id: p.id, name: p.name, performerType: p.performerType, groupSize: p.groupSize, categories: p.categories,
     city: p.city, locality: p.locality, bio: p.bio, experienceYears: p.experienceYears, qualifications: p.qualifications,
-    styleTags: p.styleTags, baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, photoUrl: p.photoUrl,
+    styleTags: p.styleTags, baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, hourlyRateUsd, eventRateUsd, photoUrl: p.photoUrl,
     galleryPhotos: p.galleryPhotos, videoClips: p.videoClips, socialLinks: p.socialLinks,
+  };
+}
+
+// Performer earnings remain in USD internally because Stripe, payouts and
+// marketplace negotiations use that canonical amount.  Responses include a
+// local display amount so a performer never has to mentally convert their
+// own per-event or hourly rate.
+async function performerRateForViewer(p, geoInfo) {
+  const hourlyRateUsd = Number(p.hourlyRateUsd) || (p.rateUnit === 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
+  const eventRateUsd = Number(p.eventRateUsd) || (p.rateUnit !== 'per_hour' ? Number(p.baseRateUsd) || 0 : 0);
+  const [hourlyRateLocal, eventRateLocal] = await Promise.all([
+    currency.convertFromUsd(hourlyRateUsd, geoInfo.currency),
+    currency.convertFromUsd(eventRateUsd, geoInfo.currency),
+  ]);
+  const baseRateLocal = p.rateUnit === 'per_hour' ? hourlyRateLocal : eventRateLocal;
+  return {
+    baseRateLocal: Math.round(baseRateLocal * 100) / 100,
+    hourlyRateUsd,
+    eventRateUsd,
+    hourlyRateLocal: Math.round(hourlyRateLocal * 100) / 100,
+    eventRateLocal: Math.round(eventRateLocal * 100) / 100,
+    currency: geoInfo.currency,
+    symbol: geoInfo.symbol,
   };
 }
 
@@ -2507,9 +3399,18 @@ function summarizeOfferCounts(offers) {
 
 function notifyMatchingPerformers(req, request, matches) {
   matches.forEach(({ performer }) => {
+    const details = [
+      `${request.eventType} - ${request.performerCategory}`,
+      `Date: ${request.eventDate || 'TBD'}`,
+      `Duration: ${request.eventDurationHours || 'TBD'} hour(s)`,
+      `Location: ${request.eventLocation}`,
+      `Budget: $${request.proposedAmountUsd}`,
+      request.notes ? `Details: ${request.notes}` : null,
+      request.eventMedia && request.eventMedia.length ? `${request.eventMedia.length} event media attachment(s) included.` : null,
+    ].filter(Boolean).join(' | ');
     store.addNotification(performer.userId, {
       type: 'marketplace_request_invite',
-      message: `New ${request.eventType} booking request near you (within ${request.radiusKm}km) - respond in your Performer Dashboard.`,
+      message: `New booking request: ${details}`,
       href: '/performer?tab=requests',
     });
     const performerUser = store.findById(performer.userId);
@@ -2517,7 +3418,7 @@ function notifyMatchingPerformers(req, request, matches) {
       mailer.sendMail({
         to: performerUser.email,
         subject: 'Mozart Techniques - New booking request',
-        text: `A user is looking for a ${request.performerCategory} for a ${request.eventType} near you.\n\nProposed rate: $${request.proposedAmountUsd}\nDate: ${request.eventDate || 'TBD'}\n\nRespond in your Performer Dashboard: ${publicAppUrl(req)}/performer`,
+        text: `A new booking request matches your profile.\n\n${details.replaceAll(' | ', '\n')}\n\nRespond in your Performer Dashboard: ${publicAppUrl(req)}/performer`,
       });
     }
   });
@@ -2546,6 +3447,20 @@ app.post('/api/admin/performer-categories', requireAdminApi, (req, res) => {
   const existing = taxonomy.loadPerformerCategories();
   if (existing.some((c) => c.toLowerCase() === name.toLowerCase())) return res.status(409).json({ success: false, error: 'That category already exists.' });
   res.json({ success: true, categories: taxonomy.addPerformerCategory(name) });
+});
+
+// A performer applying who doesn't see their own category in the list can
+// add it themselves (any signed-in user, not admin-only) - it's saved to
+// the same shared list the admin route above appends to, so it immediately
+// shows up as a real filter chip on Find a Performer for everyone, not just
+// a value stored on that one performer's own record.
+app.post('/api/performer-categories', requireAuthApi, (req, res) => {
+  const name = String((req.body && req.body.category) || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ success: false, error: 'Category name is required.' });
+  const existing = taxonomy.loadPerformerCategories();
+  const match = existing.find((c) => c.toLowerCase() === name.toLowerCase());
+  if (match) return res.json({ success: true, categories: existing, category: match });
+  res.json({ success: true, categories: taxonomy.addPerformerCategory(name), category: name });
 });
 
 app.get('/api/event-types', (req, res) => {
@@ -2583,30 +3498,243 @@ app.post('/api/admin/benchmark-rates', requireAdminApi, (req, res) => {
 
 // --- Public performer browsing ---
 
-app.get('/api/performers', (req, res) => {
+app.get('/api/performers', async (req, res) => {
   const { category, city } = req.query;
   let list = performers.listApproved();
   if (category) list = list.filter((p) => (p.categories || []).includes(category));
   if (city) list = list.filter((p) => (p.city || '').toLowerCase().includes(String(city).toLowerCase()));
-  res.json({ success: true, performers: list.map(performerPublicSummary) });
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, performers: await Promise.all(list.map(async (p) => ({ ...performerPublicSummary(p), ...(await performerRateForViewer(p, geoInfo)) }))) });
 });
 
-app.get('/api/performers/:id/public', (req, res) => {
+app.get('/api/performers/:id/public', async (req, res) => {
   const performer = performers.findById(req.params.id);
   if (!performer || performer.status !== 'approved' || performer.suspended) return res.status(404).json({ success: false, error: 'Performer not found.' });
-  res.json({ success: true, performer: performerFullPublicView(performer) });
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, performer: { ...performerFullPublicView(performer), ...(await performerRateForViewer(performer, geoInfo)) } });
 });
 
-app.get('/api/performers/slug/:slug', (req, res) => {
+app.get('/api/performers/slug/:slug', async (req, res) => {
   const performer = performers.findBySlug(req.params.slug);
   if (!performer || performer.status !== 'approved' || performer.suspended) return res.status(404).json({ success: false, error: 'Performer not found.' });
-  res.json({ success: true, performer: performerFullPublicView(performer) });
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, performer: { ...performerFullPublicView(performer), ...(await performerRateForViewer(performer, geoInfo)) } });
+});
+
+function publicPerformerPost(post, viewerId) {
+  const performer = performers.findById(post.performerId);
+  if (!performer || performer.status !== 'approved' || performer.suspended) return null;
+  const reactions = Array.isArray(post.reactions) ? post.reactions : [];
+  const comments = Array.isArray(post.comments) ? post.comments : [];
+  return {
+    id: post.id,
+    text: post.text || '',
+    mediaUrl: post.mediaUrl || null,
+    mediaType: post.mediaType || 'text',
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt || post.createdAt,
+    performer: performerPublicSummary(performer),
+    reactionCount: reactions.length,
+    reactedByCurrentUser: reactions.some((reaction) => Number(reaction.userId) === Number(viewerId)),
+    comments: comments.map((comment) => ({
+      id: comment.id,
+      userId: comment.userId,
+      userName: comment.userName || 'Mozart Techniques member',
+      userPhotoUrl: comment.userPhotoUrl || null,
+      text: comment.text,
+      createdAt: comment.createdAt,
+    })),
+  };
+}
+
+// Marketplace messages open only after a performer has accepted an offer or
+// a requester has selected their counter-offer.  A plain counter-offer is
+// still a negotiation, not a confirmed booking, so it cannot open a chat.
+const MARKETPLACE_CHAT_STATUSES = new Set(['accepted', 'selected']);
+
+function eligibleMarketplaceChatOffer(offer, request, performer) {
+  if (!offer || !request || !performer) return false;
+  if (!MARKETPLACE_CHAT_STATUSES.has(offer.status)) return false;
+  if (request.status === 'cancelled') return false;
+  if (Number(offer.requestId) !== Number(request.id) || Number(offer.performerId) !== Number(performer.id)) return false;
+  // An accepted offer is chat-enabled while the requester is deciding.  A
+  // counter-offer becomes chat-enabled only when it has actually been
+  // selected, preventing unconfirmed negotiations from becoming DMs.
+  if (offer.status === 'accepted') return request.status === 'open';
+  return request.status === 'closed' && Number(request.selectedOfferId) === Number(offer.id);
+}
+
+function ensureMarketplaceConversation(offer) {
+  const request = marketplaceRequests.findById(offer && offer.requestId);
+  const performer = performers.findById(offer && offer.performerId);
+  if (!eligibleMarketplaceChatOffer(offer, request, performer)) return null;
+  return marketplaceChat.getOrCreateConversation({ offer, request, performer });
+}
+
+// The persistent conversation only stores a historical snapshot.  Every API
+// request re-resolves the live offer, request and performer before returning
+// it, so a cancelled/not-selected booking immediately loses message access.
+function resolveMarketplaceConversationAccess(user, conversationId) {
+  const conversation = marketplaceChat.findById(conversationId);
+  if (!conversation) return null;
+  const offer = marketplaceOffers.findById(conversation.offerId);
+  const request = marketplaceRequests.findById(conversation.requestId);
+  const performer = performers.findById(conversation.performerId);
+  if (!eligibleMarketplaceChatOffer(offer, request, performer)) return null;
+  if (Number(request.requesterId) === Number(user.id)) {
+    return { conversation, offer, request, performer, role: 'requester' };
+  }
+  if (Number(performer.userId) === Number(user.id)) {
+    return { conversation, offer, request, performer, role: 'performer' };
+  }
+  return null;
+}
+
+function marketplaceConversationSummary(access, user) {
+  const { conversation, offer, request, performer, role } = access;
+  const requester = store.findById(request.requesterId);
+  const client = {
+    id: request.requesterId,
+    userId: request.requesterId,
+    name: (requester && requester.name) || request.requesterName || 'Requester',
+    photoUrl: (requester && requester.photoUrl) || null,
+    role: 'requester',
+  };
+  const otherParty = role === 'performer'
+    ? client
+    : {
+      id: performer.userId,
+      userId: performer.userId,
+      name: performer.name || 'Performer',
+      photoUrl: performer.photoUrl || null,
+      role: 'performer',
+    };
+  const messages = conversation.messages || [];
+  const lastMessage = messages.length ? messages[messages.length - 1] : null;
+  return {
+    id: conversation.id,
+    offerId: offer.id,
+    requestId: request.id,
+    role,
+    client,
+    requester: client,
+    participant: otherParty,
+    otherParty,
+    eventType: request.eventType || 'Performance booking',
+    eventDate: request.eventDate || null,
+    eventLocation: request.eventLocation || null,
+    status: offer.status,
+    amountUsd: offer.counterAmountUsd || offer.proposedAmountUsd || 0,
+    booking: {
+      eventType: request.eventType || 'Performance booking',
+      eventDate: request.eventDate || null,
+      eventLocation: request.eventLocation || null,
+      status: offer.status,
+      amountUsd: offer.status === 'selected' || offer.status === 'accepted'
+        ? (offer.counterAmountUsd || offer.proposedAmountUsd || 0)
+        : 0,
+    },
+    unreadCount: marketplaceChat.unreadCount(conversation, role),
+    lastMessage: lastMessage
+      ? { id: lastMessage.id, text: lastMessage.text, senderId: lastMessage.senderId, createdAt: lastMessage.createdAt }
+      : null,
+    createdAt: conversation.createdAt,
+    lastMessageAt: conversation.lastMessageAt || conversation.createdAt,
+    updatedAt: conversation.lastMessageAt || conversation.createdAt,
+  };
+}
+
+function eligibleMarketplaceConversationAccessesForUser(user) {
+  const candidateOffers = [];
+  const seenOfferIds = new Set();
+  const addOffer = (offer) => {
+    if (!offer || seenOfferIds.has(Number(offer.id))) return;
+    seenOfferIds.add(Number(offer.id));
+    const request = marketplaceRequests.findById(offer.requestId);
+    const performer = performers.findById(offer.performerId);
+    if (!eligibleMarketplaceChatOffer(offer, request, performer)) return;
+    const isRequester = Number(request.requesterId) === Number(user.id);
+    const isPerformer = Number(performer.userId) === Number(user.id);
+    if (!isRequester && !isPerformer) return;
+    candidateOffers.push(offer);
+  };
+
+  marketplaceRequests.listByRequester(user.id)
+    .forEach((request) => marketplaceOffers.listByRequest(request.id).forEach(addOffer));
+  const performer = performers.findByUserId(user.id);
+  if (performer) marketplaceOffers.listByPerformer(performer.id).forEach(addOffer);
+
+  return candidateOffers
+    .map((offer) => ensureMarketplaceConversation(offer))
+    .filter(Boolean)
+    .map((conversation) => resolveMarketplaceConversationAccess(user, conversation.id))
+    .filter(Boolean);
+}
+
+// A public, social-style portfolio feed used by Find a Performer.  It is
+// signed-in so reactions and comments are attributable and can be moderated.
+app.get('/api/performer-posts', requireAuthApi, (req, res) => {
+  const viewer = currentUser(req);
+  const posts = performerPosts.listAll()
+    .map((post) => publicPerformerPost(post, viewer.id))
+    .filter(Boolean);
+  res.json({ success: true, posts });
+});
+
+app.get('/api/performers/me/posts', requirePerformerProfileApi, (req, res) => {
+  const viewer = currentUser(req);
+  const posts = performerPosts.listByPerformer(req.performerProfile.id)
+    .map((post) => ({
+      ...post,
+      reactionCount: Array.isArray(post.reactions) ? post.reactions.length : 0,
+      reactedByCurrentUser: (post.reactions || []).some((reaction) => Number(reaction.userId) === Number(viewer.id)),
+    }));
+  res.json({ success: true, posts });
+});
+
+app.post('/api/performers/me/posts', requirePerformerProfileApi, (req, res) => {
+  const { text, mediaUrl, mediaType } = req.body || {};
+  const cleanText = String(text || '').trim();
+  const cleanUrl = String(mediaUrl || '').trim();
+  if (!cleanText && !cleanUrl) return res.status(400).json({ success: false, error: 'Add a caption, a photo, or a video before posting.' });
+  const post = performerPosts.create({ performerId: req.performerProfile.id, text: cleanText, mediaUrl: cleanUrl, mediaType });
+  res.status(201).json({ success: true, post });
+});
+
+app.delete('/api/performers/me/posts/:id', requirePerformerProfileApi, (req, res) => {
+  if (!performerPosts.remove(req.params.id, req.performerProfile.id)) return res.status(404).json({ success: false, error: 'Post not found.' });
+  res.json({ success: true });
+});
+
+app.post('/api/performer-posts/:id/reaction', requireAuthApi, (req, res) => {
+  const viewer = currentUser(req);
+  const post = performerPosts.findById(req.params.id);
+  if (!post || !publicPerformerPost(post, viewer.id)) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const updated = performerPosts.toggleReaction(post.id, viewer.id);
+  res.json({ success: true, post: publicPerformerPost(updated, viewer.id) });
+});
+
+app.post('/api/performer-posts/:id/comments', requireAuthApi, (req, res) => {
+  const viewer = currentUser(req);
+  const post = performerPosts.findById(req.params.id);
+  if (!post || !publicPerformerPost(post, viewer.id)) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const result = performerPosts.addComment(post.id, {
+    userId: viewer.id,
+    userName: viewer.name,
+    userPhotoUrl: viewer.photoUrl,
+    text: req.body && req.body.text,
+  });
+  if (!result) return res.status(400).json({ success: false, error: 'Write a comment before sending it.' });
+  res.status(201).json({ success: true, post: publicPerformerPost(result.post, viewer.id) });
 });
 
 // --- Performer profile (signed-in) ---
 
-app.get('/api/performers/me', requireAuthApi, (req, res) => {
-  res.json({ success: true, profile: performers.findByUserId(currentUser(req).id) });
+app.get('/api/performers/me', requireAuthApi, async (req, res) => {
+  const profile = performers.findByUserId(currentUser(req).id);
+  if (!profile) return res.json({ success: true, profile: null });
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, profile: { ...profile, ...(await performerRateForViewer(profile, geoInfo)) } });
 });
 
 app.post('/api/performers/apply', requireAuthApi, async (req, res) => {
@@ -2618,13 +3746,14 @@ app.post('/api/performers/apply', requireAuthApi, async (req, res) => {
     performerType, groupSize, categories, city, address, phone, travelRadiusKm,
     bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit, photoUrl, socialLinks, agreementAccepted,
   } = req.body || {};
+  if (performerType === 'group' && (!Number.isInteger(Number(groupSize)) || Number(groupSize) < 2)) return res.status(400).json({ success: false, error: "Group size can't be lower than 2 and must be a whole number." });
   if (!Array.isArray(categories) || !categories.length) return res.status(400).json({ success: false, error: 'Choose at least one performer category.' });
   if (!city || !bio || !photoUrl) return res.status(400).json({ success: false, error: 'City, bio and a profile photo are required.' });
   if (!baseRateUsd || Number(baseRateUsd) <= 0) return res.status(400).json({ success: false, error: 'Set your rate.' });
   if (agreementAccepted !== true) return res.status(400).json({ success: false, error: 'Accept the performer agreement before applying.' });
 
   const profile = await performers.apply({
-    userId: user.id, name: user.name, email: user.email, phone, performerType, groupSize, categories,
+    userId: user.id, name: String(req.body.name || user.name).trim().slice(0, 100) || user.name, email: user.email, phone, performerType, groupSize, categories,
     city, address, travelRadiusKm, bio, experienceYears, qualifications, styleTags, baseRateUsd, rateUnit,
     photoUrl, socialLinks, agreementAccepted,
   });
@@ -2640,17 +3769,86 @@ app.post('/api/performers/apply', requireAuthApi, async (req, res) => {
 
 app.post('/api/performers/me/categories', requirePerformerProfileApi, (req, res) => {
   const validCategories = taxonomy.loadPerformerCategories();
+  const canonicalCategories = new Map(validCategories.map((category) => [category.toLowerCase(), category]));
   const categories = Array.isArray(req.body.categories)
-    ? [...new Set(req.body.categories.map((c) => String(c).trim()).filter((c) => validCategories.includes(c)))]
+    ? [...new Set(req.body.categories
+      .map((category) => canonicalCategories.get(String(category).trim().toLowerCase()))
+      .filter(Boolean))]
     : [];
   if (!categories.length) return res.status(400).json({ success: false, error: 'Choose at least one category.' });
   res.json({ success: true, profile: performers.setCategories(req.performerProfile.id, categories) });
 });
 
-app.post('/api/performers/me/rate', requirePerformerProfileApi, (req, res) => {
-  const { baseRateUsd, rateUnit } = req.body || {};
-  if (!baseRateUsd || Number(baseRateUsd) <= 0) return res.status(400).json({ success: false, error: 'Enter a valid rate.' });
-  res.json({ success: true, profile: performers.setRate(req.performerProfile.id, { baseRateUsd, rateUnit }) });
+// Keep this separate from the reviewed performer application.  A performer
+// can refresh their public introduction, but cannot use this route to alter
+// approval-sensitive identity, category, location, or payment information.
+app.post('/api/performers/me/about', requirePerformerProfileApi, async (req, res) => {
+  const body = req.body || {};
+  const current = req.performerProfile;
+  if (body.bio != null && typeof body.bio !== 'string') {
+    return res.status(400).json({ success: false, error: 'Bio must be text.' });
+  }
+  if (body.qualifications != null && typeof body.qualifications !== 'string') {
+    return res.status(400).json({ success: false, error: 'Qualifications must be text.' });
+  }
+  if (body.experienceYears != null && (!Number.isFinite(Number(body.experienceYears)) || Number(body.experienceYears) < 0 || Number(body.experienceYears) > 100)) {
+    return res.status(400).json({ success: false, error: 'Experience must be between 0 and 100 years.' });
+  }
+  if (body.styleTags != null && !Array.isArray(body.styleTags)) {
+    return res.status(400).json({ success: false, error: 'Styles must be a list.' });
+  }
+
+  const bio = body.bio == null ? String(current.bio || '') : body.bio.trim();
+  const qualifications = body.qualifications == null ? String(current.qualifications || '') : body.qualifications.trim();
+  if (bio.length > 1500) return res.status(400).json({ success: false, error: 'Bio can be up to 1,500 characters.' });
+  if (qualifications.length > 800) return res.status(400).json({ success: false, error: 'Qualifications can be up to 800 characters.' });
+
+  const tagSource = body.styleTags == null ? (current.styleTags || []) : body.styleTags;
+  const tagsByKey = new Map();
+  for (const value of tagSource) {
+    if (typeof value !== 'string') return res.status(400).json({ success: false, error: 'Each style must be text.' });
+    const tag = value.trim().replace(/\s+/g, ' ');
+    if (!tag) continue;
+    if (tag.length > 50) return res.status(400).json({ success: false, error: 'Each style can be up to 50 characters.' });
+    if (!tagsByKey.has(tag.toLowerCase())) tagsByKey.set(tag.toLowerCase(), tag);
+  }
+  const styleTags = [...tagsByKey.values()];
+  if (styleTags.length > 12) return res.status(400).json({ success: false, error: 'Add up to 12 styles.' });
+
+  const profile = performers.updateAbout(current.id, {
+    bio,
+    experienceYears: body.experienceYears == null ? current.experienceYears : Number(body.experienceYears),
+    qualifications,
+    styleTags,
+  });
+  const geoInfo = await getGeoInfo(req);
+  res.json({ success: true, profile: { ...profile, ...(await performerRateForViewer(profile, geoInfo)) } });
+});
+
+app.post('/api/performers/me/rate', requirePerformerProfileApi, async (req, res) => {
+  const { baseRateUsd, baseRateLocal, rateUnit, hourlyRateLocal, eventRateLocal } = req.body || {};
+  const hasNewRates = hourlyRateLocal != null || eventRateLocal != null;
+  const suppliedRate = baseRateLocal != null ? baseRateLocal : baseRateUsd;
+  if (hasNewRates) {
+    const validHourly = hourlyRateLocal == null || hourlyRateLocal === '' || Number(hourlyRateLocal) >= 0;
+    const validEvent = eventRateLocal == null || eventRateLocal === '' || Number(eventRateLocal) >= 0;
+    if (!validHourly || !validEvent || (!Number(hourlyRateLocal) && !Number(eventRateLocal))) {
+      return res.status(400).json({ success: false, error: 'Enter a valid hourly or event rate.' });
+    }
+  } else if (!suppliedRate || Number(suppliedRate) <= 0) {
+    return res.status(400).json({ success: false, error: 'Enter a valid rate.' });
+  }
+  const geoInfo = await getGeoInfo(req);
+  const profile = hasNewRates
+    ? performers.setRate(req.performerProfile.id, {
+      hourlyRateUsd: Number(hourlyRateLocal) > 0 ? await currency.convertToUsd(Number(hourlyRateLocal), geoInfo.currency) : 0,
+      eventRateUsd: Number(eventRateLocal) > 0 ? await currency.convertToUsd(Number(eventRateLocal), geoInfo.currency) : 0,
+    })
+    : performers.setRate(req.performerProfile.id, {
+      baseRateUsd: baseRateLocal != null ? await currency.convertToUsd(Number(baseRateLocal), geoInfo.currency) : Number(baseRateUsd),
+      rateUnit,
+    });
+  res.json({ success: true, profile: { ...profile, ...(await performerRateForViewer(profile, geoInfo)) } });
 });
 
 app.post('/api/performers/me/photo', requirePerformerProfileApi, (req, res) => {
@@ -2673,7 +3871,12 @@ app.delete('/api/performers/me/gallery', requirePerformerProfileApi, (req, res) 
 app.post('/api/performers/me/videos', requirePerformerProfileApi, (req, res) => {
   const { url } = req.body || {};
   if (!url) return res.status(400).json({ success: false, error: 'A video URL is required.' });
-  res.json({ success: true, profile: performers.addVideo(req.performerProfile.id, url) });
+  const cleanUrl = String(url).trim();
+  const isUploadedClip = cleanUrl.startsWith('/uploads/performer-videos/');
+  let isPublicLink = false;
+  try { isPublicLink = ['http:', 'https:'].includes(new URL(cleanUrl).protocol); } catch { /* handled below */ }
+  if (!isUploadedClip && !isPublicLink) return res.status(400).json({ success: false, error: 'Use an uploaded clip or a valid http(s) video link.' });
+  res.json({ success: true, profile: performers.addVideo(req.performerProfile.id, cleanUrl) });
 });
 
 app.delete('/api/performers/me/videos', requirePerformerProfileApi, (req, res) => {
@@ -2685,7 +3888,20 @@ app.post('/api/performers/me/social-links', requirePerformerProfileApi, (req, re
   res.json({ success: true, profile: performers.setSocialLinks(req.performerProfile.id, req.body || {}) });
 });
 
-app.post('/api/uploads/performer-video', requireAuthApi, (req, res) => {
+// Records acceptance of the mandatory 14-screen Performer Orientation modal
+// (mobile/src/data/performerOrientationContent.ts) - mirrors tutors' own
+// /api/tutors/me/tutor-orientation/acknowledge. requirePerformerProfileApi
+// (not requireApprovedPerformerApi) on purpose - the modal itself only ever
+// triggers once status is 'approved', before the separate activation fee is
+// necessarily paid, so this shouldn't 402 on an unpaid-but-approved performer.
+app.post('/api/performers/me/performer-orientation/acknowledge', requirePerformerProfileApi, (req, res) => {
+  const { version } = req.body || {};
+  const updated = performers.acknowledgePerformerOrientation(req.performerProfile.id, version);
+  if (!updated) return res.status(404).json({ success: false, error: 'Performer profile not found.' });
+  res.json({ success: true, performerOrientationAcceptedAt: updated.performerOrientationAcceptedAt, performerOrientationVersion: updated.performerOrientationVersion });
+});
+
+app.post('/api/uploads/performer-video', hydrateUploadToken, requireAuthApi, (req, res) => {
   performerVideoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 200MB).' : err.message;
@@ -2782,13 +3998,23 @@ app.get('/api/activation-fee/checkout/success', async (req, res) => {
 
 app.post('/api/marketplace/requests', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
-  const { eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes, phone } = req.body || {};
+  const { eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes, phone, eventMedia, performerId } = req.body || {};
   if (!eventType || !performerCategory || !eventLocation || !proposedAmountUsd) {
     return res.status(400).json({ success: false, error: 'Event type, performer category, location and a proposed amount are required.' });
   }
+  if (performerId) {
+    const target = performers.findById(performerId);
+    if (!target || target.status !== 'approved' || target.suspended || !target.activationPaid) {
+      return res.status(400).json({ success: false, error: 'This performer is not available to book right now.' });
+    }
+    if (target.userId === user.id) {
+      return res.status(400).json({ success: false, error: "You can't request yourself." });
+    }
+  }
   const { request, matches } = await marketplaceRequests.create({
     requesterId: user.id, requesterName: user.name, requesterEmail: user.email, requesterPhone: phone,
-    eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes,
+    eventType, performerCategory, eventDate, eventDurationHours, eventLocation, radiusKm, proposedAmountUsd, notes, eventMedia,
+    targetPerformerId: performerId || undefined,
   });
   const invites = marketplaceOffers.createInvites(request.id, request.proposedAmountUsd, matches);
   notifyMatchingPerformers(req, request, matches);
@@ -2828,9 +4054,10 @@ app.post('/api/marketplace/requests/:id/select', requireAuthApi, (req, res) => {
   if (!offer || offer.requestId !== request.id) return res.status(404).json({ success: false, error: 'Offer not found.' });
   if (!['accepted', 'countered'].includes(offer.status)) return res.status(400).json({ success: false, error: 'You can only select an offer that has been accepted or countered.' });
 
-  marketplaceOffers.select(offer.id);
+  const selectedOffer = marketplaceOffers.select(offer.id);
   marketplaceOffers.markOthersNotSelected(request.id, offer.id);
   const updated = marketplaceRequests.selectOffer(request.id, offer);
+  const conversation = ensureMarketplaceConversation(selectedOffer || offer);
 
   const performer = performers.findById(offer.performerId);
   if (performer) {
@@ -2847,7 +4074,13 @@ app.post('/api/marketplace/requests/:id/select', requireAuthApi, (req, res) => {
       if (p) store.addNotification(p.userId, { type: 'marketplace_offer_not_selected', message: `The requester chose another performer for the "${request.eventType}" booking.`, href: '/performer?tab=requests' });
     });
 
-  res.json({ success: true, request: updated });
+  res.json({ success: true, request: updated, conversation: conversation ? marketplaceConversationSummary({
+    conversation,
+    offer: selectedOffer || offer,
+    request: updated || request,
+    performer: performers.findById((selectedOffer || offer).performerId),
+    role: 'requester',
+  }, user) : null });
 });
 
 // --- Marketplace offers (performer side) ---
@@ -2866,7 +4099,15 @@ app.post('/api/marketplace/offers/:id/accept', requireApprovedPerformerApi, (req
   if (offer.status !== 'invited') return res.status(400).json({ success: false, error: 'This invite is no longer open.' });
   const updated = marketplaceOffers.accept(offer.id);
   notifyRequesterOfResponse(offer, 'accepted');
-  res.json({ success: true, offer: updated });
+  const conversation = ensureMarketplaceConversation(updated);
+  const request = marketplaceRequests.findById(updated.requestId);
+  res.json({ success: true, offer: updated, conversation: conversation && request ? marketplaceConversationSummary({
+    conversation,
+    offer: updated,
+    request,
+    performer: req.performerProfile,
+    role: 'performer',
+  }, currentUser(req)) : null });
 });
 
 app.post('/api/marketplace/offers/:id/counter', requireApprovedPerformerApi, (req, res) => {
@@ -2887,6 +4128,65 @@ app.post('/api/marketplace/offers/:id/decline', requireApprovedPerformerApi, (re
   res.json({ success: true, offer: marketplaceOffers.decline(offer.id) });
 });
 
+// --- Marketplace messages -------------------------------------------------
+// A confirmed booking gets a dedicated, private text thread.  The list is
+// deliberately derived from live accepted/selected offers on every read;
+// changing an offer to not-selected/cancelled immediately removes it from
+// both people's inboxes even though its historical rows remain in storage.
+app.get('/api/marketplace/chats', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const chats = eligibleMarketplaceConversationAccessesForUser(user)
+    .map((access) => marketplaceConversationSummary(access, user))
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  res.json({ success: true, chats });
+});
+
+app.get('/api/marketplace/chats/:id/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  let access = resolveMarketplaceConversationAccess(user, req.params.id);
+  if (!access) return res.status(403).json({ success: false, error: 'This booking conversation is unavailable.' });
+  marketplaceChat.markRead(access.conversation.id, access.role);
+  // Re-read so unreadCount reflects the markRead we just committed.
+  access = resolveMarketplaceConversationAccess(user, req.params.id);
+  const chatSummary = marketplaceConversationSummary(access, user);
+  res.json({ success: true, chat: chatSummary, conversation: chatSummary, messages: marketplaceChat.getMessages(access.conversation.id) });
+});
+
+app.post('/api/marketplace/chats/:id/messages', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  let access = resolveMarketplaceConversationAccess(user, req.params.id);
+  if (!access) return res.status(403).json({ success: false, error: 'This booking conversation is unavailable.' });
+
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ success: false, error: 'Write a message before sending.' });
+  if (text.length > 2000) return res.status(400).json({ success: false, error: 'Messages can be at most 2,000 characters.' });
+  if (containsContactInfo(text)) {
+    return res.status(400).json({ success: false, error: "Sharing an email address or phone number in chat isn't allowed - keep booking coordination on Mozart Techniques." });
+  }
+
+  const message = marketplaceChat.sendMessage(access.conversation.id, {
+    senderId: user.id,
+    senderRole: access.role,
+    senderName: user.name || (access.role === 'performer' ? access.performer.name : access.request.requesterName),
+    text,
+  });
+  if (!message) return res.status(404).json({ success: false, error: 'Conversation not found.' });
+
+  const recipientId = access.role === 'performer' ? access.request.requesterId : access.performer.userId;
+  const href = access.role === 'performer' ? '/performance-requests?tab=messages' : '/performer?tab=messages';
+  if (recipientId && Number(recipientId) !== Number(user.id)) {
+    store.addNotification(recipientId, {
+      type: 'marketplace_chat',
+      message: `New message from ${user.name || 'your booking contact'} about your ${access.request.eventType || 'performance booking'}.`,
+      href,
+    });
+  }
+
+  access = resolveMarketplaceConversationAccess(user, req.params.id);
+  const chatSummary = marketplaceConversationSummary(access, user);
+  res.json({ success: true, message, chat: chatSummary, conversation: chatSummary });
+});
+
 // --- Admin: performer moderation + marketplace oversight ---
 
 app.get('/api/admin/performers', requireAdminApi, (req, res) => {
@@ -2903,9 +4203,33 @@ app.post('/api/admin/performers/:id/status', requireAdminApi, (req, res) => {
   const updated = performers.setStatus(req.params.id, status, currentUser(req).id);
   if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
   if (status === 'approved') {
-    store.addNotification(updated.userId, { type: 'performer', message: 'Your performer application has been approved! Pay the one-time $1.50 activation fee to unlock your Performer Dashboard.', href: '/performer' });
+    const message = 'Your performer application has been approved! Pay the one-time $1.50 activation fee to unlock your Performer Dashboard.';
+    store.addNotification(updated.userId, { type: 'performer', message, href: '/performer' });
+    mailer.sendStatusUpdateEmail(updated, {
+      subject: 'Your Mozart Techniques performer application was approved',
+      heading: "You're approved!",
+      approved: true,
+      message: [
+        `Congratulations - you're approved to perform on Mozart Techniques${(updated.categories || []).length ? ` as ${updated.categories.join(', ')}` : ''}. Event organizers can now find and book you.`,
+        'One step left: pay the one-time $1.50 activation fee from your Performer Dashboard to unlock it. While you\'re there, take a look at your Orientation & Policies - professional conduct, booking expectations, and how payouts work.',
+        'Your dashboard has the full detail on all of this, plus every message tied to your account - this email is just the headline.',
+      ],
+      resources: [
+        { title: 'Terms of Service', description: 'What you’re agreeing to as a performer on Mozart Techniques.', href: `${mailer.APP_URL}/terms-of-service` },
+        { title: 'Orientation & Policies', description: 'Professional conduct, booking expectations, and how payouts work.', href: `${mailer.APP_URL}/orientation` },
+      ],
+      ctaLabel: 'Go to Performer Dashboard',
+      ctaHref: `${mailer.APP_URL}/performer`,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   } else if (status === 'rejected') {
-    store.addNotification(updated.userId, { type: 'performer', message: 'Your performer application was not approved this time.' });
+    const message = 'Your performer application was not approved this time.';
+    store.addNotification(updated.userId, { type: 'performer', message });
+    mailer.sendStatusUpdateEmail(updated, {
+      subject: 'An update on your Mozart Techniques performer application',
+      heading: 'Application update',
+      approved: false,
+      message,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   }
   res.json({ success: true, performer: updated });
 });
@@ -2924,7 +4248,9 @@ app.post('/api/admin/performers/:id/unsuspend', requireAdminApi, (req, res) => {
 });
 
 app.get('/api/admin/marketplace/requests', requireAdminApi, (req, res) => {
+  const admin = currentUser(req);
   const list = marketplaceRequests.listAll()
+    .filter((request) => canManageUser(admin, store.findById(request.requesterId)))
     .map((r) => ({ ...r, offerCounts: summarizeOfferCounts(marketplaceOffers.listByRequest(r.id)) }))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   res.json({ success: true, requests: list });
@@ -2933,6 +4259,7 @@ app.get('/api/admin/marketplace/requests', requireAdminApi, (req, res) => {
 app.get('/api/admin/marketplace/requests/:id', requireAdminApi, (req, res) => {
   const request = marketplaceRequests.findById(req.params.id);
   if (!request) return res.status(404).json({ success: false, error: 'Request not found.' });
+  if (!canManageUser(currentUser(req), store.findById(request.requesterId))) return res.status(403).json({ success: false, error: 'You can only view requests from your country.' });
   res.json({ success: true, request, offers: marketplaceOffers.listByRequest(request.id).map(decoratedOfferForRequester) });
 });
 
@@ -3041,9 +4368,10 @@ app.get('/api/organizations/me', requireAuthApi, async (req, res) => {
   // same pattern as tutor hourly rates / store prices (getGeoInfo + convertFromUsd).
   const geoInfo = await getGeoInfo(req);
   const monthlyAmountLocal = Math.round((await currency.convertFromUsd(org.monthlyAmount || 0, geoInfo.currency)) * 100) / 100;
+  const walletBalanceLocal = Math.round((await currency.convertFromUsd(org.walletBalanceUsd || 0, geoInfo.currency)) * 100) / 100;
   res.json({
     success: true,
-    organization: { ...org, students, tutors: tutorsForOrg, members: students, monthlyAmountLocal, localCurrency: geoInfo.currency, localSymbol: geoInfo.symbol },
+    organization: { ...org, students, tutors: tutorsForOrg, members: students, monthlyAmountLocal, walletBalanceUsd: org.walletBalanceUsd || 0, walletBalanceLocal, localCurrency: geoInfo.currency, localSymbol: geoInfo.symbol },
     subscriptionActive: organizations.isSubscriptionActive(org),
   });
 });
@@ -3085,6 +4413,26 @@ app.post('/api/organizations/me/profile', requireAuthApi, (req, res) => {
   res.json({ success: true, organization: updated });
 });
 
+// The Sponsor tab's own notification bell - only things related to the
+// account's own organization (application/subscription updates), not its
+// whole notification history (lesson requests, chat pings, etc., which
+// belong to the regular Notifications screen). Every notification sent for
+// an org application/subscription event already carries type:'organization'
+// (see the admin approval route and checkout/success above), so that field
+// alone is enough to scope this, unlike the org-tutor case, which also
+// needs an href check for a different reason (its own notifications share
+// the account with a tutor profile's - see /api/organizations/tutor-workspace).
+app.get('/api/organizations/me/notifications', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+  const notifications = (user.notifications || [])
+    .filter((item) => item.type === 'organization')
+    .map((item) => ({ ...item }))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  res.json({ success: true, notifications });
+});
+
 app.post('/api/organizations/me/logo', requireAuthApi, (req, res) => {
   const org = organizations.findByUserId(currentUser(req).id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
@@ -3106,7 +4454,7 @@ app.post('/api/organizations/me/invite', requireAuthApi, async (req, res) => {
   const entry = organizations.generateOrganizationCode(org.id, role);
   organizations.markCodeInvited(org.id, entry.code, email);
   const redeemLink = `${publicAppUrl(req)}/dashboard?redeem=${encodeURIComponent(entry.code)}`;
-  res.json({ success: true, code: entry.code, redeemLink, organizationName: org.name });
+  res.json({ success: true, code: entry.code, redeemLink, organizationName: org.name || org.contactName });
 });
 
 app.post('/api/redeem-code', requireAuthApi, (req, res) => {
@@ -3118,8 +4466,18 @@ app.post('/api/redeem-code', requireAuthApi, (req, res) => {
   if (result.error === 'not-found') return res.status(404).json({ success: false, error: 'That code was not recognized.' });
   if (result.error === 'already-redeemed') return res.status(409).json({ success: false, error: 'That code has already been used.' });
   if (result.error === 'wrong-role') return res.status(403).json({ success: false, error: 'This code is for a different organization role.' });
-  store.setSponsor(user.id, { orgId: result.org.id, orgName: result.org.name });
-  res.json({ success: true, orgId: result.org.id, orgName: result.org.name, organizationMemberships: store.findById(user.id).organizationMemberships });
+  // An Individual Sponsor's org record has no org.name (see organizations.js
+  // apply()) - fall back to contactName so a sponsored student never sees
+  // a literal "null" here, matching every other org.name display in this
+  // file (search results, chat headers, notifications).
+  const orgDisplayName = result.org.name || result.org.contactName;
+  store.setSponsor(user.id, { orgId: result.org.id, orgName: orgDisplayName });
+  store.addNotification(user.id, {
+    type: 'organization',
+    message: `You're now linked to ${orgDisplayName}. ${result.entry.role === 'tutor' ? 'Your Organization Tutor workspace is ready.' : 'Your sponsored access is now active.'}`,
+    href: result.entry.role === 'tutor' ? '/org-tutor' : '/dashboard',
+  });
+  res.json({ success: true, orgId: result.org.id, orgName: orgDisplayName, organizationMemberships: store.findById(user.id).organizationMemberships });
 });
 
 app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
@@ -3141,9 +4499,10 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
   try {
     const isMonthly = billingPeriod === 'monthly';
     const amount = isMonthly ? Number(org.monthlyAmount) * 100 : Number(org.monthlyAmount) * 12 * 0.99 * 100; // Yearly plan is 1% below twelve monthly payments.
-    const description = isMonthly 
-      ? `Monthly subscription for ${org.name}`
-      : `Yearly subscription for ${org.name}`;
+    // org.name is null for an Individual Sponsor (see organizations.js
+    // apply()) - fall back to contactName so their Stripe checkout page
+    // never shows a literal "null" as the product name.
+    const orgDisplayName = org.name || org.contactName;
 
     const session = await client.checkout.sessions.create({
       // Managed Payments (this Stripe account's default) rejects an
@@ -3154,7 +4513,7 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: `${org.name} - ${isMonthly ? 'Monthly' : 'Yearly'} Subscription` },
+          product_data: { name: `${orgDisplayName} - ${isMonthly ? 'Monthly' : 'Yearly'} Subscription` },
           unit_amount: amount,
           ...(isMonthly && {
             recurring: { interval: 'month', interval_count: 1 }
@@ -3164,7 +4523,7 @@ app.post('/api/organizations/checkout', requireAuthApi, async (req, res) => {
       }],
       customer_email: org.email,
       success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicAppUrl(req)}/ngo-dashboard`,
+      cancel_url: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}`,
       metadata: { orgId: org.id, billingPeriod },
     });
 
@@ -3180,7 +4539,7 @@ app.get('/api/organizations/lesson-bills', requireAuthApi, (req, res) => {
   const bills = assignments.listAll().flatMap((record) => {
     const student = store.findById(record.studentId);
     if (!student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student)) return [];
-    return (record.sessions || []).filter((session) => session.paymentStatus === 'held').map((session) => ({ assignmentId: record.id, sessionId: session.id, studentName: record.studentName, tutorName: record.tutorName, category: record.category, durationMinutes: session.durationMinutes, totalUsd: session.totalUsd }));
+    return (record.sessions || []).filter((session) => session.paymentStatus === 'held').map((session) => ({ assignmentId: record.id, sessionId: session.id, studentName: record.studentName, tutorName: record.tutorName, category: record.category, durationMinutes: session.durationMinutes, totalUsd: session.totalUsd, loggedAt: session.loggedAt }));
   });
   res.json({ success: true, bills });
 });
@@ -3189,8 +4548,65 @@ app.post('/api/organizations/lesson-bills/:assignmentId/:sessionId/checkout', re
   const client = stripeClient.getClient(); const org = organizations.findByUserId(currentUser(req).id); const record = assignments.findById(req.params.assignmentId); const lesson = record && (record.sessions || []).find((item) => item.id === Number(req.params.sessionId)); const student = record && store.findById(record.studentId);
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
   if (!org || !organizations.isSubscriptionActive(org) || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student) || !lesson || lesson.paymentStatus !== 'held') return res.status(404).json({ success: false, error: 'Sponsored lesson bill not found.' });
-  const checkout = await client.checkout.sessions.create({ managed_payments: { enabled: false }, mode: 'payment', line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson for ${record.studentName}` }, unit_amount: Math.round(lesson.totalUsd * 100) }, quantity: 1 }], customer_email: org.email, success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`, cancel_url: `${publicAppUrl(req)}/ngo-dashboard`, metadata: { type: 'lesson-bill', orgId: String(org.id), assignmentId: String(record.id), sessionId: String(lesson.id) } });
+  const checkout = await client.checkout.sessions.create({ managed_payments: { enabled: false }, mode: 'payment', line_items: [{ price_data: { currency: 'usd', product_data: { name: `${record.category} lesson for ${record.studentName}` }, unit_amount: Math.round(lesson.totalUsd * 100) }, quantity: 1 }], customer_email: org.email, success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`, cancel_url: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}`, metadata: { type: 'lesson-bill', orgId: String(org.id), assignmentId: String(record.id), sessionId: String(lesson.id) } });
   res.json({ success: true, url: checkout.url });
+});
+
+// Loads real money into the sponsor's own wallet (walletBalanceUsd) - a
+// separate charge from both the lesson-bills checkout above and the
+// admin-facing subscription checkout below. Once funded, covered lessons
+// draw from this balance automatically as they're logged (see the
+// auto-debit in POST /api/assignments/:id/sessions) instead of needing a
+// manual per-lesson checkout.
+app.post('/api/organizations/wallet/topup-checkout', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org || org.status !== 'approved') return res.status(404).json({ success: false, error: 'No approved organization found.' });
+  const amountUsd = Number(req.body && req.body.amountUsd);
+  if (!amountUsd || amountUsd < 5) return res.status(400).json({ success: false, error: 'Enter an amount of at least $5.' });
+  const checkout = await client.checkout.sessions.create({
+    managed_payments: { enabled: false },
+    mode: 'payment',
+    line_items: [{ price_data: { currency: 'usd', product_data: { name: `Wallet top-up for ${org.name || org.contactName}` }, unit_amount: Math.round(amountUsd * 100) }, quantity: 1 }],
+    customer_email: org.email,
+    success_url: `${publicAppUrl(req)}/api/organizations/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${publicAppUrl(req)}${org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard'}`,
+    metadata: { type: 'wallet-topup', orgId: String(org.id), amountUsd: String(amountUsd) },
+  });
+  res.json({ success: true, url: checkout.url, sessionId: checkout.id });
+});
+
+// Fallback for when the success_url redirect above never reaches this
+// server (very possible on a local/LAN dev server, or spotty connectivity
+// right as Stripe redirects the in-app browser) - the mobile client calls
+// this once its checkout browser closes, regardless of whether the
+// redirect already fired. creditWallet's stripeSessionId guard makes
+// crediting the same session twice a no-op either way.
+app.post('/api/organizations/wallet/topup-verify', requireAuthApi, async (req, res) => {
+  const client = stripeClient.getClient();
+  if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+  const sessionId = req.body && req.body.sessionId;
+  if (!sessionId) return res.status(400).json({ success: false, error: 'Missing session id.' });
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== 'paid' || !session.metadata || session.metadata.type !== 'wallet-topup' || Number(session.metadata.orgId) !== org.id) {
+      return res.status(400).json({ success: false, error: 'That checkout has not been paid yet.' });
+    }
+    const amountUsd = Number(session.metadata.amountUsd);
+    const updated = organizations.creditWallet(org.id, amountUsd, session.id);
+    if (!updated.alreadyProcessed) {
+      store.addNotification(updated.userId, {
+        type: 'organization',
+        message: `Your wallet was topped up with $${amountUsd.toFixed(2)}. New balance: $${updated.walletBalanceUsd.toFixed(2)}.`,
+      });
+    }
+    res.json({ success: true, walletBalanceUsd: updated.walletBalanceUsd });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
 });
 
 app.get('/api/organizations/checkout/success', async (req, res) => {
@@ -3206,8 +4622,15 @@ app.get('/api/organizations/checkout/success', async (req, res) => {
 
   try {
     const session = await client.checkout.sessions.retrieve(sessionId);
+    // Every checkout this app creates stamps orgId into metadata - resolve
+    // the org up front so every branch below sends an Individual Sponsor
+    // back to /sponsor-dashboard instead of the NGO/Institution-only
+    // /ngo-dashboard.
+    const metaOrgId = Number(session.metadata && session.metadata.orgId);
+    const metaOrg = metaOrgId ? organizations.findById(metaOrgId) : null;
+    const dest = metaOrg && metaOrg.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard';
     if (session.payment_status !== 'paid') {
-      return res.redirect('/ngo-dashboard?payment=pending');
+      return res.redirect(`${dest}?payment=pending`);
     }
 
     if (session.metadata && session.metadata.type === 'lesson-bill') {
@@ -3215,22 +4638,35 @@ app.get('/api/organizations/checkout/success', async (req, res) => {
       const lesson = record && (record.sessions || []).find((item) => item.id === Number(session.metadata.sessionId));
       const org = organizations.findById(Number(session.metadata.orgId));
       const student = record && store.findById(record.studentId);
-      if (!record || !lesson || lesson.paymentStatus !== 'held' || !org || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student)) return res.redirect('/ngo-dashboard?payment=error');
+      if (!record || !lesson || lesson.paymentStatus !== 'held' || !org || !student || !student.sponsor || student.sponsor.orgId !== org.id || !coveredOrganizationForAssignment(record, student)) return res.redirect(`${dest}?payment=error`);
       const released = assignments.confirmSession(record.id, lesson.id);
-      if (!released) return res.redirect('/ngo-dashboard?payment=error');
+      if (!released) return res.redirect(`${dest}?payment=error`);
       const paymentIntentId = stripeObjectId(session.payment_intent);
       await releaseTutorEarnings(record, lesson, { paymentIntentId, payerType: 'organization', organizationId: org.id });
-      return res.redirect('/ngo-dashboard?payment=success');
+      return res.redirect(`${dest}?payment=success`);
+    }
+
+    if (session.metadata && session.metadata.type === 'wallet-topup') {
+      const orgId = Number(session.metadata.orgId);
+      const amountUsd = Number(session.metadata.amountUsd);
+      const updated = organizations.creditWallet(orgId, amountUsd, session.id);
+      if (!updated) return res.redirect(`${dest}?payment=error`);
+      if (updated.alreadyProcessed) return res.redirect(`${dest}?payment=success`);
+      store.addNotification(updated.userId, {
+        type: 'organization',
+        message: `Your wallet was topped up with $${amountUsd.toFixed(2)}. New balance: $${updated.walletBalanceUsd.toFixed(2)}.`,
+      });
+      return res.redirect(`${dest}?payment=success`);
     }
 
     const orgId = Number(session.metadata && session.metadata.orgId);
     const billingPeriod = session.metadata && session.metadata.billingPeriod;
     const org = organizations.findById(orgId);
-    if (!org || !['monthly', 'yearly'].includes(billingPeriod)) return res.redirect('/ngo-dashboard?payment=error');
+    if (!org || !['monthly', 'yearly'].includes(billingPeriod)) return res.redirect(`${dest}?payment=error`);
     // Activate only for the period actually paid for in Stripe Checkout.
     const updated = organizations.activateSubscription(orgId, billingPeriod === 'monthly' ? 1 : 12);
     if (!updated) {
-      return res.redirect('/ngo-dashboard?payment=error');
+      return res.redirect(`${dest}?payment=error`);
     }
 
     store.addNotification(updated.userId, {
@@ -3238,7 +4674,7 @@ app.get('/api/organizations/checkout/success', async (req, res) => {
       message: `Payment confirmed! Your subscription is active through ${new Date(updated.subscriptionEndAt).toLocaleDateString()}. You can now generate access codes.`,
     });
 
-    res.redirect('/ngo-dashboard?payment=success');
+    res.redirect(`${dest}?payment=success`);
   } catch (err) {
     res.redirect('/ngo-dashboard?payment=error');
   }
@@ -3293,6 +4729,26 @@ app.get('/api/organizations/tutors', requireAuthApi, (req, res) => {
   }
 
   res.json({ success: true, tutors: Array.from(orgTutors.values()) });
+});
+
+// Feeds the Sponsor Dashboard's "Assign a Tutor" picker - each sponsored
+// student plus the courses they're already taking or have requested
+// (there's no separate "preferred courses" field on a student profile, so
+// their own assignment history is the closest real signal of interest).
+app.get('/api/organizations/students-for-assignment', requireAuthApi, (req, res) => {
+  const org = organizations.findByUserId(currentUser(req).id);
+  if (!org) return res.status(404).json({ success: false, error: 'No organization found.' });
+  const students = organizations.getStudentsForOrganization(org.id).map((member) => {
+    const student = store.findById(member.studentId);
+    const preferredCategories = [...new Set(assignments.listForStudent(member.studentId).map((a) => a.category))];
+    return {
+      id: member.studentId,
+      name: (student && student.name) || member.studentName || 'Student',
+      photoUrl: student && student.studentProfile ? student.studentProfile.photoUrl || student.photoUrl || null : null,
+      preferredCategories,
+    };
+  });
+  res.json({ success: true, students });
 });
 
 // Organization classroom directory: real students linked by access code and
@@ -3359,22 +4815,32 @@ app.get('/api/organizations/conversations', requireAuthApi, (req, res) => {
     return res.status(404).json({ success: false, error: 'No organization found.' });
   }
 
-  const conversations = orgChat.listForOrganization(org.id).map((conv) => {
-    const lastMessage = conv.messages && conv.messages.length ? conv.messages[conv.messages.length - 1] : null;
-    const title = conv.type === 'group' ? conv.title : conv.participants.find((p) => p.type !== 'org')?.name || 'Conversation';
-    return {
-      id: conv.id,
-      type: conv.type || 'direct',
-      title,
-      participants: conv.participants || [],
-      tutorId: conv.tutorId || null,
-      studentId: conv.studentId || null,
-      lastMessage: lastMessage ? lastMessage.text : 'No messages yet',
-      lastMessageAt: lastMessage ? lastMessage.createdAt : conv.createdAt,
-      unreadCount: orgChat.getUnreadCount(conv.id, 'org'),
-      createdAt: conv.createdAt,
-    };
-  });
+  // The mobile Sponsor Dashboard passes audience=student to keep its inbox
+  // a sponsor<->student space only, fully separate from Org Tutor mode's
+  // tutor-facing conversations (its own direct-with-the-org thread,
+  // classroom groups) even though both surfaces share this org account.
+  // ngo-dashboard.html calls this same route with no audience filter,
+  // since "message tutors individually" is a real feature there - this
+  // stays opt-in so that keeps working exactly as before.
+  const studentsOnly = req.query.audience === 'student';
+  const conversations = orgChat.listForOrganization(org.id)
+    .filter((conv) => !studentsOnly || (conv.type === 'group' ? !(conv.participants || []).some((p) => p.type === 'tutor') : Boolean(conv.studentId)))
+    .map((conv) => {
+      const lastMessage = conv.messages && conv.messages.length ? conv.messages[conv.messages.length - 1] : null;
+      const title = conv.type === 'group' ? conv.title : conv.participants.find((p) => p.type !== 'org')?.name || 'Conversation';
+      return {
+        id: conv.id,
+        type: conv.type || 'direct',
+        title,
+        participants: conv.participants || [],
+        tutorId: conv.tutorId || null,
+        studentId: conv.studentId || null,
+        lastMessage: lastMessage ? lastMessage.text : 'No messages yet',
+        lastMessageAt: lastMessage ? lastMessage.createdAt : conv.createdAt,
+        unreadCount: orgChat.getUnreadCount(conv.id, 'org'),
+        createdAt: conv.createdAt,
+      };
+    });
 
   res.json({ success: true, conversations });
 });
@@ -3433,6 +4899,30 @@ app.post('/api/organizations/conversations/:targetId/message', requireAuthApi, (
   });
 
   res.json({ success: true, message, conversation });
+});
+
+// Opens (creating if needed) the org's 1:1 thread with a tutor/student
+// without requiring a first message - lets the Sponsor Dashboard's Students
+// tab jump straight into an empty chat, the same way tapping a name in
+// ngo-dashboard.html's classroom roster does before anyone has typed
+// anything yet.
+app.post('/api/organizations/conversations/:targetId/open', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const org = organizations.findByUserId(user.id);
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'No organization found.' });
+  }
+  const targetId = Number(req.params.targetId);
+  const { targetType, name } = req.body || {};
+  const resolvedType = targetType === 'student' ? 'student' : 'tutor';
+  const conversation = orgChat.getOrCreateConversation(org.id, {
+    type: resolvedType,
+    tutorId: resolvedType === 'tutor' ? targetId : null,
+    studentId: resolvedType === 'student' ? targetId : null,
+    name,
+    title: name || 'Conversation',
+  });
+  res.json({ success: true, conversation });
 });
 
 app.post('/api/organizations/group-chat', requireAuthApi, (req, res) => {
@@ -3533,11 +5023,16 @@ app.get('/api/organizations/mine', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = resolveOrgForUser(user);
   if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  // The org's own country flag (Org Student mode's header) - a fixed fact
+  // about the organization, unlike CountryFlag elsewhere which reads the
+  // *viewer's* own device/IP location.
+  const orgCountryCode = org.locality && org.locality.country ? geo.countryCodeForName(org.locality.country) : null;
   res.json({
     success: true,
     organization: {
       id: org.id, name: org.name, contactName: org.contactName, email: org.email, phone: org.phone,
       organizationType: org.organizationType, subscriptionStatus: org.subscriptionStatus, logoUrl: org.logoUrl || null,
+      address: org.address || null, events: org.events || [], countryCode: orgCountryCode,
     },
   });
 });
@@ -3548,7 +5043,7 @@ app.get('/api/organizations/mine/conversation', requireAuthApi, (req, res) => {
   if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
   const conversation = orgChat.getOrCreateConversation(org.id, { type: 'student', studentId: user.id, name: user.name });
   orgChat.markRead(conversation.id, 'student');
-  res.json({ success: true, conversation, organizationName: org.name || org.contactName });
+  res.json({ success: true, conversation, organizationName: org.name || org.contactName, organizationLogoUrl: org.logoUrl || null });
 });
 
 app.post('/api/organizations/mine/conversation/message', requireAuthApi, (req, res) => {
@@ -3601,7 +5096,7 @@ function orgMessageSeenByOthers(message) {
 
 function loadOrgChatMessage(req, res) {
   const user = currentUser(req);
-  const access = resolveOrgChatAccess(user, req.params.convId);
+  const access = resolveOrgChatAccess(user, req.params.convId, req.query.asRole);
   if (!access) { res.status(403).json({ success: false, error: 'Not your conversation.' }); return null; }
   const message = (access.conversation.messages || []).find((m) => Number(m.id) === Number(req.params.msgId));
   if (!message) { res.status(404).json({ success: false, error: 'Message not found.' }); return null; }
@@ -3615,7 +5110,7 @@ function loadOrgChatMessage(req, res) {
 // message to them) read and reply without needing org ownership.
 app.get('/api/org-chat/conversations/:convId/messages', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const access = resolveOrgChatAccess(user, req.params.convId);
+  const access = resolveOrgChatAccess(user, req.params.convId, req.query.asRole);
   if (!access) return res.status(403).json({ success: false, error: 'Not your conversation.' });
   orgChat.markRead(access.conversation.id, access.role);
   res.json({ success: true, messages: orgChat.getMessages(access.conversation.id), conversation: orgChat.findById(access.conversation.id) });
@@ -3623,21 +5118,24 @@ app.get('/api/org-chat/conversations/:convId/messages', requireAuthApi, (req, re
 
 app.post('/api/org-chat/conversations/:convId/messages', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const access = resolveOrgChatAccess(user, req.params.convId);
+  const access = resolveOrgChatAccess(user, req.params.convId, req.body && req.body.asRole);
   if (!access) return res.status(403).json({ success: false, error: 'Not your conversation.' });
-  const { text, attachment, replyToId, poll, location } = req.body || {};
-  if ((!text || !text.trim()) && !attachment && !poll && !location) {
-    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, or a location is required.' });
+  const { text, attachment, replyToId, poll, location, libraryItem } = req.body || {};
+  if ((!text || !text.trim()) && !attachment && !poll && !location && !libraryItem) {
+    return res.status(400).json({ success: false, error: 'Message text, an attachment, a poll, a location, or a library clip is required.' });
   }
   if (attachment && !isOwnChatAttachmentUrl(attachment.url)) return res.status(400).json({ success: false, error: 'Attach files through the upload endpoint.' });
   const { poll: safePoll, error: pollError } = validatePollInput(poll);
   if (pollError) return res.status(400).json({ success: false, error: pollError });
   const { location: safeLocation, error: locationError } = validateLocationInput(location);
   if (locationError) return res.status(400).json({ success: false, error: locationError });
+  const safeLibraryItem = libraryItem && libraryItem.title && libraryItem.url
+    ? { title: String(libraryItem.title).trim().slice(0, 200), url: String(libraryItem.url).trim() }
+    : null;
   const message = orgChat.sendMessage(access.conversation.id, {
     senderId: user.id, senderType: access.role, senderName: access.participantName,
     text: String(text || '').trim(), attachment: attachment || null,
-    replyToId: replyToId || null, poll: safePoll, location: safeLocation,
+    replyToId: replyToId || null, poll: safePoll, location: safeLocation, libraryItem: safeLibraryItem,
   });
   res.json({ success: true, message, conversation: orgChat.findById(access.conversation.id) });
 });
@@ -3786,7 +5284,7 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   if (!tutor || !org) return res.status(403).json({ success: false, error: 'Organization tutor access required.' });
   const orgStudents = organizations.getStudentsForOrganization(org.id).map((member) => {
     const student = store.findById(member.studentId);
-    return { ...member, studentName: student?.name || member.studentName || 'Student', email: student?.email || '' };
+    return { ...member, studentName: student?.name || member.studentName || 'Student', email: student?.email || '', studentPhotoUrl: student?.photoUrl || null };
   });
   const tutorRecords = assignments.listForTutor(tutor.id);
   const requestedStudentIds = new Set(tutorRecords.map((record) => Number(record.studentId)));
@@ -3795,13 +5293,37 @@ app.get('/api/organizations/tutor-workspace', requireAuthApi, (req, res) => {
   const studentIds = new Set(students.map((member) => Number(member.studentId)));
   const assignmentsForOrg = tutorRecords.filter((record) => studentIds.has(Number(record.studentId)));
   const requests = assignments.listAll().filter((record) => record.status === 'pending' && (record.preferredTutorIds || []).includes(tutor.id) && studentIds.has(Number(record.studentId)));
-  const content = orgContent.listForOrg(org.id).filter((item) => item.visibility !== 'shared' || item.createdByUserId === user.id);
+  const content = orgContent.listForOrg(org.id)
+    .filter((item) => item.visibility !== 'shared' || item.createdByUserId === user.id)
+    .map((item) => ({ ...item, reactions: item.reactions || [], myReaction: (item.reactions || []).find((r) => r.userId === user.id)?.emoji || null }));
+  const isOrgOwner = Boolean(organizations.findByUserId(user.id));
+  // Org Tutor's own notification bell should only ever show things
+  // related to this organization - not the account's whole notification
+  // history (lesson requests, chat pings, etc., which belong to the
+  // regular Notifications screen). A stored notification counts as
+  // organization-related by type or by its href pointing at /org-tutor.
+  const orgNotifications = (user.notifications || []).filter((item) => item.type === 'organization' || String(item.href || '').startsWith('/org-tutor'));
   const notifications = [
-    ...(user.notifications || []).map((item) => ({ ...item })),
+    ...orgNotifications.map((item) => ({ ...item })),
     ...content.map((item) => ({ id: `content-${item.id}`, type: item.type, message: `${item.createdByName} posted ${item.type}: ${item.title}`, createdAt: item.createdAt, href: `/org-tutor?orgId=${org.id}#feeds` })),
     ...(org.events || []).map((item) => ({ id: `event-${item.id}`, type: 'event', message: `Event scheduled: ${item.title}`, createdAt: item.createdAt || item.scheduledAt, href: `/org-tutor?orgId=${org.id}#classes` })),
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  res.json({ success: true, organization: { id: org.id, name: org.name || org.contactName, logoUrl: org.logoUrl || null }, organizations: orgs.map((item) => ({ id: item.id, name: item.name || item.contactName, logoUrl: item.logoUrl || null })), students, assignments: assignmentsForOrg, requests, content, events: org.events || [], notifications });
+  res.json({ success: true, organization: { id: org.id, name: org.name || org.contactName, logoUrl: org.logoUrl || null, address: org.address || null }, organizations: orgs.map((item) => ({ id: item.id, name: item.name || item.contactName, logoUrl: item.logoUrl || null, address: item.address || null })), students, assignments: assignmentsForOrg, requests, content, events: org.events || [], notifications, isOrgOwner });
+});
+
+// A tutor or student reacts to an organization's feed/announcement post -
+// same fixed 5-emoji set as chat, one reaction per user per post.
+app.post('/api/organizations/content/:id/react', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const item = orgContent.findById(req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const org = organizations.findById(item.orgId);
+  const isMember = Boolean(org) && (organizationMembershipsForUser(user).some((membership) => membership.id === org.id) || org.userId === user.id);
+  if (!isMember) return res.status(403).json({ success: false, error: 'Not your organization.' });
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (!isValidReaction(emoji)) return res.status(400).json({ success: false, error: 'Not a supported reaction.' });
+  const updated = orgContent.addReaction(item.id, user.id, emoji);
+  res.json({ success: true, item: { ...updated, myReaction: (updated.reactions || []).find((r) => r.userId === user.id)?.emoji || null } });
 });
 
 app.get('/api/organizations/library', requireAuthApi, (req, res) => {
@@ -3830,7 +5352,7 @@ app.get('/api/organizations/library', requireAuthApi, (req, res) => {
   const organizationItems = content.filter((item) => item.createdByUserId === org.userId);
   const sharedItems = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
   const sort = (items) => items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  res.json({ success: true, folders: org.folders || [], general: sort(content), mine: sort(organizationItems), shared: sort(sharedItems) });
+  res.json({ success: true, organizationName: org.name || org.contactName, folders: org.folders || [], general: sort(content), mine: sort(organizationItems), shared: sort(sharedItems) });
 });
 
 // A tutor sends something back for a library item the org flagged
@@ -3932,7 +5454,7 @@ app.post('/api/organizations/library', requireAuthApi, (req, res) => {
 });
 
 // Upload media file for organization content
-app.post('/api/organizations/upload-media', requireAuthApi, (req, res) => {
+app.post('/api/organizations/upload-media', hydrateUploadToken, requireAuthApi, (req, res) => {
   const user = currentUser(req);
   // resolveOrgForUser (not the stricter organizations.findByUserId) so an
   // affiliated tutor can use this too - needed for sending a file back on
@@ -3986,7 +5508,9 @@ app.post('/api/organizations/private-content', requireAuthApi, (req, res) => {
     title: title.trim(),
     text: text ? text.trim() : '',
     url: url && type === 'game' ? url.trim() : null,
-    fileUrl: fileUrl && ['photo', 'video', 'document'].includes(type) ? fileUrl : null,
+    // 'announcement' can carry a document (or any file) attachment too -
+    // not just the photo/video types a Feed post uses.
+    fileUrl: fileUrl && ['photo', 'video', 'document', 'announcement'].includes(type) ? fileUrl : null,
     coverUrl: coverUrl || null,
     category: category ? String(category).trim() : null,
     visibility: ['general', 'shared'].includes(visibility) ? visibility : 'general',
@@ -4093,6 +5617,18 @@ app.post('/api/tutors/orientation/submit', requireTutorProfileApi, (req, res) =>
   res.json({ success: true, passed: true, score: result.score, reward: updated.orientationReward });
 });
 
+// Records acceptance of the mandatory 14-screen Tutor Orientation modal
+// (mobile/src/data/tutorOrientationContent.ts) - a distinct, separate
+// feature from the orientation content-feed/quiz routes above despite the
+// similar name; that one is an ongoing admin content feed, this is a
+// one-time gate before an approved tutor's dashboard is reachable at all.
+app.post('/api/tutors/me/tutor-orientation/acknowledge', requireApprovedTutorApi, (req, res) => {
+  const { version } = req.body || {};
+  const updated = tutors.acknowledgeTutorOrientation(req.tutorProfile.id, version);
+  if (!updated) return res.status(404).json({ success: false, error: 'Tutor profile not found.' });
+  res.json({ success: true, tutorOrientationAcceptedAt: updated.tutorOrientationAcceptedAt, tutorOrientationVersion: updated.tutorOrientationVersion });
+});
+
 // --- STUDENT PROFILE + PLACEMENT ---
 app.post('/api/profile/student', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
@@ -4108,8 +5644,15 @@ app.post('/api/profile/student', requireAuthApi, async (req, res) => {
 // requesting one does. Rates are localized so students compare tutors in
 // their own currency.
 app.get('/api/tutors', async (req, res) => {
-  const { category, genre, ageGroup, city, lessonType } = req.query;
+  const { category, genre, ageGroup, city, lessonType, orgId } = req.query;
   let list = tutors.listApproved();
+  // Org Student mode's own Find a Tutor scopes the marketplace down to
+  // just that organization's linked tutors, instead of every Mozart tutor -
+  // the whole point of that mode is staying inside the org's own roster.
+  if (orgId) {
+    const orgTutorUserIds = new Set(organizations.getTutorsForOrganization(Number(orgId)));
+    list = list.filter((t) => orgTutorUserIds.has(Number(t.userId)));
+  }
   if (category) list = list.filter((t) => t.categories.includes(category));
   if (genre) list = list.filter((t) => !t.genres || !t.genres.length || t.genres.includes(genre));
   if (ageGroup) list = list.filter((t) => !t.ageGroups || !t.ageGroups.length || t.ageGroups.includes(ageGroup));
@@ -4122,7 +5665,9 @@ app.get('/api/tutors', async (req, res) => {
   list = list.filter((t) => inViewerCountry(t, geoInfo.name));
   const localized = await Promise.all(list.map(async (t) => ({
     id: t.id, name: t.name, categories: t.categories, levels: t.levels, genres: t.genres, ageGroups: t.ageGroups,
-    city: t.city, teachesOnline: t.teachesOnline, inPersonVenue: t.inPersonVenue, photoUrl: t.photoUrl || null,
+    city: t.city, teachesOnline: t.teachesOnline, inPersonVenue: t.inPersonVenue, photoUrl: t.photoUrl || store.findById(t.userId)?.photoUrl || null,
+    mapLocation: require('./data/tutor-map-location')(t),
+    location: { area: t.locality?.area || null, city: t.locality?.city || null, state: t.locality?.state || null, country: t.locality?.country || null },
     hourlyRateUsd: t.hourlyRateUsd,
     hourlyRateLocal: Math.round((await currency.convertFromUsd(t.hourlyRateUsd, geoInfo.currency)) * 100) / 100,
     currency: geoInfo.currency, symbol: geoInfo.symbol,
@@ -4201,14 +5746,18 @@ app.get('/api/tutors/:id/public', async (req, res) => {
   if (!tutor || tutor.status !== 'approved' || tutor.expelled) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
+  const viewer = currentUser(req);
+  const isOwner = Boolean(viewer) && viewer.id === tutor.userId;
   const geoInfo = await getGeoInfo(req);
-  if (!inViewerCountry(tutor, geoInfo.name)) {
+  // Country-visibility is a discovery/search rule (don't show a tutor to
+  // students outside their serving country) - it should never hide a
+  // tutor's own profile from themselves, which is all "My Profile" is.
+  if (!isOwner && !inViewerCountry(tutor, geoInfo.name)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
-  const viewer = currentUser(req);
   const addressUnlocked = Boolean(viewer) && (
     viewer.role === 'admin'
-    || viewer.id === tutor.userId
+    || isOwner
     || studentHasStudioRequestWith(viewer.id, tutor.id)
   );
   res.json({
@@ -4311,6 +5860,20 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     : null;
 
   const user = currentUser(req);
+  // A sponsor can submit this same request on behalf of one of their own
+  // sponsored students ("Assign a Tutor" on the Sponsor Dashboard) instead
+  // of the student self-requesting - the tutor still goes through the
+  // normal accept/decline flow below, just addressed to a different
+  // student than the caller. Only ever allowed for a student actually
+  // linked to the caller's own organization.
+  let actingStudent = user;
+  if (req.body.assignStudentId) {
+    const org = organizations.findByUserId(user.id);
+    const targetStudent = store.findById(req.body.assignStudentId);
+    const isLinkedToOrg = Boolean(org && targetStudent && targetStudent.sponsor && targetStudent.sponsor.orgId === org.id);
+    if (!isLinkedToOrg) return res.status(403).json({ success: false, error: 'You can only assign a tutor to one of your sponsored students.' });
+    actingStudent = targetStudent;
+  }
   const selfTutor = tutors.findByUserId(user.id);
   const selfTutorId = selfTutor ? selfTutor.id : null;
   const requestTutorIds = Array.isArray(preferredTutorIds) ? preferredTutorIds.map(Number) : [];
@@ -4339,15 +5902,15 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   // Only physical/studio lessons need the tutor to actually travel or know
   // where to meet - an online negotiate request has no reason to expose
   // the student's home address.
-  const studentFullAddress = (isNegotiate && type !== 'online') ? (user.studentProfile && user.studentProfile.fullAddress) || null : null;
+  const studentFullAddress = (isNegotiate && type !== 'online') ? (actingStudent.studentProfile && actingStudent.studentProfile.fullAddress) || null : null;
 
   const studentGeo = city ? await geocodeAddress(city) : null;
   const requestsWithCandidates = requestedCategories.map((selectedCategory) => {
     const candidates = assignments.generateCandidates({
       category: selectedCategory, genre, ageGroup, level: desiredLevel, studentCoords: studentGeo, studentLocality: studentGeo, lessonType: type,
-    }).filter((c) => inViewerCountry(c.tutor, geoInfo.name));
+    }).filter((c) => inViewerCountry(c.tutor, geoInfo.name) && c.tutor.id !== selfTutorId);
     const request = assignments.createRequest({
-      studentId: user.id, studentName: user.name, studentEmail: user.email,
+      studentId: actingStudent.id, studentName: actingStudent.name, studentEmail: actingStudent.email,
       category: selectedCategory, genre, ageGroup, desiredLevel, city, lessonType: type, phone, notes,
       preferredTutorIds: requestTutorIds, candidateIds: candidates.map((c) => c.tutor.id),
       intakeResponses: Array.isArray(req.body.intakeResponses) ? req.body.intakeResponses : [], studentCountry: geoInfo.name,
@@ -4361,7 +5924,7 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
   notifyAdmins({
     type: 'tutor-request',
     subject: `New tutor request - ${requestedCategories.join(', ')}`,
-    message: `New tutor request from ${user.name} for ${requestedCategories.join(', ')}${amountSuffix} - match them in the admin panel.`,
+    message: `New tutor request from ${actingStudent.name} for ${requestedCategories.join(', ')}${amountSuffix} - match them in the admin panel.`,
     excludeUserId: user.id,
   });
 
@@ -4369,7 +5932,7 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     requestTutorIds.forEach((id) => {
       const preferredTutor = tutors.findById(id);
       if (preferredTutor && preferredTutor.status === 'approved') {
-        store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${user.name} requested you for ${requestedCategories.join(', ')}${amountSuffix}. Open your Tutor Profile to review and accept the requests.`, href: '/tutor' });
+        store.addNotification(preferredTutor.userId, { type: 'tutor-request', message: `${actingStudent.name} requested you for ${requestedCategories.join(', ')}${amountSuffix}. Open your Tutor Profile to review and accept the requests.`, href: '/tutor' });
       }
     });
   } else {
@@ -4401,13 +5964,19 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     });
   }
 
-  store.addNotification(user.id, {
+  store.addNotification(actingStudent.id, {
     type: 'tutor-request',
     message: isNegotiate
       ? `Your requests for ${requestedCategories.join(', ')} have been sent to matching tutors near you. You will be notified as they respond.`
       : `Your requests for ${requestedCategories.join(', ')} have been sent to your chosen tutor. You will be notified when they accept.`,
     href: isNegotiate ? '/find-tutor?tab=negotiate' : '/dashboard',
   });
+  if (actingStudent.id !== user.id) {
+    store.addNotification(user.id, {
+      type: 'organization',
+      message: `You matched ${actingStudent.name} with a ${requestedCategories.join(', ')} tutor. They'll be notified once the tutor accepts.`,
+    });
+  }
 
   const suggestedAmountLocal = suggestedAmountUsd != null
     ? Math.round((await currency.convertFromUsd(suggestedAmountUsd, geoInfo.currency)) * 100) / 100
@@ -4446,6 +6015,22 @@ app.get('/api/tutor-requests/mine', requireAuthApi, async (req, res) => {
   res.json({ success: true, requests, currency: geoInfo.currency, symbol: geoInfo.symbol });
 });
 
+// Lets a student withdraw their own request before any tutor is matched -
+// only while it's still 'pending'; once a tutor is assigned this route
+// won't touch it (that's a real assignment by then, not a delete-able draft).
+app.delete('/api/tutor-requests/:id', requireAuthApi, (req, res) => {
+  const respondedOffers = tutorOffers.listByRequest(req.params.id)
+    .filter((o) => ['accepted', 'countered', 'invited'].includes(o.status));
+  const removed = assignments.removeRequest(req.params.id, currentUser(req).id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Request not found or no longer pending.' });
+  tutorOffers.removeByRequest(req.params.id);
+  respondedOffers.forEach((offer) => {
+    const tutor = tutors.findById(offer.tutorId);
+    if (tutor) store.addNotification(tutor.userId, { type: 'tutor-request', message: `The student withdrew their "${removed.category}" request.` });
+  });
+  res.json({ success: true });
+});
+
 app.post('/api/tutor-requests/:id/select', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const request = assignments.findById(req.params.id);
@@ -4460,7 +6045,15 @@ app.post('/api/tutor-requests/:id/select', requireAuthApi, (req, res) => {
 
   tutorOffers.select(offer.id);
   tutorOffers.markOthersNotSelected(request.id, offer.id);
-  const updated = assignments.assignTutor(request.id, tutor, offer.distanceKm);
+  // A countered offer's counterAmountUsd is what the student is actually
+  // selecting (they're choosing this offer BECAUSE of the countered rate);
+  // an accepted offer means the tutor agreed to the student's own
+  // suggestedAmountUsd as-is. Falls back to the tutor's live rate only if
+  // this request never carried a suggested amount at all.
+  const agreedRateUsd = offer.status === 'countered'
+    ? offer.counterAmountUsd
+    : (offer.suggestedAmountUsd != null ? offer.suggestedAmountUsd : tutor.hourlyRateUsd);
+  const updated = assignments.assignTutor(request.id, tutor, offer.distanceKm, agreedRateUsd);
 
   store.addNotification(tutor.userId, { type: 'tutor-request', message: `${user.name} picked you for their ${updated.category} request. Your dashboard is ready.`, href: '/tutor' });
   tutorOffers.listByRequest(request.id)
@@ -4553,7 +6146,10 @@ app.post('/api/tutors/me/pending-requests/:id/accept', requireApprovedTutorApi, 
   if (!record || record.status !== 'pending' || !isEligible) {
     return res.status(404).json({ success: false, error: 'Student request not found.' });
   }
-  const updated = assignments.assignTutor(record.id, req.tutorProfile, null);
+  // The direct "request this tutor" flow has no counter-offer step - accepting
+  // means accepting the student's own suggestedAmountUsd as-is, if they set one.
+  const agreedRateUsd = record.suggestedAmountUsd != null ? record.suggestedAmountUsd : req.tutorProfile.hourlyRateUsd;
+  const updated = assignments.assignTutor(record.id, req.tutorProfile, null, agreedRateUsd);
   store.addNotification(updated.studentId, { type: 'tutor', message: `${req.tutorProfile.name} accepted your ${updated.category} tutor request. Your dashboard is ready.` });
   res.json({ success: true, request: updated });
 });
@@ -4652,8 +6248,8 @@ app.get('/api/library', requireAuthApi, (req, res) => {
   }
   if (searchTerm) {
     items = items.filter((item) => {
-      const haystack = [item.title, item.description, item.category, item.genre].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(searchTerm);
+      const haystack = [item.title, item.description, item.category, item.genre, item.url].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(searchTerm) || categoryMatchesQuery(item.category, searchTerm);
     });
   }
   items = [...items].sort((a, b) => {
@@ -4761,7 +6357,7 @@ app.post('/api/tutor-library', requireApprovedTutorApi, (req, res) => {
   res.json({ success: true, item });
 });
 
-app.post('/api/tutor-library/upload', requireApprovedTutorApi, (req, res) => {
+app.post('/api/tutor-library/upload', hydrateUploadToken, requireApprovedTutorApi, (req, res) => {
   videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
     if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
@@ -4826,10 +6422,14 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
   const hasCompletedClassWithTutor = assignments.listForTutor(req.tutorProfile.id)
     .some((item) => item.studentId === record.studentId && (item.sessions || []).length > 0);
   const isFreeTrial = !hasCompletedClassWithTutor;
+  // Bill this specific assignment's locked-in agreedRateUsd (set when the
+  // tutor was matched - see assignTutor()), not the tutor's live public
+  // profile rate, which may have since changed or simply differ from what
+  // this particular student negotiated.
   const session = assignments.addSession(record.id, {
     curriculumTitle: curriculumContent ? curriculumContent.title : null,
     teacherNotes, assignmentText, reels: resolvedReels, recordingUrl, durationMinutes: billableMinutes,
-    hourlyRateUsd: req.tutorProfile.hourlyRateUsd, isFreeTrial,
+    hourlyRateUsd: record.agreedRateUsd != null ? record.agreedRateUsd : req.tutorProfile.hourlyRateUsd, isFreeTrial,
   });
   tutors.incrementLessonsCompleted(req.tutorProfile.id);
   chat.send(record.id, { senderId: currentUser(req).id, senderRole: 'tutor', text: `🔔 Class ended. You spent ${session.durationMinutes} minute${session.durationMinutes === 1 ? '' : 's'} with ${record.tutorName} today.${isFreeTrial ? ' This first class is free.' : ` Lesson bill: $${session.totalUsd.toFixed(2)}.`}` });
@@ -4841,7 +6441,24 @@ app.post('/api/assignments/:id/sessions', requireApprovedTutorApi, async (req, r
   const student = store.findById(record.studentId);
 
   const sponsoringOrganization = coveredOrganizationForAssignment(record, student);
-  if (!isFreeTrial && sponsoringOrganization) {
+  // A sponsor's wallet (walletBalanceUsd - "load money in, lessons draw it
+  // down automatically") pays a covered lesson the instant it's logged,
+  // ahead of the manual per-lesson Stripe Checkout in /api/organizations/
+  // lesson-bills - that one only ever sees a bill once the wallet can't
+  // cover it (or hasn't been funded at all).
+  const autoDebitedOrg = !isFreeTrial && sponsoringOrganization ? organizations.debitWallet(sponsoringOrganization.id, session.totalUsd) : null;
+  if (autoDebitedOrg) {
+    const released = assignments.confirmSession(record.id, session.id);
+    await releaseTutorEarnings(record, released.session, { payerType: 'organization', organizationId: sponsoringOrganization.id });
+    store.addNotification(sponsoringOrganization.userId, {
+      type: 'organization',
+      message: `$${session.totalUsd.toFixed(2)} auto-paid from your wallet for ${record.studentName}'s ${record.category} lesson with ${req.tutorProfile.name}. Wallet balance: $${autoDebitedOrg.walletBalanceUsd.toFixed(2)}.`,
+    });
+    store.addNotification(record.studentId, {
+      type: 'lesson',
+      message: `${req.tutorProfile.name} completed your ${record.category} lesson. Your sponsor covered the bill.`,
+    });
+  } else if (!isFreeTrial && sponsoringOrganization) {
     store.addNotification(sponsoringOrganization.userId, {
       type: 'payment',
       message: `${req.tutorProfile.name} sent a $${session.totalUsd} ${record.category} lesson bill for sponsored student ${record.studentName}.`,
@@ -5191,6 +6808,22 @@ app.post('/api/assignments/:id/schedule', requireApprovedTutorApi, async (req, r
   }
 });
 
+// A tutor ending their own side of an assignment - same effect as the
+// existing admin-only end route (data/assignments.js's endAssignment), just
+// scoped to the tutor who owns the record instead of requiring an admin.
+app.post('/api/assignments/:id/end', requireApprovedTutorApi, (req, res) => {
+  const record = assignments.findById(req.params.id);
+  if (!record || record.tutorId !== req.tutorProfile.id) {
+    return res.status(404).json({ success: false, error: 'Assignment not found.' });
+  }
+  if (record.status !== 'active') {
+    return res.status(400).json({ success: false, error: 'Only an active assignment can be ended.' });
+  }
+  const updated = assignments.endAssignment(record.id);
+  store.addNotification(record.studentId, { type: 'tutor', message: `${req.tutorProfile.name} ended your ${record.category} lessons.` });
+  res.json({ success: true, request: updated });
+});
+
 app.get('/api/organizations/events', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
@@ -5245,8 +6878,12 @@ app.post('/api/organizations/events', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   const org = organizations.findByUserId(user.id);
   if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
-  const { title, startISO, durationMinutes, attendeeEmails, meetLink } = req.body || {};
-  if (!title || !startISO || Number.isNaN(Date.parse(startISO))) return res.status(400).json({ success: false, error: 'Meeting title and valid date/time are required.' });
+  // Not every event is a video call to join - a flyer for a recital, a gig
+  // announcement, general event awareness - meetLink stays optional and
+  // description/flyerUrl cover the rest, same "real workflow" event record
+  // either way (one org.events array, not a separate concept per kind).
+  const { title, startISO, durationMinutes, attendeeEmails, meetLink, description, flyerUrl } = req.body || {};
+  if (!title || !startISO || Number.isNaN(Date.parse(startISO))) return res.status(400).json({ success: false, error: 'Event title and valid date/time are required.' });
   try {
     const attendees = Array.isArray(attendeeEmails) ? attendeeEmails : [];
     let calendarDetails = {};
@@ -5254,7 +6891,16 @@ app.post('/api/organizations/events', requireAuthApi, async (req, res) => {
       const event = await googleCalendar.createLessonEvent({ refreshToken: user.googleCalendar.refreshToken, summary: title.trim(), description: `Mozart Techniques organization meeting for ${org.name}.`, startISO, durationMinutes: Number(durationMinutes) || 60, attendeeEmails: [...new Set([user.email, ...attendees].filter(Boolean))] });
       calendarDetails = { meetLink: event.meetLink, calendarEventId: event.eventId };
     }
-    const saved = organizations.addEvent(org.id, { title: title.trim(), scheduledAt: new Date(startISO).toISOString(), durationMinutes: Number(durationMinutes) || 60, attendeeEmails: attendees, meetLink: meetLink && String(meetLink).trim() || null, ...calendarDetails });
+    const saved = organizations.addEvent(org.id, {
+      title: title.trim(),
+      scheduledAt: new Date(startISO).toISOString(),
+      durationMinutes: Number(durationMinutes) || 60,
+      attendeeEmails: attendees,
+      meetLink: meetLink && String(meetLink).trim() || null,
+      description: description ? String(description).trim() : null,
+      flyerUrl: flyerUrl || null,
+      ...calendarDetails,
+    });
     const recipients = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
     assignments.listAll().forEach((record) => {
       if (!recipients.has(Number(record.studentId)) || !record.tutorId) return;
@@ -5351,10 +6997,112 @@ app.get('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   res.json({ success: true, messages: chat.listForAssignment(record.id), role });
 });
 
+// Fetches a shared link's page metadata (title/description/image) so chat
+// can render a rich preview card, the way WhatsApp/iMessage do, instead of
+// just underlined link text. Deliberately tolerant: any failure (bad url,
+// timeout, non-HTML response) resolves as success:true, preview:null
+// rather than an error - the client just shows the plain link text then,
+// same as if this endpoint didn't exist.
+const LINK_PREVIEW_CACHE = new Map(); // url -> { data, expiresAt }
+const LINK_PREVIEW_CACHE_TTL_MS = 60 * 60 * 1000;
+const LINK_PREVIEW_TIMEOUT_MS = 5000;
+const LINK_PREVIEW_MAX_BYTES = 200000; // the <head> metadata is always near the top - no need to read a whole large page
+
+function extractMetaTag(html, key) {
+  const patterns = [
+    new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]*content=["']([^"']*)["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${key}["']`, 'i'),
+  ];
+  for (const re of patterns) {
+    const match = html.match(re);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+app.get('/api/link-preview', requireAuthApi, async (req, res) => {
+  const rawUrl = req.query.url;
+  if (!rawUrl) return res.status(400).json({ success: false, error: 'Missing url.' });
+  let target;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    return res.json({ success: true, preview: null });
+  }
+  if (!['http:', 'https:'].includes(target.protocol)) return res.json({ success: true, preview: null });
+  // This fetches an arbitrary URL a user typed into chat - block the
+  // obvious loopback/private-network targets so the endpoint can't be used
+  // to probe this server's own internal network.
+  const hostname = target.hostname.toLowerCase();
+  if (
+    hostname === 'localhost' || hostname === '0.0.0.0' || hostname.endsWith('.local')
+    || /^127\./.test(hostname) || /^10\./.test(hostname) || /^192\.168\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+  ) {
+    return res.json({ success: true, preview: null });
+  }
+
+  const cached = LINK_PREVIEW_CACHE.get(target.href);
+  if (cached && cached.expiresAt > Date.now()) return res.json({ success: true, preview: cached.data });
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LINK_PREVIEW_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(target.href, {
+        signal: controller.signal,
+        redirect: 'follow',
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MozartTechniquesBot/1.0; +https://mozarttechniques.com)' },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok || !(response.headers.get('content-type') || '').includes('text/html')) {
+      return res.json({ success: true, preview: null });
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let html = '';
+    let bytesRead = 0;
+    while (bytesRead < LINK_PREVIEW_MAX_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.length;
+      html += decoder.decode(value, { stream: true });
+      if (/<\/head>/i.test(html)) break;
+    }
+    try { reader.cancel(); } catch {}
+
+    const title = extractMetaTag(html, 'og:title') || (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || null;
+    const description = extractMetaTag(html, 'og:description') || extractMetaTag(html, 'description');
+    let image = extractMetaTag(html, 'og:image');
+    if (image && !/^https?:\/\//i.test(image)) {
+      try { image = new URL(image, target.href).href; } catch { image = null; }
+    }
+
+    const data = {
+      url: target.href,
+      title: title ? title.trim().slice(0, 200) : null,
+      description: description ? description.trim().slice(0, 300) : null,
+      image: image || null,
+      siteName: extractMetaTag(html, 'og:site_name') || target.hostname,
+    };
+    if (!data.title && !data.description && !data.image) {
+      return res.json({ success: true, preview: null });
+    }
+    LINK_PREVIEW_CACHE.set(target.href, { data, expiresAt: Date.now() + LINK_PREVIEW_CACHE_TTL_MS });
+    res.json({ success: true, preview: data });
+  } catch {
+    res.json({ success: true, preview: null });
+  }
+});
+
 // Uploads a chat attachment and returns its URL - the caller then sends a
 // normal message referencing it, so an abandoned upload never becomes a
 // half-sent message in the thread.
-app.post('/api/chat/upload', requireAuthApi, (req, res) => {
+app.post('/api/chat/upload', hydrateUploadToken, requireAuthApi, (req, res) => {
   chatUpload.single('file')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 50MB).' : err.message;
@@ -5395,6 +7143,9 @@ app.post('/api/assignments/:id/messages', requireAuthApi, (req, res) => {
   const { text, libraryItemId, attachment, replyToId, poll, location } = req.body || {};
   if ((!text || !text.trim()) && !libraryItemId && !attachment && !poll && !location) {
     return res.status(400).json({ success: false, error: 'Message text, a file, a tagged clip, a poll, or a location is required.' });
+  }
+  if (containsContactInfo(text) || (poll && (containsContactInfo(poll.question) || (poll.options || []).some(containsContactInfo)))) {
+    return res.status(400).json({ success: false, error: "Sharing an email address or phone number in chat isn't allowed - keep lesson coordination and payment on Mozart Techniques." });
   }
   // Only accept an attachment that points at our own upload directory -
   // otherwise this field would let anyone render an arbitrary URL inside
@@ -5600,6 +7351,11 @@ function resolveThreadContext(req, res) {
     if (!access) { res.status(403).json({ success: false, error: 'Not your thread.' }); return null; }
     return { user, type, id, role: access.role, threadKey: `group:${id}`, otherPartyUserId: null };
   }
+  if (type === 'org') {
+    const access = resolveOrgChatAccess(user, id);
+    if (!access) { res.status(403).json({ success: false, error: 'Not your thread.' }); return null; }
+    return { user, type, id, role: access.role, threadKey: `org:${id}`, otherPartyUserId: null };
+  }
   res.status(400).json({ success: false, error: 'Unknown thread type.' });
   return null;
 }
@@ -5686,12 +7442,42 @@ app.post('/api/reports', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   const { threadKey, reason } = req.body || {};
   if (!reason || !reason.trim()) return res.status(400).json({ success: false, error: 'Tell us what happened.' });
-  const match = String(threadKey || '').match(/^assignment:(\d+)$/);
-  if (!match) return res.status(400).json({ success: false, error: 'Reporting is only available in a direct chat.' });
-  const record = assignments.findById(match[1]);
-  const role = assignmentParticipantRole(user, record);
-  if (!role) return res.status(403).json({ success: false, error: 'Not your thread.' });
-  const reportedUserId = role === 'student' ? (tutors.findById(record.tutorId) || {}).userId : record.studentId;
+
+  const assignmentMatch = String(threadKey || '').match(/^assignment:(\d+)$/);
+  const orgMatch = String(threadKey || '').match(/^org:(\d+)$/);
+
+  let reportedUserId = null;
+  if (assignmentMatch) {
+    const record = assignments.findById(assignmentMatch[1]);
+    const role = assignmentParticipantRole(user, record);
+    if (!role) return res.status(403).json({ success: false, error: 'Not your thread.' });
+    reportedUserId = role === 'student' ? (tutors.findById(record.tutorId) || {}).userId : record.studentId;
+  } else if (orgMatch) {
+    // Reports from an org-chat thread (Organization Dashboard, Org Tutor,
+    // Org Student messages) - a real, common source of reports that only
+    // ever matched the assignment-chat pattern above before, so every
+    // org-chat report silently 400'd and never reached this table (never
+    // showed up for admin at all). Group threads have no single "other
+    // party" to report, so those still aren't supported here.
+    const myAccess = resolveOrgChatAccess(user, orgMatch[1]);
+    if (!myAccess) return res.status(403).json({ success: false, error: 'Not your thread.' });
+    const conversation = myAccess.conversation;
+    if (conversation.type === 'group' || conversation.type === 'tutor-group') {
+      return res.status(400).json({ success: false, error: 'Reporting is only available in a direct chat.' });
+    }
+    if (myAccess.role === 'org') {
+      const participant = conversation.participants[0];
+      reportedUserId = participant
+        ? (participant.type === 'tutor' ? (tutors.findById(participant.id) || {}).userId : Number(participant.id))
+        : null;
+    } else {
+      const org = organizations.findById(conversation.orgId);
+      reportedUserId = org ? org.userId : null;
+    }
+  } else {
+    return res.status(400).json({ success: false, error: 'Reporting is only available in a direct chat.' });
+  }
+
   if (!reportedUserId) return res.status(400).json({ success: false, error: 'Could not resolve who to report.' });
   const report = reports.create({ reporterId: user.id, reportedUserId, threadKey, reason });
   const reportedUser = store.findById(reportedUserId);
@@ -5733,6 +7519,24 @@ app.post('/api/games/note-recognition/session', requireAuthApi, (req, res) => {
 app.get('/api/games/note-recognition/my-history', requireAuthApi, (req, res) => {
   const user = currentUser(req);
   res.json({ success: true, sessions: games.listForStudent(user.id).slice(0, 20) });
+});
+
+// One row per student, their single best score - the org-wide leaderboard
+// Org Student mode's Games tab shows, scoped to whichever org the caller
+// (owner or a member) belongs to.
+app.get('/api/games/note-recognition/leaderboard', requireAuthApi, (req, res) => {
+  const org = resolveOrgForUser(currentUser(req));
+  if (!org) return res.status(404).json({ success: false, error: 'You are not linked to an organization yet.' });
+  const bestByStudent = new Map();
+  games.listForOrg(org.id).forEach((session) => {
+    const existing = bestByStudent.get(session.studentUserId);
+    if (!existing || session.score > existing.score) bestByStudent.set(session.studentUserId, session);
+  });
+  const leaderboard = Array.from(bestByStudent.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20)
+    .map((s) => ({ studentUserId: s.studentUserId, studentName: s.studentName, score: s.score, tier: s.tier, playedAt: s.playedAt }));
+  res.json({ success: true, leaderboard });
 });
 
 // Org owner or a tutor linked to that org can view the classroom leaderboard.
@@ -5873,15 +7677,45 @@ app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
   if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
 
   if (status === 'approved') {
-    store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application has been approved! Set up your Stripe payout account from the Tutor Dashboard so paid classes can be paid automatically.' });
+    const message = 'Your tutor application has been approved! Set up your Stripe payout account from the Tutor Dashboard so paid classes can be paid automatically.';
+    store.addNotification(updated.userId, { type: 'tutor', message });
+    // The in-app notification above stays a one-line bell alert on purpose
+    // (that surface has no room for more) - the email is the detailed
+    // version, since that's the one the user actually asked to carry the
+    // full picture: what they were approved for, the policies they're
+    // agreeing to, and where to go for everything else.
+    mailer.sendStatusUpdateEmail(updated, {
+      subject: 'Your Mozart Techniques tutor application was approved',
+      heading: "You're approved!",
+      approved: true,
+      message: [
+        `Congratulations - you're approved to teach ${(updated.categories || []).join(', ') || 'on Mozart Techniques'}. Students can now find and book you.`,
+        'Before your first lesson, set up your Stripe payout account so paid classes pay out automatically, and complete your Tutor Orientation - a short walkthrough of platform policies, safeguarding expectations, and how lessons/payouts work, which you\'ll be asked to agree to on your first visit to the Tutor Dashboard.',
+        'Your dashboard has the full detail on all of this - approved subjects, payout setup, orientation, and every message tied to your account - this email is just the headline.',
+      ],
+      resources: [
+        { title: 'Terms of Service', description: 'What you’re agreeing to as a tutor on Mozart Techniques.', href: `${mailer.APP_URL}/terms-of-service` },
+        { title: 'Orientation & Policies', description: 'Platform standards, safeguarding, and how matching/payouts work.', href: `${mailer.APP_URL}/orientation` },
+      ],
+      ctaLabel: 'Go to Tutor Dashboard',
+      ctaHref: `${mailer.APP_URL}/tutor-dashboard.html`,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   } else if (status === 'rejected') {
-    store.addNotification(updated.userId, { type: 'tutor', message: 'Your tutor application was not approved this time.' });
+    const message = 'Your tutor application was not approved this time.';
+    store.addNotification(updated.userId, { type: 'tutor', message });
+    mailer.sendStatusUpdateEmail(updated, {
+      subject: 'An update on your Mozart Techniques tutor application',
+      heading: 'Application update',
+      approved: false,
+      message,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   }
   res.json({ success: true, tutor: updated });
 });
 
 app.get('/api/admin/organizations', requireAdminApi, (req, res) => {
-  res.json({ success: true, organizations: organizations.listAll() });
+  const admin = currentUser(req);
+  res.json({ success: true, organizations: organizations.listAll().filter((organization) => canManageOrganization(admin, organization)) });
 });
 
 app.post('/api/admin/organizations/:id/status', requireAdminApi, (req, res) => {
@@ -5889,13 +7723,40 @@ app.post('/api/admin/organizations/:id/status', requireAdminApi, (req, res) => {
   if (!['approved', 'rejected', 'pending'].includes(status)) {
     return res.status(400).json({ success: false, error: 'Invalid status.' });
   }
-  const updated = organizations.setStatus(req.params.id, status);
+  const organization = organizations.findById(req.params.id);
+  if (!organization || !canManageOrganization(currentUser(req), organization)) return res.status(403).json({ success: false, error: 'You can only review organizations in your country.' });
+  const updated = organizations.setStatus(req.params.id, status, currentUser(req).id);
   if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
 
   if (status === 'approved') {
-    store.addNotification(updated.userId, { type: 'organization', message: 'Your organization application has been approved! Complete your annual subscription to start sponsoring students.' });
+    const message = 'Your organization application has been approved! Complete your annual subscription to start sponsoring students.';
+    store.addNotification(updated.userId, { type: 'organization', message });
+    mailer.sendStatusUpdateEmail({ ...updated, name: updated.name || updated.contactName }, {
+      subject: 'Your Mozart Techniques organization application was approved',
+      heading: "You're approved!",
+      approved: true,
+      message: [
+        `Congratulations - ${updated.name || updated.contactName}'s application to sponsor students on Mozart Techniques has been approved.`,
+        updated.sponsorType === 'individual'
+          ? 'Your Sponsor Dashboard is ready - you can generate access codes for the students you sponsor right away.'
+          : 'One step left: complete your annual subscription to unlock access codes for the students you sponsor and your organization\'s Classroom.',
+        'Your dashboard has the full detail on all of this - subscription status, access codes, and every message tied to your account - this email is just the headline.',
+      ],
+      resources: [
+        { title: 'Terms of Service', description: 'What you’re agreeing to as a sponsoring organization.', href: `${mailer.APP_URL}/terms-of-service` },
+      ],
+      ctaLabel: updated.sponsorType === 'individual' ? 'Go to Sponsor Dashboard' : 'Complete Your Subscription',
+      ctaHref: `${mailer.APP_URL}${updated.sponsorType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor'}`,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   } else if (status === 'rejected') {
-    store.addNotification(updated.userId, { type: 'organization', message: 'Your organization application was not approved this time.' });
+    const message = 'Your organization application was not approved this time.';
+    store.addNotification(updated.userId, { type: 'organization', message });
+    mailer.sendStatusUpdateEmail({ ...updated, name: updated.name || updated.contactName }, {
+      subject: 'An update on your Mozart Techniques organization application',
+      heading: 'Application update',
+      approved: false,
+      message,
+    }).catch((err) => console.error('Status update email failed:', err.message));
   }
   res.json({ success: true, organization: updated });
 });
@@ -5904,6 +7765,8 @@ app.post('/api/admin/organizations/:id/status', requireAdminApi, (req, res) => {
 // data/organizations.js for why this isn't a live payment charge.
 app.post('/api/admin/organizations/:id/activate', requireAdminApi, (req, res) => {
   const months = Number(req.body && req.body.months) === 1 ? 1 : 12;
+  const organization = organizations.findById(req.params.id);
+  if (!organization || !canManageOrganization(currentUser(req), organization)) return res.status(403).json({ success: false, error: 'You can only manage organizations in your country.' });
   const updated = organizations.activateSubscription(req.params.id, months);
   if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
   store.addNotification(updated.userId, {
@@ -5917,6 +7780,8 @@ app.post('/api/admin/organizations/:id/monthly-amount', requireAdminApi, (req, r
   const { monthlyAmount } = req.body || {};
   if (monthlyAmount == null) return res.status(400).json({ success: false, error: 'Monthly amount is required.' });
   
+  const organization = organizations.findById(req.params.id);
+  if (!organization || !canManageOrganization(currentUser(req), organization)) return res.status(403).json({ success: false, error: 'You can only manage organizations in your country.' });
   const updated = organizations.setMonthlyAmount(req.params.id, monthlyAmount);
   if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
   
@@ -5928,6 +7793,8 @@ app.post('/api/admin/organizations/:id/monthly-amount', requireAdminApi, (req, r
 });
 
 app.post('/api/admin/organizations/:id/code-sent', requireAdminApi, (req, res) => {
+  const organization = organizations.findById(req.params.id);
+  if (!organization || !canManageOrganization(currentUser(req), organization)) return res.status(403).json({ success: false, error: 'You can only manage organizations in your country.' });
   const updated = organizations.markCodeSent(req.params.id);
   if (!updated) return res.status(404).json({ success: false, error: 'Organization not found.' });
   store.addNotification(updated.userId, {
@@ -5938,6 +7805,8 @@ app.post('/api/admin/organizations/:id/code-sent', requireAdminApi, (req, res) =
 });
 
 app.delete('/api/admin/organizations/:id', requireAdminApi, (req, res) => {
+  const organization = organizations.findById(req.params.id);
+  if (!organization || !canManageOrganization(currentUser(req), organization)) return res.status(403).json({ success: false, error: 'You can only manage organizations in your country.' });
   const removed = organizations.removeById(req.params.id);
   if (!removed) return res.status(404).json({ success: false, error: 'Organization application not found.' });
   (removed.members || []).forEach((member) => store.clearSponsor(Number(member.studentId), removed.id));
@@ -5945,6 +7814,8 @@ app.delete('/api/admin/organizations/:id', requireAdminApi, (req, res) => {
 });
 
 app.post('/api/admin/tutors/:id/expel', requireAdminApi, (req, res) => {
+  const tutor = tutors.findById(req.params.id);
+  if (!tutor || !canManageUser(currentUser(req), store.findById(tutor.userId))) return res.status(403).json({ success: false, error: 'You can only manage tutors in your country.' });
   const updated = tutors.expel(req.params.id);
   if (!updated) return res.status(404).json({ success: false, error: 'Tutor not found.' });
   assignments.listForTutor(updated.id).filter((r) => r.status === 'active').forEach((r) => assignments.endAssignment(r.id));
@@ -5953,12 +7824,16 @@ app.post('/api/admin/tutors/:id/expel', requireAdminApi, (req, res) => {
 });
 
 app.post('/api/admin/tutors/:id/clear-flag', requireAdminApi, (req, res) => {
+  const tutor = tutors.findById(req.params.id);
+  if (!tutor || !canManageUser(currentUser(req), store.findById(tutor.userId))) return res.status(403).json({ success: false, error: 'You can only manage tutors in your country.' });
   const updated = tutors.clearFlag(req.params.id);
   if (!updated) return res.status(404).json({ success: false, error: 'Tutor not found.' });
   res.json({ success: true, tutor: updated });
 });
 
 app.post('/api/admin/users/:id/clear-flag', requireAdminApi, (req, res) => {
+  const user = store.findById(Number(req.params.id));
+  if (!user || !canCountryAdminViewUser(currentUser(req), user)) return res.status(403).json({ success: false, error: 'You can only manage users in your country.' });
   const updated = store.clearStudentFlag(Number(req.params.id));
   if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
   res.json({ success: true });
@@ -5968,7 +7843,7 @@ app.post('/api/admin/users/:id/clear-flag', requireAdminApi, (req, res) => {
 // admin monitor all tutor/student activity in one place rather than having
 // to open each assignment individually.
 app.get('/api/admin/activity', requireAdminApi, (req, res) => {
-  const regionSet = parseRegionFilter(req);
+  const regionSet = resolveRegionFilter(req, currentUser(req));
   const sessions = assignments.listAll().filter((r) => !regionSet || regionSet.has(String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase())).flatMap((r) => (r.sessions || []).map((s) => ({
     ...s,
     requestId: r.id,
@@ -5984,7 +7859,7 @@ app.get('/api/admin/activity', requireAdminApi, (req, res) => {
 // A live feed of every chat message platform-wide, newest first - part of
 // "admin can see all activities."
 app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
-  const regionSet = parseRegionFilter(req);
+  const regionSet = resolveRegionFilter(req, currentUser(req));
   const allRecords = assignments.listAll().filter((r) => !regionSet || regionSet.has(String(r.studentCountry || (store.findById(r.studentId)?.country) || '').toLowerCase()));
   const messages = allRecords.flatMap((r) => chat.listForAssignment(r.id).map((m) => ({
     ...m, category: r.category, tutorName: r.tutorName, studentName: r.studentName,
@@ -5997,7 +7872,21 @@ app.get('/api/admin/chat-activity', requireAdminApi, (req, res) => {
 // elsewhere (the payments ledger, tutor/assignment records), never a
 // placeholder or estimate.
 app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
-  const regionSet = parseRegionFilter(req);
+  const admin = currentUser(req);
+  const regionSet = resolveRegionFilter(req, admin);
+  // A Country Admin's own reading isn't the platform's revenue/lesson
+  // numbers (that stays a Main Admin view) - it's a record of their own
+  // moderation work: how many tutor/organization/performer applications
+  // THEY personally approved or rejected. Computed for every admin (cheap),
+  // but the mobile app only leads with it for a non-primary admin.
+  const myActions = {
+    tutorsApproved: tutors.listAll().filter((t) => t.reviewedByUserId === admin.id && t.status === 'approved').length,
+    tutorsRejected: tutors.listAll().filter((t) => t.reviewedByUserId === admin.id && t.status === 'rejected').length,
+    organizationsApproved: organizations.listAll().filter((o) => o.reviewedByUserId === admin.id && o.status === 'approved').length,
+    organizationsRejected: organizations.listAll().filter((o) => o.reviewedByUserId === admin.id && o.status === 'rejected').length,
+    performersApproved: performers.listAll().filter((p) => p.reviewedByUserId === admin.id && p.status === 'approved').length,
+    performersRejected: performers.listAll().filter((p) => p.reviewedByUserId === admin.id && p.status === 'rejected').length,
+  };
   const assignmentInRegion = (assignmentId) => {
     if (!regionSet) return true;
     const record = assignments.findById(assignmentId);
@@ -6055,12 +7944,15 @@ app.get('/api/admin/analytics', requireAdminApi, (req, res) => {
     revenueByDay,
     topSubjects,
     tutorLeaderboard,
+    myActions,
+    isPrimaryAdmin: isPrimaryAdmin(admin),
   });
 });
 
 app.get('/api/admin/flagged', requireAdminApi, (req, res) => {
-  const flaggedTutors = tutors.listAll().filter((t) => t.flagged && !t.expelled);
-  const flaggedStudents = store.listUsers().filter((u) => u.rating && u.rating.flagged);
+  const admin = currentUser(req);
+  const flaggedTutors = tutors.listAll().filter((t) => t.flagged && !t.expelled && canManageUser(admin, store.findById(t.userId)));
+  const flaggedStudents = store.listUsers().filter((u) => u.rating && u.rating.flagged && canCountryAdminViewUser(admin, u));
   res.json({
     success: true,
     tutors: flaggedTutors,
@@ -6069,17 +7961,22 @@ app.get('/api/admin/flagged', requireAdminApi, (req, res) => {
 });
 
 app.get('/api/admin/reports', requireAdminApi, (req, res) => {
+  const admin = currentUser(req);
   const rows = reports.listAll().map((report) => {
     const reporter = store.findById(report.reporterId);
     const reported = store.findById(report.reportedUserId);
+    if (!canCountryAdminViewUser(admin, reporter) || !canCountryAdminViewUser(admin, reported)) return null;
     return { ...report, reporterName: reporter ? reporter.name : null, reportedUserName: reported ? reported.name : null };
-  });
+  }).filter(Boolean);
   res.json({ success: true, reports: rows });
 });
 
 app.post('/api/admin/reports/:id/resolve', requireAdminApi, (req, res) => {
+  const existing = reports.listAll().find((report) => Number(report.id) === Number(req.params.id));
+  if (!existing) return res.status(404).json({ success: false, error: 'Report not found.' });
+  const admin = currentUser(req);
+  if (!canCountryAdminViewUser(admin, store.findById(existing.reporterId)) || !canCountryAdminViewUser(admin, store.findById(existing.reportedUserId))) return res.status(403).json({ success: false, error: 'You can only manage reports from your country.' });
   const report = reports.setStatus(req.params.id, 'resolved');
-  if (!report) return res.status(404).json({ success: false, error: 'Report not found.' });
   res.json({ success: true, report });
 });
 
@@ -6112,7 +8009,10 @@ app.post('/api/admin/tutor-requests/:id/assign', requireAdminApi, async (req, re
     distKm = distanceKm(studentCoords, { lat: tutor.lat, lng: tutor.lng });
   }
 
-  const updated = assignments.assignTutor(req.params.id, tutor, distKm);
+  // No negotiation context on an admin-initiated match - honor the
+  // student's own suggestedAmountUsd if they set one, else the tutor's rate.
+  const agreedRateUsd = record.suggestedAmountUsd != null ? record.suggestedAmountUsd : tutor.hourlyRateUsd;
+  const updated = assignments.assignTutor(req.params.id, tutor, distKm, agreedRateUsd);
   if (!updated) return res.status(404).json({ success: false, error: 'Request not found.' });
   if (tutor.orientationBonusPending) tutors.clearOrientationBonus(tutor.id);
 
@@ -6122,8 +8022,12 @@ app.post('/api/admin/tutor-requests/:id/assign', requireAdminApi, async (req, re
 });
 
 app.post('/api/admin/tutor-requests/:id/end', requireAdminApi, (req, res) => {
+  const existing = assignments.findById(req.params.id);
+  if (!existing) return res.status(404).json({ success: false, error: 'Request not found.' });
+  const admin = currentUser(req);
+  const assignedTutor = existing.tutorId ? tutors.findById(existing.tutorId) : null;
+  if (!canManageUser(admin, store.findById(existing.studentId)) || (assignedTutor && !canManageUser(admin, store.findById(assignedTutor.userId)))) return res.status(403).json({ success: false, error: 'You can only manage matches in your country.' });
   const record = assignments.endAssignment(req.params.id);
-  if (!record) return res.status(404).json({ success: false, error: 'Request not found.' });
   res.json({ success: true, request: record });
 });
 
@@ -6162,7 +8066,7 @@ app.post('/api/admin/orientation', requireAdminApi, (req, res) => {
   res.json({ success: true, content, questions: saved });
 });
 
-app.post('/api/admin/orientation/upload', requireAdminApi, (req, res) => {
+app.post('/api/admin/orientation/upload', hydrateUploadToken, requireAdminApi, (req, res) => {
   videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message });
@@ -6173,11 +8077,215 @@ app.post('/api/admin/orientation/upload', requireAdminApi, (req, res) => {
   });
 });
 
+// A second, more permissive upload for orientation *posts* (not the
+// one-time content above) - documents, letters, images, anything besides
+// the handful of extensions chatUpload already blocks for being
+// executable/markup. Kept separate from the video-only uploader above
+// since a 500MB video allowance has no reason to apply to a PDF.
+app.post('/api/admin/orientation/posts/upload-file', hydrateUploadToken, requireAdminApi, (req, res) => {
+  chatUpload.single('file')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 50MB).' : err.message });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Choose a file to upload.' });
+    res.json({ success: true, url: await resolveUploadedFileUrl(req.file, 'chat'), name: req.file.originalname });
+  });
+});
+
 app.get('/api/orientation', requireAuthApi, (req, res) => {
   const user = currentUser(req);
-  const audience = user.role === 'admin' ? 'admin' : user.role === 'support_agent' ? 'support_agent' : organizations.findByUserId(user.id) ? 'organization' : user.sponsor ? 'sponsor' : tutors.findByUserId(user.id) ? 'tutor' : 'student';
+  const audience = resolveOrientationAudience(user);
   const key = audience === 'tutor' ? curriculum.ORIENTATION_KEY : `orientation-${audience}`;
   res.json({ success: true, audience, content: curriculum.getForCategory(key), questions: assessments.getQuestionsForTaker('orientation', audience === 'tutor' ? null : audience) });
+});
+
+// The dated, reactable orientation "updates" feed - separate from the
+// single onboarding content/quiz above, which stays a one-time thing.
+// Audience is resolved the same server-side way as /api/orientation.
+// Normalizes reactions/comments to always be arrays (older posts predate
+// one or both fields) and tags the caller's own reaction/progress - shared
+// by every route below that returns post(s) to a specific viewer, so the
+// client always knows whether THIS user has already finished/passed a
+// post without a separate round trip per post.
+function withViewerState(post, userId) {
+  const hasQuiz = orientationPostQuestions(post.id).length > 0;
+  const progress = orientationProgress.getProgress(userId, post.id);
+  return {
+    ...post,
+    reactions: post.reactions || [],
+    comments: post.comments || [],
+    myReaction: (post.reactions || []).find((r) => r.userId === userId)?.emoji || null,
+    hasQuiz,
+    finished: Boolean(progress && progress.finishedAt),
+    passed: Boolean(progress && progress.passed),
+    attempts: (progress && progress.attempts) || 0,
+    done: orientationProgress.isPostDone(userId, post, hasQuiz),
+  };
+}
+
+app.get('/api/orientation/posts', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const audience = resolveOrientationAudience(user);
+  const posts = orientation.list(audience).map((post) => withViewerState(post, user.id));
+  res.json({ success: true, audience, posts });
+});
+
+app.post('/api/orientation/posts/:id/react', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (!isValidReaction(emoji)) return res.status(400).json({ success: false, error: 'Not a supported reaction.' });
+  const post = orientation.addReaction(req.params.id, user.id, emoji);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  res.json({ success: true, post: withViewerState(post, user.id) });
+});
+
+// Anyone who can see the post (i.e. it's their resolved audience, or
+// they're an admin) can comment on it - matches the reaction route's own
+// access model, just requireAuthApi rather than gating by audience match,
+// since a comment referencing a post id the caller can't otherwise see
+// leaks nothing back to them beyond the post they already named.
+app.post('/api/orientation/posts/:id/comment', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ success: false, error: 'Write a comment first.' });
+  if (text.length > 1000) return res.status(400).json({ success: false, error: 'Comment is too long.' });
+  const post = orientation.addComment(req.params.id, { userId: user.id, userName: user.name, text });
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  res.json({ success: true, post: withViewerState(post, user.id) });
+});
+
+app.delete('/api/orientation/posts/:id/comment/:commentId', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const post = orientation.findById(req.params.id);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const comment = (post.comments || []).find((c) => c.id === Number(req.params.commentId));
+  if (!comment) return res.status(404).json({ success: false, error: 'Comment not found.' });
+  if (comment.userId !== user.id && user.role !== 'admin') return res.status(403).json({ success: false, error: 'You can only delete your own comments.' });
+  const updated = orientation.removeComment(req.params.id, req.params.commentId);
+  res.json({ success: true, post: withViewerState(updated, user.id) });
+});
+
+// Marks a post viewed - the only completion step for a post with no quiz;
+// for one with a quiz it just unlocks the quiz UI (passing is what marks
+// that one done, see /quiz/submit below).
+app.post('/api/orientation/posts/:id/finish', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const post = orientation.findById(req.params.id);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const record = orientationProgress.markFinished(user.id, post.id);
+  res.json({ success: true, progress: record });
+});
+
+app.get('/api/orientation/posts/:id/quiz', requireAuthApi, (req, res) => {
+  const post = orientation.findById(req.params.id);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  res.json({ success: true, questions: assessments.getQuestionsForTaker('orientation-post', String(post.id)) });
+});
+
+// Grades the attempt and records it either way. A passing attempt (>=70%)
+// additionally gets each question's correct option index back so the
+// client can show green/red - a failing one gets only the score, so a
+// wrong attempt never leaks which options were right.
+app.post('/api/orientation/posts/:id/quiz/submit', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const post = orientation.findById(req.params.id);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const answers = Array.isArray(req.body && req.body.answers) ? req.body.answers : [];
+  const result = assessments.grade('orientation-post', String(post.id), answers);
+  if (!result) return res.status(400).json({ success: false, error: 'This post has no quiz.' });
+  const passed = result.score >= 0.7;
+  orientationProgress.recordAttempt(user.id, post.id, { correct: result.correct, total: result.total, score: result.score, passed });
+  if (!passed) return res.json({ success: true, passed: false, correct: result.correct, total: result.total, score: result.score });
+  const questions = orientationPostQuestions(post.id);
+  const review = questions.map((q, i) => ({ question: q.question, options: q.options, correctIndex: q.correctIndex, yourAnswer: Number(answers[i]) }));
+  res.json({ success: true, passed: true, correct: result.correct, total: result.total, score: result.score, review });
+});
+
+// Every required post targeted at the caller's own resolved audience, with
+// completion state - drives the recurring reminder and the Orientation
+// screen's own per-post state, same underlying data the withdrawal gate
+// checks for tutors.
+app.get('/api/orientation/status', requireAuthApi, (req, res) => {
+  res.json({ success: true, ...requiredOrientationStatus(currentUser(req)) });
+});
+
+const ORIENTATION_AUDIENCES = ['tutor', 'student', 'admin', 'sponsor', 'organization', 'support_agent'];
+
+// Admin's manage view - every posted update across every audience (or one,
+// via ?audience=), unlike GET /api/orientation/posts which resolves the
+// caller's own single audience. Used to show what's already been sent
+// (including who reacted/commented) alongside the composer, and to power
+// its delete buttons.
+app.get('/api/admin/orientation/posts', requireAdminApi, (req, res) => {
+  const audience = req.query.audience;
+  if (audience && !ORIENTATION_AUDIENCES.includes(audience)) return res.status(400).json({ success: false, error: 'Invalid orientation audience.' });
+  const admin = currentUser(req);
+  res.json({ success: true, posts: orientation.listAll(audience).map((post) => withViewerState(post, admin.id)) });
+});
+
+// Accepts either `audiences` (an array, optionally including 'all') or the
+// older single `audience` string, so existing callers keep working. 'all'
+// expands to every real audience rather than being stored as its own
+// bucket, since GET /api/orientation/posts resolves one real audience per
+// viewer and has no notion of an 'all' catch-all to match against. One
+// post record is created per resolved audience - simplest way to reuse the
+// existing single-audience `list()`/`add()` shape without changing it.
+app.post('/api/admin/orientation/posts', requireAdminApi, (req, res) => {
+  const { audience, audiences, title, notes, videoUrl, attachmentUrl, attachmentName, required, questions } = req.body || {};
+  const requested = Array.isArray(audiences) ? audiences : audience ? [audience] : [];
+  const resolved = requested.includes('all') ? ORIENTATION_AUDIENCES : requested;
+  const targets = [...new Set(resolved)].filter((a) => ORIENTATION_AUDIENCES.includes(a));
+  if (!targets.length) return res.status(400).json({ success: false, error: 'Choose at least one dashboard to send this to.' });
+  if (!title || !String(title).trim()) return res.status(400).json({ success: false, error: 'Enter a title.' });
+  const admin = currentUser(req);
+  const posts = targets.map((a) =>
+    orientation.add({
+      audience: a,
+      title: String(title).trim(),
+      notes: notes ? String(notes).trim() : '',
+      videoUrl: videoUrl ? String(videoUrl).trim() : null,
+      attachmentUrl: attachmentUrl ? String(attachmentUrl).trim() : null,
+      attachmentName: attachmentUrl && attachmentName ? String(attachmentName).trim() : null,
+      required: Boolean(required),
+      createdByName: admin.name,
+      reactions: [],
+      comments: [],
+    }),
+  );
+  // Same question set attached to every fanned-out post (one per target
+  // audience) - keyed per post id in assessments.js so each still grades
+  // independently even though the content is identical.
+  if (Array.isArray(questions) && questions.length) {
+    posts.forEach((post) => assessments.setQuestions('orientation-post', String(post.id), questions));
+  }
+  // Real notification per targeted user, not just a UI toast to the admin -
+  // this is what NotificationBubbles/NotificationsScreen pick up as the
+  // "pop up card" pointing them at the Orientation screen.
+  posts.forEach((post) => {
+    usersForOrientationAudience(post.audience).forEach((u) => {
+      store.addNotification(u.id, { type: 'orientation', message: post.title, href: '/orientation' });
+    });
+  });
+  res.json({ success: true, posts, post: posts[0] });
+});
+
+// Attaches/replaces a per-post quiz after the post already exists - kept
+// separate from creation so the admin can add questions to a post that
+// went out without any (or edit them later) without duplicating the
+// create-and-notify logic above.
+app.post('/api/admin/orientation/posts/:id/quiz', requireAdminApi, (req, res) => {
+  const post = orientation.findById(req.params.id);
+  if (!post) return res.status(404).json({ success: false, error: 'Post not found.' });
+  const questions = Array.isArray(req.body && req.body.questions) ? req.body.questions : [];
+  const saved = assessments.setQuestions('orientation-post', String(post.id), questions);
+  res.json({ success: true, questions: saved });
+});
+
+app.delete('/api/admin/orientation/posts/:id', requireAdminApi, (req, res) => {
+  const removed = orientation.remove(req.params.id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Post not found.' });
+  res.json({ success: true });
 });
 
 app.get('/api/admin/curriculum/:category', requireAdminApi, (req, res) => {
@@ -6202,7 +8310,7 @@ app.post('/api/admin/library', requireAdminApi, (req, res) => {
   res.json({ success: true, item });
 });
 
-app.post('/api/admin/library/upload', requireAdminApi, (req, res) => {
+app.post('/api/admin/library/upload', hydrateUploadToken, requireAdminApi, (req, res) => {
   videoUpload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? 'Video is too large (max 500MB).' : err.message;
@@ -6255,7 +8363,7 @@ app.get('/api/admin/users', requireAdminApi, (req, res) => {
   const search = (req.query.search || '').toLowerCase().trim();
   let users = store.listUsers();
   const admin = currentUser(req);
-  users = users.filter((user) => canManageUser(admin, user));
+  users = users.filter((user) => canCountryAdminViewUser(admin, user));
   if (search) {
     users = users.filter((u) => u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search));
   }
@@ -6274,7 +8382,7 @@ app.post('/api/admin/users/:id/role', requireAdminApi, (req, res) => {
   }
   const target = store.findById(Number(req.params.id));
   if (!target) return res.status(404).json({ success: false, error: 'User not found.' });
-  if (!canManageUser(admin, target)) return res.status(403).json({ success: false, error: 'You can only manage users in your country.' });
+  if (!canCountryAdminViewUser(admin, target)) return res.status(403).json({ success: false, error: 'You can only manage users in your country.' });
   if (['admin', 'demo', 'country_admin'].includes(role) && !isPrimaryAdmin(admin)) {
     return res.status(403).json({ success: false, error: 'Only the main administrator can grant Admin or Demo access.' });
   }
@@ -6333,6 +8441,48 @@ app.use((req, res) => {
   if (req.method !== 'GET') return res.status(404).json({ success: false, error: 'Route not available.' });
   res.status(404).sendFile(path.join(PUBLIC_DIR, 'not-found.html'));
 });
+
+// Win-back email: anyone who hasn't been seen (store.markSeen - the global
+// "any signed-in request" middleware near the top of this file) in 2-3
+// weeks gets the same "quick hello" reminder that was first sent as a
+// one-off blast to the existing user base (data/mailer.js's
+// sendReminderEmail). lastReengagementEmailAt gates it to once per quiet
+// period: if it was already sent AFTER their last real activity, this
+// check leaves them alone - only a user who came back and then went quiet
+// again gets a second one, never a daily repeat of the same email.
+const REENGAGEMENT_THRESHOLD_DAYS = 14;
+const REENGAGEMENT_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+async function checkReengagementEmails() {
+  const now = Date.now();
+  for (const user of store.listUsers()) {
+    if (!user.email) continue;
+    const lastActive = new Date(user.lastSeenAt || user.createdAt);
+    if (Number.isNaN(lastActive.getTime())) continue;
+    const daysSinceActive = (now - lastActive.getTime()) / 86400000;
+    if (daysSinceActive < REENGAGEMENT_THRESHOLD_DAYS) continue;
+    const alreadySentSinceLastActive = user.lastReengagementEmailAt
+      && new Date(user.lastReengagementEmailAt).getTime() > lastActive.getTime();
+    if (alreadySentSinceLastActive) continue;
+    try {
+      const result = await mailer.sendReminderEmail(user);
+      if (result.sent) store.markReengagementEmailSent(user.id);
+    } catch (err) {
+      console.error('Re-engagement email failed for', user.email, ':', err.message);
+    }
+  }
+}
+
+setInterval(() => {
+  checkReengagementEmails().catch((err) => console.error('Re-engagement check failed:', err.message));
+}, REENGAGEMENT_CHECK_INTERVAL_MS);
+// Also run shortly after boot rather than waiting a full interval - a
+// server that gets restarted daily (or more) during development should
+// never let qualifying users go unnoticed just because the interval never
+// got the chance to fire.
+setTimeout(() => {
+  checkReengagementEmails().catch((err) => console.error('Re-engagement check failed:', err.message));
+}, 60 * 1000);
 
 function startServer(attempt = 1) {
   const httpServer = app.listen(PORT, () => {
