@@ -38,6 +38,12 @@
         h1, h2, h3 { font-family: 'Science Gothic', sans-serif; letter-spacing: 0.01em; }
         .header { position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(16px); background: #fff; border-bottom: 2px solid #cc0000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .nav-container { width: 100%; max-width: 1160px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; gap: 16px; }
+        /* Matches .nav-container's own max-width/padding exactly (Tailwind's
+           max-w-6xl this used to sit in is 1152px, 8px narrower) so the
+           profile menu's left edge lines up with the logo above it on
+           desktop instead of sitting a few pixels further right. */
+        .profile-main { width: 100%; max-width: 1160px; margin: 0 auto; padding: 40px 16px; }
+        @media (min-width: 640px) { .profile-main { padding-left: 24px; padding-right: 24px; } }
         .logo a { display: flex; align-items: center; gap: 12px; font-family: 'Science Gothic', sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; color: #333; text-decoration: none; }
         .logo img { height: 40px; width: 40px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .nav-links { display: flex; align-items: center; gap: 24px; }
@@ -135,6 +141,12 @@
         }
         .signout-btn i { width: 36px; text-align: center; font-size: 1.7rem; }
         .signout-btn:hover { background: #fef2f2; }
+        @media (min-width: 769px) {
+            .profile-menu a, .profile-menu button { gap: 12px; padding-left: 0; padding-right: 0; }
+            .profile-menu i { width: 40px; }
+            .signout-btn { gap: 12px; padding-left: 0; padding-right: 0; }
+            .signout-btn i { width: 40px; }
+        }
     </style>
 </head>
 <body>
@@ -158,7 +170,7 @@
         </div>
     </header>
 
-    <main class="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <main class="profile-main">
         <div id="profile-root">
             <p class="text-gray-400 text-sm text-center">Loading your profile…</p>
         </div>
@@ -195,7 +207,13 @@
                     href: user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor',
                     icon: 'fa-building', label: 'Sponsor Dashboard',
                 });
-            } else if (user.hasSponsorAccess) {
+            } else if (user.hasSponsorAccess && !(user.hasTutorProfile && (user.organizationTutorMemberships || []).length)) {
+                // The generic "Organization Tutor" row and the per-org
+                // "<Org name> Tutor" rows below both point at /org-tutor for
+                // the same relationship - a tutor with per-org memberships
+                // showed both, which read as two separate destinations
+                // instead of one. Only fall back to the generic row when
+                // there's no specific membership to name instead.
                 items.push({
                     href: user.hasTutorProfile ? '/org-tutor' : '/ngo-dashboard',
                     icon: 'fa-building', label: user.hasTutorProfile ? 'Organization Tutor' : 'Sponsor Dashboard',

@@ -111,15 +111,10 @@
             opacity: 1;
         }
 
-        @media (min-width: 1241px) {
-            .login-top-nav { width: 100%; max-width: 1440px; gap: clamp(12px, 1.6vw, 28px); padding-left: clamp(16px, 2.4vw, 40px); padding-right: clamp(16px, 2.4vw, 40px); }
-            .login-top-nav > a { flex: 0 0 auto; }
-            .login-top-nav > a span { font-size: clamp(1rem, 1.35vw, 1.4rem); white-space: nowrap; }
-            .login-top-links { flex: 1 1 auto; min-width: 0; justify-content: flex-end; gap: clamp(8px, 1vw, 16px); white-space: nowrap; }
-            .login-top-links > :not([hidden]) ~ :not([hidden]) { margin-left: 0 !important; margin-right: 0 !important; }
-            .login-top-links > a, .login-top-links .mt-perf-dropdown-toggle { white-space: nowrap; font-size: clamp(.78rem, .88vw, .9rem); }
-            .login-top-links > a:last-child { padding-left: clamp(12px, 1.2vw, 20px); padding-right: clamp(12px, 1.2vw, 20px); }
-        }
+        /* .header/.nav-container/.logo/.nav-links (redesign.css) plus
+           mobile-nav.js's hamburger below 1240px handle this page's nav
+           responsively now, the same as home.html - no page-local overrides
+           needed here anymore. */
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
 </head>
@@ -131,26 +126,33 @@
         <span id="alert-message"></span>
     </div>
 
-    <!-- Navigation Bar -->
-    <header class="sticky top-0 z-50 bg-white">
-        <nav class="login-top-nav max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-20">
-            <a href="/home" class="flex items-center space-x-3">
-                <img src="/mozartLogo.jpg" alt="Mozart Techniques logo" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                <span class="text-2xl font-extrabold serif text-[#333]">Mozart Techniques</span>
-            </a>
-            <div class="login-top-links hidden md:flex items-center space-x-6 text-gray-700 font-medium">
-                <a href="/home" class="hover:text-primary-red transition duration-150">Home</a>
-                <a href="/find-tutor" class="hover:text-primary-red transition duration-150">Find a Tutor</a>
-                <a href="/become-tutor" class="hover:text-primary-red transition duration-150">Become a Tutor</a>
-                <a href="/become-sponsor" class="hover:text-primary-red transition duration-150">Sponsors</a>
-                <a href="/about" class="hover:text-primary-red transition duration-150">About</a>
-                <a href="/store" class="hover:text-primary-red transition duration-150">Store</a>
-                <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
-                <a href="/contact" class="hover:text-primary-red transition duration-150">Contact</a>
-                <a href="/search" title="Search" class="hover:text-primary-red transition duration-150"><i class="fa-solid fa-magnifying-glass"></i><span class="sr-only">Search</span></a>
-                <a href="/login" class="ml-4 inline-flex items-center justify-center px-6 py-2 bg-[#cc0000] text-white font-semibold rounded-lg shadow-md hover:bg-[#c41822] transition duration-150 transform hover:scale-105">Login</a>
+    <!-- Navigation Bar - the same .header/.nav-container/.logo/.nav-links
+         markup (and redesign.css rules) as home.html, instead of a parallel
+         Tailwind-only reimplementation with its own max-width (1280/1440px
+         vs the shared 1160/1180px) and padding. That mismatch was why the
+         logo didn't start (and the row didn't end) at the same x-position
+         as it does on every other page, and why the country flag badge
+         geo-location.js appends after the brand text had a different amount
+         of room to work with here than anywhere else. mobile-nav.js also
+         expects exactly this ".nav-links" shape for its hamburger toggle. -->
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/home"><img src="/mozartLogo.jpg" alt="Mozart Techniques logo">Mozart Techniques</a>
             </div>
-        </nav>
+            <nav class="nav-links">
+                <a href="/home">Home</a>
+                <a href="/find-tutor">Find a Tutor</a>
+                <a href="/become-tutor">Become a Tutor</a>
+                <a href="/become-sponsor">Sponsors</a>
+                <a href="/about">About</a>
+                <a href="/store">Store</a>
+                <div class="mt-perf-dropdown" data-mt-perf-dropdown><button type="button" class="mt-perf-dropdown-toggle" data-mt-perf-toggle>Performance <i class="fa-solid fa-chevron-down"></i></button><div class="mt-perf-dropdown-menu" data-mt-perf-menu><a href="/become-performer">Become a Performer</a><a href="/find-performer">Find a Performer</a></div></div>
+                <a href="/contact">Contact</a>
+                <a href="/search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></a>
+            </nav>
+            <div id="auth-state"></div>
+        </div>
     </header>
 
     <!-- Main Content Area -->
@@ -247,6 +249,7 @@
     </div>
 
     <script src="/assets/auth.js"></script>
+    <script src="/assets/nav-auth.js"></script>
     <script src="/assets/mobile-nav.js"></script>
     <script src="/assets/nav-performance.js" defer></script>
     <script src="/assets/geo-location.js"></script>

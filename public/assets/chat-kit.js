@@ -9,6 +9,143 @@
   const REACTION_EMOJI = ['👍', '❤️', '😂', '😢', '🙏'];
   const EMOJI = ['😀','😃','😄','😁','😊','🙂','😉','😍','🥰','😘','😎','🤩','🤔','🙃','😅','😂','🤣','🥲','😢','😭','😤','😳','🥳','🤗','🙌','👏','👍','👎','🙏','💪','👋','🤝','❤️','🧡','💛','💚','💙','💜','🔥','✨','⭐','🎵','🎶','🎹','🎸','🥁','🎤','🎧','🎻','🎺','🎷','📀','⏰','✅','❌','❓','❗','💯','🎉','🎊','📝','📚'];
 
+  // --- Voice note playback: waveform bars, play/pause, speed toggle ------
+  // Shared across every ChatKit mount on the page (switching conversations
+  // and back shouldn't re-decode a clip it already drew bars for), and only
+  // one clip plays at a time, matching every other messaging app.
+  const VOICE_BAR_COUNT = 32;
+  const voiceWaveformCache = new Map(); // url -> number[] (bar heights, 0-1)
+  const VOICE_SPEEDS = [1, 1.5, 2];
+  let activeVoiceAudio = null;
+  let activeVoiceEl = null;
+  function formatVoiceTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+    const m = Math.floor(seconds / 60);
+    const s = String(Math.floor(seconds % 60)).padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  // A stable, non-random fallback so a clip that fails to decode (CORS, an
+  // unsupported codec, a very old attachment) still draws a believable
+  // waveform instead of a flat line - seeded from the url so it doesn't
+  // reshuffle on every re-render.
+  function fallbackWaveform(seed) {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    const bars = [];
+    for (let i = 0; i < VOICE_BAR_COUNT; i++) {
+      h = (h * 1103515245 + 12345) >>> 0;
+      bars.push(0.18 + (h % 1000) / 1000 * 0.75);
+    }
+    return bars;
+  }
+  async function getVoiceWaveform(url) {
+    if (voiceWaveformCache.has(url)) return voiceWaveformCache.get(url);
+    let bars = null;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const buf = await fetch(url).then((r) => r.arrayBuffer());
+        const ctx = new AudioCtx();
+        const audioBuf = await ctx.decodeAudioData(buf);
+        const channel = audioBuf.getChannelData(0);
+        const blockSize = Math.max(1, Math.floor(channel.length / VOICE_BAR_COUNT));
+        const raw = [];
+        for (let i = 0; i < VOICE_BAR_COUNT; i++) {
+          let sum = 0;
+          const start = i * blockSize;
+          for (let j = 0; j < blockSize; j++) sum += Math.abs(channel[start + j] || 0);
+          raw.push(sum / blockSize);
+        }
+        const max = Math.max(...raw, 0.0001);
+        bars = raw.map((v) => Math.max(0.12, v / max));
+        ctx.close();
+      }
+    } catch { /* fall through to the seeded fallback below */ }
+    if (!bars) bars = fallbackWaveform(url);
+    voiceWaveformCache.set(url, bars);
+    return bars;
+  }
+  function voiceNoteHtml(url) {
+    return `<div class="ck-voice" data-voice-url="${escapeHtml(url)}">
+      <div class="ck-voice-row">
+        <button type="button" class="ck-voice-play" data-voice-toggle aria-label="Play voice note"><i class="fa-solid fa-play"></i></button>
+        <div class="ck-voice-wave" data-voice-wave></div>
+        <button type="button" class="ck-voice-speed" data-voice-speed title="Playback speed">1x</button>
+      </div>
+      <span class="ck-voice-time" data-voice-time>--:--</span>
+    </div>`;
+  }
+  function hydrateVoiceNotes(container) {
+    container.querySelectorAll('[data-voice-url]').forEach((el) => {
+      if (el.dataset.voiceReady) return;
+      el.dataset.voiceReady = '1';
+      const url = el.dataset.voiceUrl;
+      const playBtn = el.querySelector('[data-voice-toggle]');
+      const waveEl = el.querySelector('[data-voice-wave]');
+      const speedBtn = el.querySelector('[data-voice-speed]');
+      const timeEl = el.querySelector('[data-voice-time]');
+      const audio = new Audio(url);
+      let speedIndex = 0;
+      // Drawn synchronously first (no network round-trip to wait on) so the
+      // wave is never just blank while getVoiceWaveform's fetch+decode is
+      // in flight - or if it never settles at all - then swapped for the
+      // real decoded shape once/if that resolves.
+      let bars = fallbackWaveform(url);
+      const paintBars = () => { waveEl.innerHTML = bars.map((v) => `<span style="height:${Math.max(3, Math.round(v * 22))}px"></span>`).join(''); };
+      paintBars();
+      getVoiceWaveform(url).then((resolvedBars) => { bars = resolvedBars; paintBars(); });
+
+      function paintProgress() {
+        if (!bars || !audio.duration) return;
+        const ratio = audio.currentTime / audio.duration;
+        const playedCount = Math.round(ratio * VOICE_BAR_COUNT);
+        waveEl.querySelectorAll('span').forEach((bar, i) => bar.classList.toggle('played', i < playedCount));
+      }
+      function setIcon(playing) {
+        playBtn.innerHTML = playing ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
+      }
+      function updateTime() {
+        if (audio.currentTime > 0 && !audio.paused) timeEl.textContent = formatVoiceTime(audio.currentTime);
+        else if (audio.duration) timeEl.textContent = formatVoiceTime(audio.duration);
+      }
+
+      audio.addEventListener('loadedmetadata', updateTime);
+      audio.addEventListener('timeupdate', () => { updateTime(); paintProgress(); });
+      audio.addEventListener('ended', () => { setIcon(false); paintProgress(); if (activeVoiceAudio === audio) { activeVoiceAudio = null; activeVoiceEl = null; } });
+      audio.addEventListener('pause', () => setIcon(false));
+      audio.addEventListener('play', () => setIcon(true));
+
+      function startPlayback() {
+        if (activeVoiceAudio && activeVoiceAudio !== audio) { activeVoiceAudio.pause(); }
+        activeVoiceAudio = audio; activeVoiceEl = el;
+        audio.play().catch(() => {});
+      }
+      function toggle() {
+        if (audio.paused) startPlayback();
+        else audio.pause();
+      }
+      // Tapping the waveform itself seeks to that point (and starts/resumes
+      // playing from there) instead of just toggling play/pause - the play
+      // button alone still does the plain toggle.
+      function seekTo(e) {
+        if (!audio.duration) return toggle();
+        const rect = waveEl.getBoundingClientRect();
+        const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        audio.currentTime = ratio * audio.duration;
+        paintProgress();
+        if (audio.paused) startPlayback();
+      }
+      playBtn.addEventListener('click', toggle);
+      waveEl.addEventListener('click', seekTo);
+      speedBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        speedIndex = (speedIndex + 1) % VOICE_SPEEDS.length;
+        audio.playbackRate = VOICE_SPEEDS[speedIndex];
+        speedBtn.textContent = `${VOICE_SPEEDS[speedIndex]}x`;
+      });
+    });
+  }
+
   function escapeHtml(text) {
     return String(text == null ? '' : text).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
@@ -49,9 +186,21 @@
         </div>
         <form class="ck-composer" data-ck-form>
           <button type="button" class="ck-composer-icon" data-ck-clip-btn title="Attach"><i class="fa-solid fa-paperclip"></i></button>
-          <div class="ck-composer-bar">
+          <button type="button" class="ck-composer-icon" data-ck-rec-cancel title="Delete recording" hidden><i class="fa-solid fa-trash" style="color:#dc2626"></i></button>
+          <button type="button" class="ck-composer-icon" data-ck-rec-discard title="Discard voice note" hidden><i class="fa-solid fa-trash" style="color:#dc2626"></i></button>
+          <div class="ck-composer-bar" data-ck-composer-bar>
             <textarea class="ck-composer-input" rows="1" placeholder="Message" data-ck-input></textarea>
             <button type="button" class="ck-composer-icon" data-ck-emoji-btn title="Emoji"><i class="fa-regular fa-face-smile"></i></button>
+          </div>
+          <div class="ck-composer-bar ck-recording-row" data-ck-recording-row hidden>
+            <button type="button" class="ck-pause-btn" data-ck-rec-pause title="Pause"><i class="fa-solid fa-pause"></i></button>
+            <span class="ck-rec-dot" data-ck-rec-dot></span>
+            <span class="ck-rec-time" data-ck-rec-time>0:00</span>
+            <span class="ck-rec-hint" data-ck-rec-hint>Recording voice note…</span>
+          </div>
+          <div class="ck-composer-bar ck-recording-row" data-ck-ready-row hidden>
+            <i class="fa-solid fa-microphone" style="color:#cc0000"></i>
+            <span class="ck-rec-hint" data-ck-ready-hint>Voice note</span>
           </div>
           <button type="submit" class="ck-composer-send" data-ck-send-btn title="Hold to record a voice note"><i class="fa-solid fa-microphone" data-ck-send-icon></i></button>
           <input type="file" hidden data-ck-doc-input accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.zip">
@@ -71,11 +220,6 @@
         </div>
         <div class="ck-emoji-panel" hidden data-ck-emoji-panel></div>
         <div class="ck-attach-preview" hidden data-ck-attach-preview></div>
-        <div class="ck-recording-bar" hidden data-ck-recording-bar>
-          <span class="ck-rec-dot"></span><span>Recording <span data-ck-rec-time>0:00</span></span>
-          <button type="button" class="ck-rec-cancel" data-ck-rec-cancel>Cancel</button>
-          <button type="button" class="ck-rec-send" data-ck-rec-send>Send</button>
-        </div>
       </div>
     `;
 
@@ -119,7 +263,6 @@
     const clipMenu = el('[data-ck-clip-menu]');
     const emojiPanel = el('[data-ck-emoji-panel]');
     const attachPreview = el('[data-ck-attach-preview]');
-    const recordingBar = el('[data-ck-recording-bar]');
     const msgMenu = popoverHost.querySelector(`#ck-msg-menu-${cfg.instanceId}`);
     const reactPicker = popoverHost.querySelector(`#ck-react-picker-${cfg.instanceId}`);
     const deletePopover = popoverHost.querySelector(`#ck-delete-popover-${cfg.instanceId}`);
@@ -134,6 +277,7 @@
     let deletePopoverMessageId = null;
     let pendingAttachment = null;
     let pendingLibraryItem = null;
+    let composerMode = 'idle'; // 'idle' | 'recording' | 'ready' - see setComposerMode
 
     const EDIT_WINDOW_MS = 30 * 60 * 1000;
     const DELETE_EVERYONE_WINDOW_MS = 10 * 60 * 1000;
@@ -209,7 +353,7 @@
         const name = escapeHtml(a.name || 'file');
         if (a.kind === 'image') attachmentHtml = `<a href="${url}" target="_blank"><img src="${url}" alt="${name}" class="ck-att-img"></a>`;
         else if (a.kind === 'video') attachmentHtml = `<video src="${url}" controls preload="metadata" class="ck-att-video"></video>`;
-        else if (a.kind === 'audio') attachmentHtml = `<audio src="${url}" controls preload="metadata" class="ck-att-audio"></audio>`;
+        else if (a.kind === 'audio') attachmentHtml = voiceNoteHtml(a.url);
         else attachmentHtml = `<a href="${url}" download class="ck-att-file">${'<i class="fa-regular fa-file-lines"></i>'}${name}</a>`;
       }
       const libraryHtml = m.libraryItem ? (() => {
@@ -318,7 +462,14 @@
       const signature = visible.map((m) => `${m.id}:${m.text}:${m.deleted ? 1 : 0}:${m.pinned ? 1 : 0}:${m.editedAt || ''}:${(m.reactions || []).map((r) => r.userId + r.emoji).join(',')}:${m.poll ? m.poll.votes.length : ''}`).join('|');
       if (signature === lastSignature) return;
       lastSignature = signature;
+      // The voice note <audio> objects below live only in JS, not attached
+      // to the document, so replacing this markup doesn't stop them on its
+      // own - without this a playing clip would keep going, inaudibly
+      // orphaned, the moment any unrelated message activity re-rendered the
+      // list out from under it.
+      if (activeVoiceAudio) { activeVoiceAudio.pause(); activeVoiceAudio = null; activeVoiceEl = null; }
       body.innerHTML = visible.length ? renderList(visible) : '<p class="text-center text-gray-400 text-sm py-10">No messages yet - say hello!</p>';
+      hydrateVoiceNotes(body);
       if (scroll !== false) body.scrollTop = body.scrollHeight;
       if (cfg.onMessages) cfg.onMessages(visible);
     }
@@ -349,6 +500,7 @@
     function cancelReplying() { replyingToId = null; el('[data-ck-reply-banner]').hidden = true; }
 
     function refreshSendButton() {
+      if (composerMode !== 'idle') return;
       const hasContent = Boolean(input.value.trim()) || Boolean(pendingAttachment) || Boolean(pendingLibraryItem);
       sendIcon.className = hasContent ? 'fa-solid fa-paper-plane' : 'fa-solid fa-microphone';
       sendBtn.title = hasContent ? 'Send' : 'Record a voice note';
@@ -421,40 +573,99 @@
     emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); emojiPanel.hidden = !emojiPanel.hidden; });
     document.addEventListener('click', (e) => { if (!emojiPanel.hidden && !emojiPanel.contains(e.target) && !e.target.closest('[data-ck-emoji-btn]')) emojiPanel.hidden = true; });
 
-    // Voice notes
-    let recorder = null, recChunks = [], recTimer = null, recSeconds = 0;
+    // Voice notes - three composer modes (idle/recording/ready), matching
+    // the mobile app's flow: record with a pause/resume control, review the
+    // clip before sending (not auto-sent on stop), then send from the same
+    // send button the idle composer uses (icon swaps mic -> check -> paper
+    // plane) rather than a separate bar/button underneath the composer.
+    let recorder = null, recChunks = [], recTimer = null, recSeconds = 0, recPaused = false, readyBlob = null;
+    function setComposerMode(mode) {
+      composerMode = mode;
+      el('[data-ck-clip-btn]').hidden = mode !== 'idle';
+      el('[data-ck-rec-cancel]').hidden = mode !== 'recording';
+      el('[data-ck-rec-discard]').hidden = mode !== 'ready';
+      el('[data-ck-composer-bar]').hidden = mode !== 'idle';
+      el('[data-ck-recording-row]').hidden = mode !== 'recording';
+      el('[data-ck-ready-row]').hidden = mode !== 'ready';
+      if (mode === 'idle') { refreshSendButton(); return; }
+      if (mode === 'recording') { sendIcon.className = 'fa-solid fa-check'; sendBtn.title = 'Finish recording'; return; }
+      sendIcon.className = 'fa-solid fa-paper-plane'; sendBtn.title = 'Send voice note';
+    }
+    function tickRecordingTime() {
+      recSeconds += 1;
+      const m = Math.floor(recSeconds / 60); const s = String(recSeconds % 60).padStart(2, '0');
+      el('[data-ck-rec-time]').textContent = `${m}:${s}`;
+    }
     async function startRecording() {
       if (!navigator.mediaDevices || !window.MediaRecorder) return cfg.onAlert('Voice notes are not supported in this browser.', 'error');
       let stream;
       try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { return cfg.onAlert('Microphone permission is needed for voice notes.', 'error'); }
-      recChunks = [];
+      recChunks = []; recSeconds = 0; recPaused = false;
       recorder = new MediaRecorder(stream);
       recorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
       recorder.onstop = () => stream.getTracks().forEach((t) => t.stop());
       recorder.start();
-      recSeconds = 0;
       el('[data-ck-rec-time]').textContent = '0:00';
-      recordingBar.hidden = false;
-      sendBtn.classList.add('recording');
-      recTimer = setInterval(() => { recSeconds += 1; const m = Math.floor(recSeconds / 60); const s = String(recSeconds % 60).padStart(2, '0'); el('[data-ck-rec-time]').textContent = `${m}:${s}`; }, 1000);
+      el('[data-ck-rec-dot]').hidden = false;
+      el('[data-ck-rec-hint]').textContent = 'Recording voice note…';
+      el('[data-ck-rec-pause]').innerHTML = '<i class="fa-solid fa-pause"></i>';
+      setComposerMode('recording');
+      recTimer = setInterval(tickRecordingTime, 1000);
     }
-    function stopRecordingUI() { clearInterval(recTimer); recordingBar.hidden = true; sendBtn.classList.remove('recording'); }
-    async function finishRecording(send) {
+    function togglePauseRecording() {
       if (!recorder) return;
+      if (recPaused) {
+        recorder.resume(); recPaused = false;
+        el('[data-ck-rec-pause]').innerHTML = '<i class="fa-solid fa-pause"></i>';
+        el('[data-ck-rec-dot]').hidden = false;
+        el('[data-ck-rec-hint]').textContent = 'Recording voice note…';
+        recTimer = setInterval(tickRecordingTime, 1000);
+      } else {
+        recorder.pause(); recPaused = true;
+        clearInterval(recTimer);
+        el('[data-ck-rec-pause]').innerHTML = '<i class="fa-solid fa-play"></i>';
+        el('[data-ck-rec-dot]').hidden = true;
+        el('[data-ck-rec-hint]').textContent = 'Paused';
+      }
+    }
+    function cancelRecording() {
+      if (!recorder) return;
+      clearInterval(recTimer);
+      recorder.stop();
+      recorder = null; recChunks = []; recPaused = false;
+      setComposerMode('idle');
+    }
+    async function finishRecording() {
+      if (!recorder) return;
+      clearInterval(recTimer);
       const done = new Promise((resolve) => recorder.addEventListener('stop', resolve, { once: true }));
-      recorder.stop(); await done; stopRecordingUI();
+      recorder.stop(); await done;
       const blob = new Blob(recChunks, { type: recorder.mimeType || 'audio/webm' });
-      recorder = null;
-      if (!send || !blob.size) return;
+      const durationSeconds = recSeconds;
+      recorder = null; recChunks = []; recPaused = false;
+      if (!blob.size) { setComposerMode('idle'); return; }
+      readyBlob = blob;
+      const m = Math.floor(durationSeconds / 60); const s = String(durationSeconds % 60).padStart(2, '0');
+      el('[data-ck-ready-hint]').textContent = `Voice note · ${m}:${s}`;
+      setComposerMode('ready');
+    }
+    function discardReady() { readyBlob = null; setComposerMode('idle'); }
+    async function sendReady() {
+      if (!readyBlob) return;
+      const blob = readyBlob; readyBlob = null;
       const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
       await uploadFile(new File([blob], `voice-note.${ext}`, { type: blob.type }));
+      setComposerMode('idle');
       form.requestSubmit();
     }
-    el('[data-ck-rec-cancel]').addEventListener('click', () => finishRecording(false));
-    el('[data-ck-rec-send]').addEventListener('click', () => finishRecording(true));
+    el('[data-ck-rec-cancel]').addEventListener('click', cancelRecording);
+    el('[data-ck-rec-discard]').addEventListener('click', discardReady);
+    el('[data-ck-rec-pause]').addEventListener('click', togglePauseRecording);
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (composerMode === 'recording') return finishRecording();
+      if (composerMode === 'ready') return sendReady();
       const text = input.value.trim();
       if (editingMessageId) {
         if (!text) return cfg.onAlert('Message text is required.', 'error');
@@ -462,7 +673,7 @@
         if (res && res.success) { cancelEditing(); refresh(false); } else cfg.onAlert((res && res.error) || 'Could not save the edit.', 'error');
         return;
       }
-      if (!text && !pendingAttachment && !pendingLibraryItem) { if (recorder) return finishRecording(true); return startRecording(); }
+      if (!text && !pendingAttachment && !pendingLibraryItem) return startRecording();
       const res = await cfg.api.send({ text, attachment: pendingAttachment, libraryItem: pendingLibraryItem, replyToId: replyingToId || undefined });
       if (res && res.success) {
         input.value = ''; input.style.height = 'auto'; pendingAttachment = null; pendingLibraryItem = null;
@@ -642,7 +853,10 @@
 
     return {
       refresh,
-      destroy() { clearInterval(pollTimer); popoverHost.remove(); },
+      destroy() {
+        clearInterval(pollTimer); popoverHost.remove();
+        if (activeVoiceAudio && body.contains(activeVoiceEl)) { activeVoiceAudio.pause(); activeVoiceAudio = null; activeVoiceEl = null; }
+      },
     };
   }
 

@@ -5579,17 +5579,68 @@ app.get('/api/organizations/library', requireAuthApi, (req, res) => {
     ...(!isOrgOwner ? { mySubmission: orgContent.listSubmissionsFor(item.id).find((s) => s.createdByUserId === user.id) || null } : {}),
   });
   const content = orgContent.listForOrg(org.id).filter((item) => item.libraryItem === true).map(decorate);
-  const mozartItems = reels.listActive().filter((item) => (item.ownerScope || 'mozart') === 'mozart').map((item) => ({ ...item, source: 'Mozart Techniques' }));
   const studentIds = new Set(organizations.getStudentsForOrganization(org.id).map((member) => Number(member.studentId)));
   const tutorUserIds = new Set(assignments.listAll().filter((record) => studentIds.has(Number(record.studentId)) && record.tutorId).map((record) => {
     const tutor = tutors.findById(record.tutorId);
     return tutor && tutor.userId;
   }).filter(Boolean));
-  const tutorItems = reels.listActive().filter((item) => item.ownerScope === 'tutor' && tutorUserIds.has(item.addedBy)).map((item) => ({ ...item, source: 'tutor' }));
-  const organizationItems = content.filter((item) => item.createdByUserId === org.userId);
-  const sharedItems = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
+  // A reel's own shape (title/description/url/addedBy) doesn't match what
+  // the library list renders (title/text/fileUrl-or-url) - decorated the
+  // same way regardless of whose reel it is, so the client's renderer never
+  // has to know these came from a different data source than org content.
+  const decorateReel = (item) => ({ ...item, text: item.description || '', fileUrl: item.isFile ? item.url : null, url: item.isFile ? null : item.url, source: 'tutor' });
+  const tutorItems = reels.listActive().filter((item) => item.ownerScope === 'tutor' && tutorUserIds.has(item.addedBy)).map(decorateReel);
   const sort = (items) => items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  res.json({ success: true, organizationName: org.name || org.contactName, folders: org.folders || [], general: sort(content), mine: sort(organizationItems), shared: sort(sharedItems) });
+  let mine;
+  let shared;
+  if (isOrgOwner) {
+    // Unchanged from before: "mine" is the org's own posted content, and
+    // "shared" is anything explicitly marked shared plus every relevant
+    // tutor's video library, all mixed for the owner to browse.
+    mine = content.filter((item) => item.createdByUserId === org.userId);
+    shared = [...content.filter((item) => item.visibility === 'shared'), ...tutorItems];
+  } else {
+    // A tutor's own view: "mine" is *their* video uploads (not the org's),
+    // and "shared" is what *they've* sent back to the org (a filled form, a
+    // requested document) rather than the org's own shared posts.
+    mine = reels.listActive().filter((item) => item.ownerScope === 'tutor' && item.addedBy === user.id).map(decorateReel);
+    shared = orgContent.listForOrg(org.id).filter((item) => item.visibility === 'submission' && item.createdByUserId === user.id).map((item) => ({ ...item, source: 'submission' }));
+  }
+  // "General" is the shared browsing/attach surface either role sees: the
+  // org's own posted library content plus every relevant tutor's videos.
+  const general = [...content, ...tutorItems];
+  res.json({ success: true, organizationName: org.name || org.contactName, folders: org.folders || [], general: sort(general), mine: sort(mine), shared: sort(shared) });
+});
+
+// A tutor's own "share something with the org" upload from the Shared tab -
+// not tied to a specific requiresSubmission item (see the submissions route
+// below for that case), just a document/link they want the org to have.
+app.post('/api/organizations/:orgId/library/shared-uploads', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const orgId = Number(req.params.orgId);
+  const org = organizations.findById(orgId);
+  if (!org || org.status !== 'approved') return res.status(403).json({ success: false, error: 'Approved organization access required.' });
+  const tutorProfile = tutors.findByUserId(user.id);
+  const orgStudentIds = new Set(organizations.getStudentsForOrganization(orgId).map((student) => Number(student.studentId)));
+  const isApprovedTutor = Boolean(tutorProfile && tutorProfile.status === 'approved' && (
+    assignments.listAll().some((record) => orgStudentIds.has(Number(record.studentId)) && Number(record.tutorId) === Number(tutorProfile.id))
+    || (user.sponsor && Number(user.sponsor.orgId) === orgId)
+  ));
+  if (!isApprovedTutor) return res.status(403).json({ success: false, error: 'Approved organization tutor access required.' });
+  const { title, url, fileUrl, text } = req.body || {};
+  if (!url && !fileUrl) return res.status(400).json({ success: false, error: 'Add a URL or choose a file to share.' });
+  const item = orgContent.create({
+    orgId, type: 'document', title: title && String(title).trim() ? String(title).trim().slice(0, 200) : 'Shared upload',
+    text: text || '', url: url || null, fileUrl: fileUrl || null,
+    visibility: 'submission', createdByUserId: user.id, createdByName: tutorProfile.name || user.name,
+    replyToId: null,
+  });
+  store.addNotification(org.userId, {
+    type: 'organization',
+    message: `${tutorProfile.name || user.name} shared "${item.title}" with your organization.`,
+    href: '/ngo-dashboard#library',
+  });
+  res.json({ success: true, item });
 });
 
 // A tutor sends something back for a library item the org flagged

@@ -100,8 +100,18 @@
 .ck-composer-input::placeholder { color: #77777f; opacity: 1; }
 .ck-composer-send { flex-shrink: 0; width: 36px; height: 36px; border-radius: 999px; border: none; background: #cc0000; color: #fff; display: grid; place-items: center; font-size: 14px; cursor: pointer; }
 .ck-composer-send:hover { background: #a30000; }
-.ck-composer-send.recording { background: #17130f; animation: ckRecPulse 1.2s ease-in-out infinite; }
 @keyframes ckRecPulse { 50% { opacity: .55; } }
+.ck-composer-icon[hidden] { display: none; }
+.ck-composer-bar[hidden] { display: none; }
+/* Recording/ready rows reuse .ck-composer-bar's pill shape and just change
+   what's inside it - occupying the same slot the text input sits in,
+   instead of a separate bar stacked below the composer. */
+.ck-recording-row { gap: 8px; }
+.ck-pause-btn { flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; border: none; background: rgba(204,0,0,.12); color: #cc0000; border-radius: 999px; cursor: pointer; font-size: 11px; }
+.ck-rec-dot { width: 8px; height: 8px; border-radius: 999px; background: #cc0000; flex-shrink: 0; animation: ckRecPulse 1s ease-in-out infinite; }
+.ck-rec-dot[hidden] { display: none; }
+.ck-rec-time { font-weight: 700; font-size: 13px; color: #27272a; flex-shrink: 0; }
+.ck-rec-hint { font-size: 12.5px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ck-emoji-panel { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 12px 10px; border-top: 1px solid #f0f0f0; max-height: 168px; overflow-y: auto; }
 .ck-emoji-panel[hidden] { display: none; }
@@ -113,16 +123,31 @@
 .ck-attach-preview img { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
 .ck-attach-preview .ck-drop { margin-left: auto; border: none; background: none; color: #999; cursor: pointer; font-size: 14px; }
 
-.ck-recording-bar { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-top: 1px solid #f0f0f0; font-size: 12.5px; color: #444; }
-.ck-recording-bar[hidden] { display: none; }
-.ck-rec-dot { width: 9px; height: 9px; border-radius: 999px; background: #cc0000; animation: ckRecPulse 1s ease-in-out infinite; }
-.ck-rec-cancel, .ck-rec-send { margin-left: auto; border: none; background: none; cursor: pointer; font-weight: 700; font-size: 12.5px; }
-.ck-rec-cancel { color: #888; }
-.ck-rec-send { color: #cc0000; margin-left: 0; }
-
 .ck-att-img { max-width: 200px; border-radius: 9px; display: block; margin-top: 3px; cursor: pointer; }
 .ck-att-video { max-width: 220px; border-radius: 9px; display: block; margin-top: 3px; }
-.ck-att-audio { height: 34px; margin-top: 3px; max-width: 210px; }
+
+/* Voice note playback - a custom player (play + waveform + speed toggle,
+   duration on its own line beneath) replaces the native <audio controls>
+   bar, which showed a plain progress line, a volume control nobody uses in
+   a chat bubble, and a "..." overflow menu for playback speed. */
+.ck-voice { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; min-width: 190px; max-width: 240px; }
+.ck-voice-row { display: flex; align-items: center; gap: 8px; }
+/* !important + a selector at least as specific as ".ck-bubble.mine *"
+   (chat-kit.css's own blanket "everything inside a sent bubble is red"
+   rule, further up this file) - without matching that, the wave bars, the
+   play button's chip and the speed pill all rendered at the right size and
+   position but with their background forced to the same red as the bubble
+   by that rule, invisible against it. */
+.ck-voice-play { flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px; border: none; background: rgba(0,0,0,.08); color: inherit; display: grid; place-items: center; cursor: pointer; font-size: 12px; }
+.ck-bubble.mine .ck-voice-play { background: rgba(255,255,255,.25) !important; }
+.ck-voice-wave { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 2px; cursor: pointer; }
+.ck-voice-wave span { flex: 1; min-width: 2px; border-radius: 2px; background: #c7ccd1; transition: background-color .15s ease; }
+.ck-voice-wave span.played { background: #6b7280; }
+.ck-bubble.mine .ck-voice-wave span { background: #c7ccd1 !important; }
+.ck-bubble.mine .ck-voice-wave span.played { background: #6b7280 !important; }
+.ck-voice-speed { flex-shrink: 0; border: none; background: rgba(0,0,0,.08); color: inherit; border-radius: 999px; padding: 2px 7px; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.ck-bubble.mine .ck-voice-speed { background: rgba(255,255,255,.25) !important; }
+.ck-voice-time { font-size: 10.5px; opacity: .75; padding-left: 38px; }
 .ck-att-file { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.07); font-size: 12px; text-decoration: none; }
 .ck-library-clip-link { display: block; margin-top: 6px; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
 
