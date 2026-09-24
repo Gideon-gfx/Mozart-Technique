@@ -39,6 +39,40 @@
     @keyframes org-spin{to{transform:rotate(360deg)}}
     body{font-family:'Science Gothic',Montserrat,system-ui,sans-serif;font-size:.8125rem;background:linear-gradient(135deg,#fff,#f8f5f1);color:#241f1c}
     .org-tutor-shell{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:calc(100vh - 72px)}
+    /* --org-sidebar-align is measured in JS (alignSidebarToLogo) from the
+       header logo's actual rendered position, not guessed - the header's
+       first item is the back arrow, not the logo, so "container padding"
+       alone undershoots by that button's own width, and hand-picking a
+       fixed px value to cover it was still visibly "almost" aligned rather
+       than exact. Desktop-only: pads the whole shell so the sidebar keeps
+       its own 250px column width and just shifts right along with main,
+       lining its left edge up with the logo above it. */
+    @media(min-width:769px){.org-tutor-shell{max-width:1280px;margin:0 auto;padding-left:var(--org-sidebar-align,24px);padding-right:24px}}
+    /* Desktop-only collapse: the mobile toggle button is reused here (it's
+       hidden on desktop otherwise), but it drives a separate class on the
+       shell rather than the sidebar's own .open - .open already means
+       "expanded" on mobile's collapsed-by-default off-canvas panel, the
+       opposite of desktop's expanded-by-default column, and overloading one
+       class for both was more confusing than the small duplication below. */
+    @media(min-width:769px){
+      #org-tutor-mobile{display:inline-flex!important;align-items:center;justify-content:center;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:#cc0000;cursor:pointer;font-size:.95rem}
+      #org-tutor-mobile:hover{background:#fff0ec}
+      /* grid-template-columns is interpolable, so this alone is what makes
+         the collapse a smooth resize instead of an instant snap - it was
+         missing entirely before, which is what read as an abrupt "push"
+         rather than a slow, smooth motion. */
+      .org-tutor-shell{transition:grid-template-columns .45s cubic-bezier(.22,1,.36,1)}
+      .org-tutor-shell.sidebar-collapsed{grid-template-columns:68px minmax(0,1fr)}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-sidebar-head{justify-content:center}
+      .org-tutor-shell.sidebar-collapsed #org-tutor-sidebar-name{display:none}
+      .org-tutor-nav-label{display:inline-block;opacity:1;transition:opacity .2s ease}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-nav-label{opacity:0;width:0;overflow:hidden}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-nav{justify-items:center;overflow-y:hidden}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-nav button{display:flex;align-items:center;justify-content:center;width:44px;padding:10px 0;transition:width .45s cubic-bezier(.22,1,.36,1),padding .45s cubic-bezier(.22,1,.36,1)}
+      .org-tutor-nav button{transition:width .45s cubic-bezier(.22,1,.36,1),padding .45s cubic-bezier(.22,1,.36,1)}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-nav button i{margin-right:0;font-size:1.05rem}
+      .org-tutor-shell.sidebar-collapsed .org-tutor-nav button:hover{transform:none}
+    }
     .org-tutor-sidebar{position:sticky;top:72px;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 72px);height:calc(100dvh - 72px);overflow:hidden;background:#fff;border-right:1px solid #eaded8}
     .org-tutor-sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;flex-shrink:0;margin-bottom:12px}
     .org-tutor-nav{flex:1;min-height:0;align-content:start;grid-auto-rows:min-content;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
@@ -613,7 +647,58 @@
     const mobileSidebar=document.getElementById('org-tutor-sidebar');
     new MutationObserver(()=>{const isOpen=mobileSidebar.classList.contains('open');mobileSidebarButton.setAttribute('aria-expanded',String(isOpen));mobileSidebarButton.setAttribute('aria-label',isOpen?'Close sidebar':'Open sidebar');mobileSidebarButton.title=isOpen?'Close sidebar':'Open sidebar';document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-right',!isOpen);document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-left',isOpen);}).observe(mobileSidebar,{attributes:true,attributeFilter:['class']});
     document.addEventListener('pointerdown',(event)=>{if(window.matchMedia('(max-width:768px)').matches&&mobileSidebar.classList.contains('open')&&!mobileSidebar.contains(event.target))mobileSidebar.classList.remove('open');});
-    document.getElementById('org-tutor-mobile').addEventListener('click',()=>document.getElementById('org-tutor-sidebar').classList.toggle('open'));document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{const orgId=state.data?.organization?.id;await fetch(`/api/organizations/tutor-workspace/notifications/read-all?orgId=${encodeURIComponent(orgId||'')}`,{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await Promise.all([fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})}),fetch('/api/tutors/me/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:document.getElementById('settings-phone').value})})]);load();});document.getElementById('schedule-class').addEventListener('click',()=>activate('schedules'));document.getElementById('org-tutor-new-group-btn').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();loadOrgMessages();};});load().catch(()=>location.href='/tutor');
+    // Each nav button is "<i>...</i>Label" - a bare trailing text node, not
+    // wrapped in anything - so the desktop collapsed state (icon rail, no
+    // labels) has an element to hide without touching the icon itself.
+    document.querySelectorAll('.org-tutor-nav button').forEach((btn)=>{
+      const icon=btn.querySelector('i');
+      const label=document.createElement('span');
+      label.className='org-tutor-nav-label';
+      Array.from(btn.childNodes).forEach((node)=>{if(node!==icon)label.appendChild(node);});
+      btn.appendChild(label);
+    });
+    // Restores the desktop collapsed sidebar across visits/reloads - mobile
+    // never sets this class at all, so this is a no-op there.
+    try{
+      if(localStorage.getItem('org-tutor-sidebar-collapsed')==='1'&&window.matchMedia('(min-width:769px)').matches){
+        document.querySelector('.org-tutor-shell').classList.add('sidebar-collapsed');
+        mobileSidebarButton.setAttribute('aria-expanded','false');
+        mobileSidebarButton.setAttribute('aria-label','Expand sidebar');
+        mobileSidebarButton.title='Expand sidebar';
+        document.getElementById('org-tutor-mobile-icon').classList.add('fa-angles-right');
+        document.getElementById('org-tutor-mobile-icon').classList.remove('fa-angles-left');
+      }
+    }catch(e){}
+    // Measured, not guessed: the header's first item is the back arrow, not
+    // the logo, so a fixed "container padding" value undershoots by that
+    // button's own rendered width and stayed visibly "almost" aligned
+    // rather than exact. Re-measures on resize (grid <-> off-canvas layouts
+    // switch at 768px) and once webfonts settle, in case that shifts the
+    // back button's icon width slightly.
+    function alignSidebarToLogo(){
+      const logoAnchor=document.querySelector('a[href="/org-tutor"]');
+      if(!logoAnchor)return;
+      const left=Math.max(0,Math.round(logoAnchor.getBoundingClientRect().left));
+      document.documentElement.style.setProperty('--org-sidebar-align',left+'px');
+    }
+    window.addEventListener('load',alignSidebarToLogo);
+    window.addEventListener('resize',alignSidebarToLogo);
+    if(document.fonts&&document.fonts.ready)document.fonts.ready.then(alignSidebarToLogo).catch(()=>{});
+    alignSidebarToLogo();
+    document.getElementById('org-tutor-mobile').addEventListener('click',()=>{
+      if(window.matchMedia('(min-width:769px)').matches){
+        const collapsed=document.querySelector('.org-tutor-shell').classList.toggle('sidebar-collapsed');
+        mobileSidebarButton.setAttribute('aria-expanded',String(!collapsed));
+        mobileSidebarButton.setAttribute('aria-label',collapsed?'Expand sidebar':'Collapse sidebar');
+        mobileSidebarButton.title=collapsed?'Expand sidebar':'Collapse sidebar';
+        document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-right',collapsed);
+        document.getElementById('org-tutor-mobile-icon').classList.toggle('fa-angles-left',!collapsed);
+        try{localStorage.setItem('org-tutor-sidebar-collapsed',collapsed?'1':'0');}catch(e){}
+        return;
+      }
+      document.getElementById('org-tutor-sidebar').classList.toggle('open');
+    });
+    document.getElementById('org-tutor-notifications').addEventListener('click',()=>activate('notifications'));document.getElementById('mark-read').addEventListener('click',async()=>{const orgId=state.data?.organization?.id;await fetch(`/api/organizations/tutor-workspace/notifications/read-all?orgId=${encodeURIComponent(orgId||'')}`,{method:'POST'});load()});document.getElementById('settings-form').addEventListener('submit',async(e)=>{e.preventDefault();await Promise.all([fetch('/api/profile/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('settings-name').value})}),fetch('/api/tutors/me/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:document.getElementById('settings-phone').value})})]);load();});document.getElementById('schedule-class').addEventListener('click',()=>activate('schedules'));document.getElementById('org-tutor-new-group-btn').addEventListener('click',()=>{const students=state.data?.students||[];const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML='<div class="modal-panel"><div class="row mb-4"><h3 class="text-2xl font-bold">Create student group</h3><button type="button" class="btn-secondary" data-close><i class="fa-solid fa-xmark"></i></button></div><input id="group-name-input" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Group name"><div class="mt-3 space-y-2 max-h-48 overflow-y-auto">'+(students.length?students.map((student)=>'<label class="flex items-center gap-2"><input type="checkbox" class="group-student" value="'+student.studentId+'" checked><span>'+esc(student.studentName)+'</span></label>').join(''):'<p class="text-gray-500">No students have applied to you yet.</p>')+'</div><button type="button" id="save-group-btn" class="btn-primary mt-4 w-full">Create group</button></div>';document.body.appendChild(modal);modal.querySelector('[data-close]').onclick=()=>modal.remove();modal.querySelector('#save-group-btn').onclick=async()=>{const groupName=modal.querySelector('#group-name-input').value.trim();const selected=[...modal.querySelectorAll('.group-student:checked')];if(!groupName||!selected.length)return;const members=selected.map((input)=>{const student=students.find((item)=>String(item.studentId)===input.value);return {id:Number(input.value),type:'student',name:student?.studentName||'Student'};});const response=await fetch('/api/organizations/group-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupName,members})});const result=await response.json();if(!result.success)return;modal.remove();loadOrgMessages();};});load().catch(()=>location.href='/tutor');
   </script>
   <script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
