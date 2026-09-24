@@ -136,6 +136,12 @@
       window.setTimeout(() => document.body.classList.remove('mt-page-loading'), Math.max(0, MIN_VISIBLE_MS - elapsed));
     };
 
+    // Lets a page's own script reuse this same loader for its in-page
+    // (non-navigation) transitions - e.g. an SPA-style dashboard swapping
+    // panels on a tab click - instead of every such page building its own
+    // separate loading indicator.
+    window.MTPageLoader = { show: showPageLoader, hide: removePageLoader };
+
     document.addEventListener('click', (event) => {
       const link = event.target.closest('a[href]');
       if (!link) return;

@@ -37,11 +37,6 @@
     .spinner.small{width:1.4rem;height:1.4rem;border-width:2px}
     .spinner-wrap{display:flex;align-items:center;justify-content:center;padding:48px 0;grid-column:1/-1}
     @keyframes org-spin{to{transform:rotate(360deg)}}
-    .org-tutor-page-loader{position:fixed;inset:0;z-index:200;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .25s ease}
-    .org-tutor-page-loader.hidden{opacity:0;pointer-events:none}
-    .org-tutor-page-loader img{width:56px;height:56px;border-radius:16px;object-fit:cover;box-shadow:0 10px 24px rgba(204,0,0,.22);animation:org-loader-pulse 1.1s ease-in-out infinite}
-    .org-tutor-page-loader span{font-family:'Science Gothic',Montserrat,system-ui,sans-serif;font-weight:700;font-size:1.05rem;color:#241f1c;letter-spacing:.01em}
-    @keyframes org-loader-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.75}}
     body{font-family:'Science Gothic',Montserrat,system-ui,sans-serif;font-size:.8125rem;background:linear-gradient(135deg,#fff,#f8f5f1);color:#241f1c}
     .org-tutor-shell{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:calc(100vh - 72px)}
     .org-tutor-sidebar{position:sticky;top:72px;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 72px);height:calc(100dvh - 72px);overflow:hidden;background:#fff;border-right:1px solid #eaded8}
@@ -107,7 +102,6 @@
     }
   </style>
 </head>
-  <div id="org-tutor-page-loader" class="org-tutor-page-loader" aria-hidden="true"><img src="/mozartLogo.jpg" alt=""><span>Mozart Techniques</span></div>
   <header class="sticky top-0 z-30 border-b border-red-100 bg-white">
     <div class="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
       <div class="flex items-center gap-3"><a href="/tutor" id="org-tutor-back" class="rounded-lg p-2 text-red-700 hover:bg-red-50" aria-label="Back to tutor dashboard" title="Back"><i class="fa-solid fa-arrow-left"></i></a><a href="/org-tutor" class="flex items-center gap-3"><div id="org-tutor-logo" class="h-10 w-10 flex-shrink-0 rounded-xl bg-red-700 text-white flex items-center justify-center font-bold overflow-hidden"></div><div><p id="org-tutor-org-name" class="text-xs font-bold uppercase tracking-wide text-red-700">Organization</p><h1 class="font-bold text-gray-900">Tutor Dashboard</h1></div></a></div>
@@ -409,12 +403,19 @@
       renderScheduleList();
     }));
     let libraryLoadedOnce=false;
-    function activate(panel){document.querySelectorAll('.org-tutor-panel').forEach((node)=>node.classList.toggle('active',node.id==='panel-'+panel));document.querySelectorAll('.org-tutor-nav button').forEach((node)=>node.classList.toggle('active',node.dataset.panel===panel));document.getElementById('org-tutor-sidebar').classList.remove('open');if(panel==='messages')loadOrgMessages();else if(panel==='schedules'){renderCalendar();renderScheduleList();}else if(panel==='library'&&!libraryLoadedOnce){libraryLoadedOnce=true;loadOrgLibrary('general');}}
+    function activate(panel){
+      if(window.MTPageLoader)window.MTPageLoader.show();
+      document.querySelectorAll('.org-tutor-panel').forEach((node)=>node.classList.toggle('active',node.id==='panel-'+panel));
+      document.querySelectorAll('.org-tutor-nav button').forEach((node)=>node.classList.toggle('active',node.dataset.panel===panel));
+      document.getElementById('org-tutor-sidebar').classList.remove('open');
+      const done=()=>{if(window.MTPageLoader)window.MTPageLoader.hide();};
+      if(panel==='messages')loadOrgMessages().then(done).catch(done);
+      else if(panel==='schedules'){renderCalendar();renderScheduleList();done();}
+      else if(panel==='library'&&!libraryLoadedOnce){libraryLoadedOnce=true;loadOrgLibrary('general').then(done).catch(done);}
+      else done();
+    }
     function render(){const d=state.data; document.getElementById('org-tutor-org-name').textContent=d.organization.name;document.getElementById('org-tutor-sidebar-name').textContent=d.organization.name; document.getElementById('org-tutor-logo').innerHTML=d.organization.logoUrl?`<img src="${esc(d.organization.logoUrl)}" alt="" class="h-full w-full object-cover">`:esc((d.organization.name||'O').trim().charAt(0).toUpperCase());document.getElementById('requests-list').innerHTML=(d.requests||[]).map((r)=>`<article class="rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>${esc(r.studentName||'Student')}</strong><p class="mt-1 text-sm">${esc(r.category)} · ${esc(r.lessonType)}</p></article>`).join('')||'<p class="text-gray-500">No organization requests.</p>';const content=d.content||[];document.getElementById('announcements-list').innerHTML=content.filter((i)=>i.type==='announcement').map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No announcements.</p>';document.getElementById('feeds-list').innerHTML=content.filter((i)=>['feed','photo','video'].includes(i.type)).map((i)=>`<article class="rounded-xl border bg-white p-4"><strong>${esc(i.title)}</strong><p class="mt-2 text-sm text-gray-600">${esc(i.text)}</p>${contentAttachmentHtml(i)}${reactionsHtml(i)}</article>`).join('')||'<p class="text-gray-500">No feeds.</p>';wireReactionButtons(content,render);document.getElementById('notifications-list').innerHTML=(d.notifications||[]).map((n,index)=>`<button class="org-notification rounded-xl border bg-white p-4 text-left ${n.read?'':'border-l-4 border-l-red-700'}" data-index="${index}"><strong>${esc(n.type||'Update')}</strong><p class="mt-1 text-sm text-gray-600">${esc(n.message)}</p></button>`).join('')||'<p class="text-gray-500">No notifications.</p>';document.querySelectorAll('.org-notification').forEach((button)=>button.addEventListener('click',async()=>{const item=d.notifications[Number(button.dataset.index)];if(item&&item.id&&!item.read)await fetch(`/api/notifications/${encodeURIComponent(item.id)}/read`,{method:'POST'});button.classList.remove('border-l-4','border-l-red-700');}));document.getElementById('settings-name').value=(state.tutorProfile&&state.tutorProfile.name)||'';document.getElementById('settings-phone').value=(state.tutorProfile&&state.tutorProfile.phone)||'';}
-    const PAGE_LOADER_MIN_MS=600; // same floor as the mobile app's splash - long enough to read as a real branded load, not a flash
-    const pageLoadStartedAt=Date.now();
-    function hidePageLoader(){const elapsed=Date.now()-pageLoadStartedAt;const wait=Math.max(0,PAGE_LOADER_MIN_MS-elapsed);setTimeout(()=>document.getElementById('org-tutor-page-loader').classList.add('hidden'),wait);}
-    async function load(){const params=new URLSearchParams(location.search);const [r,sessionRes,tutorRes]=await Promise.all([fetch('/api/organizations/tutor-workspace?orgId='+encodeURIComponent(params.get('orgId')||'')),fetch('/api/session'),fetch('/api/tutors/me')]);const d=await r.json();const session=await sessionRes.json();const tutorData=await tutorRes.json().catch(()=>null);if(session.user)myUserId=session.user.id;if(tutorData&&tutorData.success)state.tutorProfile=tutorData.profile;if(!d.success){location.href='/tutor';return}state.data=d;render();const unread=(d.notifications||[]).filter((n)=>!n.read).length;const badge=document.getElementById('org-tutor-badge');badge.textContent=unread;badge.classList.toggle('hidden',!unread);hidePageLoader();}
+    async function load(){if(window.MTPageLoader)window.MTPageLoader.show();const params=new URLSearchParams(location.search);const [r,sessionRes,tutorRes]=await Promise.all([fetch('/api/organizations/tutor-workspace?orgId='+encodeURIComponent(params.get('orgId')||'')),fetch('/api/session'),fetch('/api/tutors/me')]);const d=await r.json();const session=await sessionRes.json();const tutorData=await tutorRes.json().catch(()=>null);if(session.user)myUserId=session.user.id;if(tutorData&&tutorData.success)state.tutorProfile=tutorData.profile;if(!d.success){location.href='/tutor';return}state.data=d;render();const unread=(d.notifications||[]).filter((n)=>!n.read).length;const badge=document.getElementById('org-tutor-badge');badge.textContent=unread;badge.classList.toggle('hidden',!unread);if(window.MTPageLoader)window.MTPageLoader.hide();}
     document.querySelectorAll('.org-tutor-nav button').forEach((b)=>b.addEventListener('click',()=>activate(b.dataset.panel)));
     let currentLibraryView='general';
     document.querySelectorAll('.library-view-tab').forEach((btn)=>btn.addEventListener('click',()=>{document.querySelectorAll('.library-view-tab').forEach((b)=>b.classList.remove('active','border-b-2','border-red-700','text-red-700'));btn.classList.add('active','border-b-2','border-red-700','text-red-700');currentLibraryView=btn.dataset.libraryView;loadOrgLibrary(currentLibraryView);}));
