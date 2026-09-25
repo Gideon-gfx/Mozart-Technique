@@ -75,6 +75,18 @@
         .profile-role-badge select:focus-visible { outline: 2px solid #9b6b10; outline-offset: 2px; border-radius: 4px; }
         .profile-role-badge i { color: #8e620e; font-size: .8rem; flex: none; }
         #profile-role-status { min-height: 1rem; font-size: .75rem; }
+        /* Airbnb Superhost-style badge: SuperTutor/SuperArtist, earned from
+           a high average rating across enough reviews (see data/tutors.js's
+           isSuperTutor and data/performers.js's isSuperArtist). Sits at the
+           opposite corner from the camera badge so the two never collide. */
+        .profile-super-badge {
+            position: absolute; top: -2px; right: -2px;
+            width: 26px; height: 26px; border-radius: 999px;
+            background: linear-gradient(135deg, #f9d976, #e0a800);
+            color: #fff; border: 2px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .72rem; box-shadow: 0 2px 6px rgba(224,168,0,.5);
+        }
         .profile-avatar-badge {
             position: absolute; bottom: -2px; right: -2px;
             width: 28px; height: 28px; border-radius: 999px;
@@ -207,7 +219,7 @@
                     href: user.sponsorOrgType === 'individual' ? '/sponsor-dashboard' : '/become-sponsor',
                     icon: 'fa-building', label: 'Sponsor Dashboard',
                 });
-            } else if (user.hasSponsorAccess && !(user.hasTutorProfile && (user.organizationTutorMemberships || []).length)) {
+            } else if (user.hasSponsorAccess && !(user.organizationTutorMemberships || []).length && !(user.organizationStudentMemberships || []).length) {
                 // The generic "Organization Tutor" row and the per-org
                 // "<Org name> Tutor" rows below both point at /org-tutor for
                 // the same relationship - a tutor with per-org memberships
@@ -238,7 +250,8 @@
                 items.push({ href: '/org-tutor', icon: 'fa-briefcase', label: `${org.name} Tutor` });
             });
             (user.organizationStudentMemberships || []).forEach((org) => {
-                items.push({ href: '/my-organization', icon: 'fa-school', label: `${org.name}'s Student` });
+                const orgSlug = String(org.name || 'organization').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'organization';
+                items.push({ href: `/${orgSlug}-student`, icon: 'fa-school', label: `${org.name}'s Student` });
             });
             if (user.role === 'admin') items.push({ href: '/admin', icon: 'fa-user-shield', label: 'Admin' });
             if (user.hasTutorProfile) {
@@ -286,6 +299,8 @@
             const avatarInner = user.photoUrl
                 ? `<img src="${escapeHtml(user.photoUrl)}" alt="${escapeHtml(user.name || '')}">`
                 : `<span>${initials(user.name || user.email)}</span>`;
+            const superLabel = user.isSuperTutor ? 'SuperTutor' : user.isSuperArtist ? 'SuperArtist' : null;
+            const superBadge = superLabel ? `<span class="profile-super-badge" title="${superLabel} - earned from consistently high ratings"><i class="fa-solid fa-star"></i></span>` : '';
             const firstName = escapeHtml((user.name || user.email || 'there').split(' ')[0]);
             const menu = buildMenu(user).map(renderMenuItem).join('');
             const displayRoles = Array.isArray(user.displayRoles) && user.displayRoles.length ? user.displayRoles : [{ key: 'student', label: 'Student' }];
@@ -293,12 +308,13 @@
             const roleOptions = displayRoles.map((role) => `<option value="${escapeHtml(role.key)}"${role.key === selectedRoleKey ? ' selected' : ''}>${escapeHtml(role.label)}</option>`).join('');
 
             root.innerHTML = `
-                <div class="profile-card max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 mb-5">
+                <div class="profile-card max-w-lg bg-white rounded-2xl shadow-lg p-6 mb-5">
                     <div class="profile-avatar-wrap">
                         <button type="button" class="profile-avatar-trigger" id="avatar-trigger" aria-haspopup="true">
                             <div class="profile-avatar" id="profile-avatar">${avatarInner}</div>
                         </button>
                         <span class="profile-avatar-badge"><i class="fa-solid fa-camera"></i></span>
+                        ${superBadge}
                         <div class="avatar-menu" id="avatar-menu" hidden>
                             <button type="button" id="avatar-view-btn" ${user.photoUrl ? '' : 'hidden'}><i class="fa-solid fa-eye"></i> View Photo</button>
                             <button type="button" id="avatar-upload-btn"><i class="fa-solid fa-upload"></i> Upload Photo</button>

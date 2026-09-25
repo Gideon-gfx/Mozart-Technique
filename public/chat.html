@@ -546,7 +546,7 @@
 
             <div id="tutor-library-panel" class="hidden border-t border-gray-100 bg-gray-50 p-3">
                 <div class="mb-2 flex items-center justify-between gap-2"><p class="text-xs font-semibold text-gray-700">Choose a video to send</p><div class="flex gap-1"><button type="button" class="library-tab rounded-md bg-primary-red px-2 py-1 text-xs font-semibold text-white" data-library-tab="mine">My library</button><button type="button" class="library-tab rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600" data-library-tab="mozart">Mozart library</button></div></div><input id="tutor-library-search" type="search" placeholder="Search this library" class="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
-                <div id="tutor-library-items" class="grid gap-2"></div>
+                <div id="tutor-library-items" class="grid max-h-56 gap-2 overflow-y-auto pr-1"></div>
             </div>
 
             <div id="emoji-panel" class="emoji-panel hidden"></div>

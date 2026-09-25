@@ -97,7 +97,8 @@
                 </div>
                 <select id="te-cred-select" size="6" class="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
                 <input id="te-cred-evidence" type="text" placeholder="Evidence URL (certificate scan/photo)" class="px-3 py-2 border border-gray-300 rounded-lg">
-                <input id="te-cred-ref" type="text" placeholder="Candidate/certificate number (optional)" class="px-3 py-2 border border-gray-300 rounded-lg">
+                <input id="te-cred-file" type="file" accept="image/*,.pdf" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border file:border-gray-300 file:text-xs file:bg-white file:text-gray-700">
+                <input id="te-cred-ref" type="text" placeholder="Candidate/certificate number (optional)" class="px-3 py-2 border border-gray-300 rounded-lg sm:col-span-2">
             </div>
             <button id="te-cred-submit-btn" class="px-5 py-2.5 bg-primary-red text-white font-semibold rounded-lg text-sm hover:bg-red-700 transition mb-6">Submit for review</button>
 
@@ -289,17 +290,35 @@
         document.getElementById('te-cred-search').addEventListener('input', renderCrosswalkSelect);
         document.getElementById('te-cred-submit-btn').addEventListener('click', async () => {
             const crosswalkId = document.getElementById('te-cred-select').value;
-            const evidenceUrl = document.getElementById('te-cred-evidence').value.trim();
+            let evidenceUrl = document.getElementById('te-cred-evidence').value.trim();
+            const evidenceFile = document.getElementById('te-cred-file').files[0];
             const issuingBodyRef = document.getElementById('te-cred-ref').value.trim();
             if (!crosswalkId) return showAlert('Select the credential you hold.', 'error');
-            const res = await fetch('/api/teacher-ed/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crosswalkId, evidenceUrl, issuingBodyRef }) });
-            const data = await res.json();
-            if (data.success) {
+            if (!evidenceUrl && !evidenceFile) return showAlert('Paste a link or upload a photo/PDF of your certificate.', 'error');
+            const submitBtn = document.getElementById('te-cred-submit-btn');
+            submitBtn.disabled = true;
+            try {
+                if (evidenceFile) {
+                    const body = new FormData();
+                    body.append('certificate', evidenceFile);
+                    const uploadRes = await fetch('/api/uploads/certificate', { method: 'POST', body });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadData.success) throw new Error(uploadData.error || 'Could not upload that file.');
+                    evidenceUrl = uploadData.url;
+                }
+                const res = await fetch('/api/teacher-ed/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crosswalkId, evidenceUrl, issuingBodyRef }) });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Failed.');
                 showAlert('Submitted for review.', 'success');
                 document.getElementById('te-cred-evidence').value = '';
+                document.getElementById('te-cred-file').value = '';
                 document.getElementById('te-cred-ref').value = '';
                 loadMyCredentials();
-            } else showAlert(data.error || 'Failed.', 'error');
+            } catch (error) {
+                showAlert(error.message || 'Failed.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+            }
         });
         async function loadMyCredentials() {
             const res = await fetch('/api/teacher-ed/my-credentials');

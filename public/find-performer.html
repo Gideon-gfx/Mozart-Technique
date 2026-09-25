@@ -176,7 +176,7 @@ async function loadBenchmarkHint() {
 function performerCardHtml(p) {
   return `
     <a class="market-product-card performer-card" href="/performers/${encodeURIComponent(p.slug || p.id)}">
-      <div class="market-product-image"><img src="${p.photoUrl || '/mozartLogo.jpg'}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
+      <div class="market-product-image" style="position:relative;"><img src="${p.photoUrl || '/mozartLogo.jpg'}" alt="${escapeHtml(p.name)}" loading="lazy">${p.isSuperArtist ? `<span title="SuperArtist - earned from consistently high ratings" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,#f9d976,#e0a800);color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;box-shadow:0 2px 6px rgba(224,168,0,.5)"><i class="fa-solid fa-star"></i></span>` : ''}</div>
       <div class="market-product-info performer-card-body">
         <p class="market-product-name performer-card-name">${escapeHtml(p.name)}</p>
         <div class="performer-card-meta">${escapeHtml((p.categories || []).join(', '))}${p.city ? ' &middot; ' + escapeHtml(p.city) : ''}</div>

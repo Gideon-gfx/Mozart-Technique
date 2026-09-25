@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Organization - Mozart Techniques</title>
+<title>Organization Student - Mozart Techniques</title>
 <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#c41822">
@@ -19,14 +19,40 @@
 <style>
 body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .site-nav { background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; }
-.site-nav-inner { max-width: 1000px; margin: 0 auto; padding: 0 24px; height: 70px; display: flex; align-items: center; justify-content: space-between; }
+.site-nav-inner { max-width: 1180px; margin: 0 auto; padding: 0 24px; height: 70px; display: flex; align-items: center; justify-content: space-between; }
 .site-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; }
 .site-logo img { width: 38px; height: 38px; border-radius: 12px; object-fit: cover; }
-.page-wrap { max-width: 1000px; margin: 0 auto; padding: 28px 24px 60px; }
+.page-shell { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+.page-wrap { flex: 1; min-width: 0; padding: 0; }
+.nav-action { border: 0; background: #f8f8f8; color: #555; width: 36px; height: 36px; border-radius: 999px; cursor: pointer; }
+.nav-actions { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+.nav-org-name { font-size: .95rem; font-weight: 800; color: #333; }
+.nav-org-logo { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; background: var(--mz-bg-soft); }
 .org-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
-.org-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; background: var(--mz-bg-soft); border: 1px solid var(--mz-border); }
 .org-name { font-size: 1.3rem; font-weight: 800; margin: 0; }
 .org-meta { color: var(--mz-muted); font-size: .85rem; margin: 2px 0; }
+.student-badge { display: inline-flex; margin-top: 7px; padding: 4px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: .72rem; font-weight: 800; }
+.sidebar-toggle { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--mz-border); background: #fff; color: #333; border-radius: 10px; padding: 9px 12px; font-weight: 700; cursor: pointer; margin-bottom: 14px; }
+.page-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: calc(100vh - 70px); }
+.page-shell { transition: grid-template-columns .45s cubic-bezier(.22,1,.36,1); }
+.page-shell.sidebar-collapsed { grid-template-columns: 68px minmax(0, 1fr); }
+.page-shell.sidebar-collapsed .org-sidebar-head { justify-content: center; }
+.page-shell.sidebar-collapsed .org-sidebar-identity { display: none; }
+.page-shell.sidebar-collapsed .org-sidebar > button[data-tab] { width: 44px; justify-content: center; padding: 11px 0; }
+.page-shell.sidebar-collapsed .org-sidebar > button[data-tab] { font-size: 0; }
+.page-shell.sidebar-collapsed .org-sidebar > button[data-tab] i { font-size: 1rem; }
+.page-shell.sidebar-collapsed .org-sidebar > button[data-tab]:hover { transform: none; }
+.org-sidebar { position: sticky; top: 70px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 70px); height: calc(100dvh - 70px); min-width: 0; overflow: hidden; background: #fff; border-right: 1px solid var(--mz-border); padding: 8px; }
+.org-sidebar-head { flex-shrink: 0; }
+.org-sidebar > button:not(.sidebar-toggle) { flex-shrink: 0; }
+.org-sidebar-head { display: flex; align-items: center; gap: 10px; padding: 10px 8px 14px; margin-bottom: 4px; border-bottom: 1px solid var(--mz-border); }
+.org-sidebar-identity { min-width: 0; flex: 1; }
+.org-sidebar-name { min-width: 0; font-size: .88rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-sidebar-student { display: inline-flex; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: .62rem; font-weight: 800; }
+.org-sidebar .sidebar-toggle { flex: 0 0 32px; width: 32px; height: 32px; min-width: 32px; margin: 0; padding: 0; border: 0; background: transparent; color: #555; border-radius: 0; cursor: pointer; justify-content: center; }
+.org-sidebar > button:not(.sidebar-toggle) { width: 100%; }
+.org-sidebar button { width: 100%; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: #555; text-align: left; padding: 11px 12px; border-radius: 9px; font-weight: 700; cursor: pointer; }
+.org-sidebar button:hover, .org-sidebar button.active { background: #fff1f1; color: var(--mz-red); }
 .content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 12px; }
 .content-card { border: 1px solid var(--mz-border); border-radius: var(--mz-radius); overflow: hidden; background: #fff; }
 .content-card img, .content-card video { width: 100%; aspect-ratio: 16/10; object-fit: cover; background: var(--mz-bg-soft); }
@@ -43,18 +69,47 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
 .chat-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--mz-border); }
 .chat-panel-head h3 { font-size: .9rem; font-weight: 800; margin: 0; }
 .chat-call-btn { border: none; background: var(--mz-bg-soft); color: var(--mz-red); width: 34px; height: 34px; border-radius: 999px; cursor: pointer; }
+@media (max-width: 760px) {
+  .page-shell { display: block; min-height: calc(100vh - 70px); padding: 0; }
+  .org-sidebar { position: fixed; top: 70px; bottom: auto; left: 0; width: min(86vw, 300px); height: calc(100vh - 70px); height: calc(100dvh - 70px); min-height: 0; z-index: 120; transform: translateX(calc(-100% + 52px)); transition: transform .25s ease; }
+  .org-sidebar.open { transform: translateX(0); }
+  .org-sidebar:not(.open) .org-sidebar-identity,
+  .org-sidebar:not(.open) > button:not(.sidebar-toggle) { visibility: hidden; }
+  .page-shell > .page-wrap { width: calc(100% - 52px); margin-left: 52px; margin-right: 0; padding: 20px 16px 44px; }
+  .sidebar-backdrop { display: none; }
+}
 </style>
 </head>
 <body class="market-body">
 
 <nav class="site-nav">
   <div class="site-nav-inner">
-    <a href="/dashboard" class="site-logo"><img src="/mozartLogo.jpg" alt="Mozart Techniques">Mozart Techniques</a>
+    <div class="nav-actions">
+      <button type="button" class="nav-action" id="back-button" title="Go back"><i class="fa-solid fa-arrow-left"></i></button>
+      <img class="nav-org-logo" id="nav-org-logo" src="/mozartLogo.jpg" alt="Organization">
+      <span class="nav-org-name" id="nav-org-name">Organization</span>
+    </div>
     <div id="auth-state"></div>
   </div>
 </nav>
 
-<div class="page-wrap">
+<div class="page-shell">
+  <aside class="org-sidebar" id="org-sidebar" aria-label="Organization navigation">
+    <div class="org-sidebar-head">
+      <div class="org-sidebar-identity">
+        <div class="org-sidebar-name" id="org-name">Organization</div>
+        <span class="org-sidebar-student">Student</span>
+      </div>
+      <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar"><i class="fa-solid fa-angles-right"></i></button>
+    </div>
+    <button type="button" class="active" data-tab="content"><i class="fa-solid fa-photo-film"></i> Updates</button>
+    <button type="button" data-tab="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
+    <button type="button" data-tab="library"><i class="fa-solid fa-book-open"></i> Library</button>
+    <button type="button" data-tab="messages"><i class="fa-solid fa-comments"></i> Message Organization</button>
+    <button type="button" data-tab="games"><i class="fa-solid fa-gamepad"></i> Games</button>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+  <main class="page-wrap">
   <div id="loading-state" class="market-empty"><i class="fa-solid fa-spinner fa-spin"></i></div>
 
   <div id="not-linked-state" class="market-empty" hidden>
@@ -65,22 +120,6 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
   </div>
 
   <div id="org-view" hidden>
-    <div class="org-header">
-      <img class="org-logo" id="org-logo" src="/mozartLogo.jpg" alt="">
-      <div>
-        <h1 class="org-name" id="org-name"></h1>
-        <p class="org-meta" id="org-meta"></p>
-      </div>
-    </div>
-
-    <div class="market-tabs">
-      <button type="button" class="market-tab-btn active" data-tab="content"><i class="fa-solid fa-photo-film"></i> Updates</button>
-      <button type="button" class="market-tab-btn" data-tab="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
-      <button type="button" class="market-tab-btn" data-tab="library"><i class="fa-solid fa-book-open"></i> Library</button>
-      <button type="button" class="market-tab-btn" data-tab="messages"><i class="fa-solid fa-comments"></i> Message Organization</button>
-      <button type="button" class="market-tab-btn" data-tab="games"><i class="fa-solid fa-gamepad"></i> Games</button>
-    </div>
-
     <div class="market-tab-panel" id="tab-content">
       <div class="content-grid" id="content-grid"></div>
       <div id="content-empty" class="market-empty" hidden><i class="fa-solid fa-inbox"></i><h3>No updates yet</h3><p>Announcements and materials from your organization will show up here.</p></div>
@@ -111,6 +150,7 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
       <div id="game-mount"></div>
     </div>
   </div>
+  </main>
 </div>
 
 <div class="market-toast" id="toast"></div>
@@ -137,14 +177,37 @@ const TABS = ['content', 'events', 'library', 'messages', 'games'];
 let chatKitController = null;
 let conversationId = null;
 let libraryLoaded = false;
+function setSidebarOpen(open) {
+  const sidebar = document.getElementById('org-sidebar');
+  const mobile = window.matchMedia('(max-width: 760px)').matches;
+  sidebar.classList.toggle('open', mobile && open);
+}
 function activateTab(tab) {
-  document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.org-sidebar button').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
   TABS.forEach((t) => { document.getElementById(`tab-${t}`).hidden = t !== tab; });
+  setSidebarOpen(false);
   if (tab === 'messages') mountChat();
   if (tab === 'games') initGamesTab();
   if (tab === 'library' && !libraryLoaded) { libraryLoaded = true; loadLibrary(); }
 }
-document.querySelectorAll('.market-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+document.querySelectorAll('.org-sidebar button[data-tab]').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+document.addEventListener('pointerdown', (event) => {
+  const sidebar = document.getElementById('org-sidebar');
+  if (window.matchMedia('(max-width: 760px)').matches && sidebar.classList.contains('open') && !sidebar.contains(event.target)) {
+    setSidebarOpen(false);
+  }
+});
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  const sidebar = document.getElementById('org-sidebar');
+  const shell = document.querySelector('.page-shell');
+  const mobile = window.matchMedia('(max-width: 760px)').matches;
+  if (mobile) {
+    setSidebarOpen(!sidebar.classList.contains('open'));
+    return;
+  }
+  shell.classList.toggle('sidebar-collapsed');
+});
+document.getElementById('back-button').addEventListener('click', () => window.history.length > 1 ? window.history.back() : window.location.assign('/dashboard'));
 
 function contentCardHtml(item) {
   const media = item.type === 'video' && item.fileUrl
@@ -175,7 +238,7 @@ function contentCardHtml(item) {
 async function loadOrg() {
   const sessionRes = await fetch('/api/session');
   const sessionData = await sessionRes.json();
-  if (!sessionData.user) { window.location.href = '/login?redirect=' + encodeURIComponent('/my-organization'); return; }
+  if (!sessionData.user) { window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname); return; }
   currentUserId = sessionData.user.id;
 
   const res = await fetch('/api/organizations/mine');
@@ -185,13 +248,17 @@ async function loadOrg() {
 
   org = data.organization;
   document.getElementById('org-view').hidden = false;
-  document.getElementById('org-logo').src = org.logoUrl || '/mozartLogo.jpg';
-  document.getElementById('org-name').textContent = org.name || org.contactName;
-  document.getElementById('org-meta').textContent = `${org.organizationType === 'institution' ? 'Educational Institution' : 'NGO'} - ${org.subscriptionStatus === 'active' ? 'Active sponsorship' : 'Sponsorship inactive'}`;
+  const orgName = org.name || org.contactName || 'Organization';
+  const orgLogo = org.logoUrl || '/mozartLogo.jpg';
+  document.getElementById('nav-org-logo').src = orgLogo;
+  document.getElementById('org-name').textContent = orgName;
+  document.getElementById('nav-org-name').textContent = orgName;
 
   loadContent();
   renderEvents();
 }
+
+function slugify(value) { return String(value || 'organization').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'organization'; }
 
 async function loadContent() {
   const res = await fetch(`/api/organizations/${org.id}/private-content`);

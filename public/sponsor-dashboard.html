@@ -1,957 +1,505 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sponsor Dashboard</title>
-  <link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#c41822">
-    <link rel="apple-touch-icon" href="/assets/icon-512.png">
-    <script src="/assets/install-prompt.js" defer></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
-  <link rel="stylesheet" href="/assets/chat-kit.css">
-  <style>
-    :root {
-      --mozart-red: #cc0000;
-      --mozart-red-dark: #8f0000;
-      --mozart-ink: #1f2937;
-      --mozart-soft: #f9f1ef;
-      --mozart-panel: #ffffff;
-      --mozart-line: #efe7e5;
-      --mozart-muted: #6b7280;
-      --mozart-shadow: 0 18px 38px rgba(31,41,55,.08);
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Montserrat', sans-serif; color: var(--mozart-ink); background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%); }
-    h1, h2, h3, h4, .serif { font-family: 'Science Gothic', sans-serif; letter-spacing: .01em; }
-    .header { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); border-bottom: 2px solid var(--mozart-red); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
-    .sidebar { width: 280px; background: linear-gradient(180deg,#fff 0%,#fff8f7 100%); border-right: 1px solid var(--mozart-line); transition: width .2s ease; }
-    .sidebar { position: sticky; top: 82px; height: calc(100vh - 82px); overflow-y: auto; align-self: flex-start; }
-    .sidebar-item > span { display: flex; align-items: center; gap: 10px; text-align: left; }
-    @media (max-width: 768px) { .sidebar { position: fixed; top: 0; left: 0; z-index: 60; height: 100vh; transform: translateX(-100%); width: 280px; } .sidebar.open { transform: translateX(0); } #sponsor-logo { display: none; } }
-    .sidebar.collapsed { width: 90px; }
-    .sidebar.collapsed .sidebar-label { display: none; }
-    .sidebar.collapsed .sidebar-brand-details { display: none; }
-    .sidebar.collapsed #sidebarToggle { display: none; }
-    .sidebar.collapsed .sidebar-item { justify-content: center; }
-    .sidebar-item { width: calc(100% - 18px); margin: 6px 9px; padding: 12px 16px; border-radius: 14px; border: 1px solid transparent; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-weight: 700; color: #374151; background: transparent; transition: transform .2s ease, background .2s ease, box-shadow .2s ease; }
-    .sidebar-item.active { background: rgba(204,0,0,.08); border-color: rgba(204,0,0,.14); color: var(--mozart-red-dark); }
-    .sidebar-item:hover { background: rgba(204,0,0,.05); transform: translateX(2px); animation: bounce .45s ease-in-out; }
-    .main-panel { flex: 1; overflow: auto; }
-    .card { background: white; border-radius: 18px; border: 1px solid var(--mozart-line); box-shadow: var(--mozart-shadow); padding: 22px; transition: transform .2s ease, box-shadow .2s ease; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 20px 30px rgba(15,23,42,.08); }
-    .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-    .stats-grid .card { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .muted { color: var(--mozart-muted); }
-    .overview-payment-trigger, .overview-wallet-trigger { width: 100%; text-align: left; background: transparent; border: none; padding: 0; margin: 0; cursor: pointer; }
-    .overview-payment-trigger:focus, .overview-wallet-trigger:focus { outline: none; }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 60; }
-    .modal-backdrop.hidden { display: none; }
-    .modal-panel { width: min(720px, 100%); background: white; border-radius: 22px; border: 1px solid var(--mozart-line); box-shadow: 0 28px 50px rgba(0,0,0,.18); padding: 22px; }
-    .modal-table { width: 100%; border-collapse: collapse; }
-    .modal-table th, .modal-table td { padding: 12px 10px; border-bottom: 1px solid var(--mozart-line); text-align: left; }
-    .modal-table th { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .08em; }
-    .btn-primary, .btn-secondary, .icon-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
-    .btn-primary { background: linear-gradient(135deg, var(--mozart-red), var(--mozart-red-dark)); color: white; border: none; border-radius: 12px; padding: 12px 18px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 18px rgba(204,0,0,.2); }
-    .btn-primary:hover, .btn-secondary:hover, .icon-btn:hover { transform: translateY(-2px) scale(1.01); animation: bounce .45s ease-in-out; }
-    .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-    .btn-secondary { background: white; color: var(--mozart-ink); border: 1px solid var(--mozart-line); border-radius: 12px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .money { font-size: 2rem; font-weight: 800; color: var(--mozart-red); }
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    .badge.active { background: #dbeafe; color: #1e40af; }
-    .badge.pending { background: #fef3c7; color: #92400e; }
-    .badge.approved { background: #dcfce7; color: #166534; }
-    .table-card { overflow: hidden; border: 1px solid var(--mozart-line); border-radius: 18px; background: #fff; }
-    .table-card table { width: 100%; border-collapse: collapse; }
-    .table-card th, .table-card td { padding: 12px 14px; border-bottom: 1px solid var(--mozart-line); text-align: left; }
-    .table-card th { background: #fff7f6; color: #4b5563; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-    .topup-chip { border: 1px solid var(--mozart-line); border-radius: 14px; padding: 14px; font-weight: 800; font-size: 1.1rem; background: #fff7f6; cursor: pointer; transition: all .15s ease; }
-    .topup-chip.active { background: var(--mozart-red); color: #fff; border-color: var(--mozart-red); }
-    .bill-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--mozart-line); border-radius: 14px; padding: 14px 16px; }
-    @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.01); } }
-    @media (max-width: 900px) {
-      .stats-grid, .status-grid { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 700px) {
-      #mobile-menu-btn { display: flex; position: static; margin: 12px; align-self: flex-start; background: white; overflow: hidden; }
-      #sidebarToggle { display: none; }
-      #sponsor-logo { display: none !important; }
-      .sidebar { position: fixed; left: 0; top: 72px; bottom: 0; transform: translateX(-100%); z-index: 30; }
-      .sidebar.open { transform: translateX(0); }
-      .stats-grid, .status-grid { grid-template-columns: 1fr; }
-      .main-panel { width: 100%; min-width: 0; overflow-x: hidden; }
-      .card { padding: 14px; border-radius: 14px; }
-      .row { align-items: flex-start; flex-wrap: wrap; }
-      .row > div:first-child { min-width: 0; }
-      .btn-primary, .btn-secondary { max-width: 100%; padding: 9px 12px; font-size: .82rem; border-radius: 10px; }
-      .sidebar-item { padding: 10px 12px; font-size: .85rem; }
-      .muted { font-size: .84rem; }
-      .header > div { padding: 10px 12px; }
-      .main-panel { padding: 16px 12px !important; }
-      .text-3xl { font-size: 1.5rem !important; line-height: 1.2; }
-      .text-2xl { font-size: 1.25rem !important; }
-      .card { box-shadow: 0 8px 18px rgba(15,23,42,.06); }
-    }
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sponsor Dashboard - Mozart Techniques</title>
+<link rel="shortcut icon" href="/mozartLogo.jpg" type="image/x-icon">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#c41822">
+<link rel="apple-touch-icon" href="/assets/icon-512.png">
+<script src="/assets/install-prompt.js" defer></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{'primary-red':'#cc0000'}}}}</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Science+Gothic:wght@100..900&display=swap" rel="stylesheet">
+<style>
+/* This page intentionally mirrors mobile/src/screens/sponsor/SponsorDashboardScreen.tsx
+   section-for-section (header, greeting+clock, billing/subscription cards,
+   status text, quick actions, bottom-sheet-style modals for
+   title/bills/wallet/codes) rather than the site's usual sidebar-dashboard
+   layout - the web version used to carry Sponsored Students/Messages/
+   Settings panels the mobile Sponsor tab never had (those live on separate
+   tabs/screens there), which is what made the two feel like different
+   products for the same role. */
+body{font-family:'Science Gothic',Montserrat,system-ui,sans-serif;font-size:.8125rem;background:linear-gradient(135deg,#fff,#f8f5f1);color:#241f1c}
+.sd-header{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid #eaded8}
+.sd-header-inner{max-width:640px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sd-header-left{display:flex;align-items:center;gap:10px;min-width:0}
+.sd-org-logo{width:32px;height:32px;border-radius:999px;object-fit:cover;flex-shrink:0;background:#cc0000;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem}
+.sd-title{font-weight:700;font-size:.95rem;color:#241f1c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd-subtitle{font-size:.66rem;font-weight:700;color:#cc0000;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+.sd-header-right{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.sd-icon-btn{position:relative;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#241f1c;background:#f8f5f1}
+.sd-badge-dot{position:absolute;top:-1px;right:-1px;width:9px;height:9px;border-radius:999px;background:#cc0000;border:2px solid #fff}
+.sd-avatar-link img,.sd-avatar-link .sd-avatar-fallback{width:34px;height:34px;border-radius:999px;object-fit:cover;background:#cc0000;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.78rem}
+main.sd-main{max-width:640px;margin:0 auto;padding:20px 20px 60px}
+.sd-greeting-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.sd-name-touch{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;cursor:pointer;text-align:left}
+.sd-greeting{font-size:1.35rem;font-weight:800;color:#241f1c;line-height:1.25}
+.sd-name-touch i{font-size:.7rem;color:#9c9384;flex-shrink:0}
+.sd-gold-badge{display:inline-flex;align-items:center;gap:5px;background:#f5d889;border-radius:999px;padding:4px 10px;margin-top:8px;font-size:.68rem;font-weight:700;color:#8a6200}
+.sd-clock{font-size:.78rem;font-weight:700;color:#5b5449;white-space:nowrap;padding-top:4px}
+.sd-billing-row{display:flex;gap:12px;margin-top:18px;margin-bottom:20px}
+.sd-billing-card{flex:1;background:#fff;border:1px solid #eaded8;border-radius:16px;padding:14px;cursor:pointer;text-align:left}
+.sd-billing-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;font-size:.95rem}
+.sd-billing-label{font-size:.68rem;font-weight:700;color:#9c9384;text-transform:uppercase;letter-spacing:.03em}
+.sd-billing-value{font-size:1.05rem;font-weight:800;margin-top:3px}
+.sd-billing-hint{font-size:.68rem;color:#9c9384;margin-top:2px}
+.sd-status-text{font-size:.85rem;color:#5b5449;line-height:1.5;margin-bottom:14px}
+.sd-reapply-btn{display:inline-flex;background:#cc0000;color:#fff;border-radius:10px;padding:10px 18px;font-weight:700;font-size:.82rem;margin-bottom:14px}
+.sd-notice{display:flex;gap:10px;background:#fff8e6;border-radius:14px;padding:14px;margin-bottom:16px}
+.sd-notice p{flex:1;font-size:.76rem;color:#8a6200;line-height:1.5;margin:0}
+.sd-section-title{font-size:.98rem;font-weight:800;margin-bottom:12px}
+.sd-actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.sd-action-card{background:#fff;border:1px solid #eaded8;border-radius:16px;padding:14px;text-align:left;cursor:pointer}
+.sd-action-icon{width:36px;height:36px;border-radius:10px;background:#fff0ec;color:#cc0000;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.sd-action-title{font-size:.82rem;font-weight:700}
+.sd-action-subtitle{font-size:.68rem;color:#9c9384;margin-top:2px}
+.sd-centered{min-height:50vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 24px;text-align:center;color:#9c9384}
+/* Bottom sheet - mirrors the mobile Modal(animationType="slide") look. */
+.sd-sheet-backdrop{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.42);display:flex;align-items:flex-end;justify-content:center}
+.sd-sheet-backdrop.hidden{display:none}
+.sd-sheet{width:100%;max-width:640px;background:#fff;border-radius:22px 22px 0 0;padding:12px 20px 28px;max-height:85vh;overflow-y:auto;animation:sdSheetUp .28s ease-out}
+@keyframes sdSheetUp{from{transform:translateY(24px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.sd-sheet-handle{width:36px;height:4px;border-radius:2px;background:#eaded8;margin:0 auto 16px}
+.sd-sheet-title{font-size:1rem;font-weight:800;text-align:center;margin-bottom:14px}
+.sd-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #f1ebdf}
+.sd-row:first-child{border-top:none}
+.sd-empty-text{font-size:.82rem;color:#9c9384;text-align:center;padding:20px 0}
+.sd-chip-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.sd-chip{border:1px solid #eaded8;border-radius:999px;padding:9px 14px;font-size:.8rem;font-weight:600;background:#fff;cursor:pointer}
+.sd-chip.active{background:#cc0000;border-color:#cc0000;color:#fff}
+.sd-custom-row{display:flex;gap:8px}
+.sd-custom-input{flex:1;border:1px solid #eaded8;border-radius:12px;padding:10px 14px;font-size:.85rem}
+.sd-custom-btn{background:#cc0000;color:#fff;border-radius:12px;padding:10px 18px;font-weight:700;font-size:.82rem;border:none;cursor:pointer}
+.sd-wallet-balance{font-size:2.1rem;font-weight:800;color:#059669;text-align:center;margin-bottom:6px}
+.sd-wallet-hint{font-size:.76rem;color:#9c9384;text-align:center;line-height:1.5;margin-bottom:16px}
+.sd-renew-toggle{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px 0;border-top:1px solid #f1ebdf;margin-top:4px;width:100%;background:none;border-left:none;border-right:none;border-bottom:none;cursor:pointer;font-size:.78rem;font-weight:700;color:#9c9384}
+.sd-plan-row{display:flex;align-items:center;gap:10px;background:#f8f5f1;border:1px solid #eaded8;border-radius:14px;padding:14px;margin-top:10px;cursor:pointer;width:100%;text-align:left}
+.sd-plan-title{font-size:.88rem;font-weight:700}
+.sd-plan-meta{font-size:.76rem;color:#9c9384;margin-top:2px}
+.sd-code-pill{border-radius:999px;padding:3px 9px;font-size:.68rem;font-weight:700}
+.sd-code-pill.redeemed{background:#d1fae5;color:#059669}
+.sd-code-pill.unused{background:#f8f5f1;color:#9c9384}
+</style>
 </head>
 <body>
-  <div id="alert-box" class="fixed right-5 top-5 z-50 max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white opacity-0 shadow-2xl transition-opacity duration-500"> <span id="alert-message"> </span> </div>
-
-  <header class="header">
-    <div class="flex items-center justify-between px-6 py-4 max-w-[1600px] mx-auto">
-      <div class="flex items-center gap-3">
-        <button id="back-btn" class="w-10 h-10 rounded-lg hover:bg-red-50 text-red-600" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button>
-        <div class="flex items-center gap-3">
-          <img src="/mozartLogo.jpg" alt="Mozart" style="width:40px;height:40px;border-radius:8px;" />
-          <div>
-            <div class="text-xs font-bold uppercase tracking-wide text-red-600">Mozart Techniques</div>
-            <h1 id="dashboard-title" class="text-xl font-bold">Sponsor Dashboard</h1>
-          </div>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <button id="sponsor-notifications-btn" class="relative w-10 h-10 rounded-lg hover:bg-red-50 text-red-600" aria-label="Notifications" title="Notifications"><i class="fa-solid fa-bell"></i><span id="sponsor-notification-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] leading-4">0</span></button>
-        <div class="relative">
-          <button id="sponsor-profile-btn" class="w-10 h-10 rounded-full bg-cover bg-center text-transparent" aria-label="Open profile menu" style="background-image:url(&quot;/mozartLogo.jpg&quot;)">Sponsor</button>
-          <div id="sponsor-profile-menu" class="hidden absolute right-0 top-12 z-40 w-56 rounded-xl border border-red-100 bg-white p-3 shadow-xl">
-            <p id="sponsor-profile-name" class="font-bold text-gray-800 truncate">Sponsor</p>
-            <p id="sponsor-profile-email" class="text-xs text-gray-500 truncate mb-2"> </p>
-            <button type="button" data-action="open-settings" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-red-50"><i class="fa-solid fa-gear mr-2"></i>Settings</button>
-            <button type="button" id="switch-account-btn" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-red-50"><i class="fa-solid fa-users mr-2"></i>Switch account</button>
-            <button type="button" id="sponsor-signout-btn" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"><i class="fa-solid fa-right-from-bracket mr-2"></i>Sign out</button>
-          </div>
-        </div>
+<header class="sd-header">
+  <div class="sd-header-inner">
+    <div class="sd-header-left">
+      <div class="sd-org-logo" id="sd-org-logo"></div>
+      <div class="min-w-0">
+        <div class="sd-title" id="sd-org-name">Sponsor</div>
+        <div class="sd-subtitle" id="sd-org-subtitle" hidden>Sponsor</div>
       </div>
     </div>
-  </header>
-
-  <div class="flex min-h-screen">
-    <button id="mobile-menu-btn" class="hidden w-10 h-10 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 shadow-sm" aria-label="Open sidebar"><i class="fa-solid fa-bars text-lg"></i></button>
-    <aside class="sidebar">
-      <div class="flex items-center gap-3 p-5 border-b border-red-100">
-        <button id="sidebarToggle" title="Collapse sidebar" aria-label="Collapse sidebar" class="w-10 h-10 rounded-lg hover:bg-red-50 text-red-600"><i class="fa-solid fa-bars"></i></button>
-        <img id="sponsor-logo" src="/mozartLogo.jpg" alt="Sponsor" class="w-11 h-11 rounded-2xl object-cover cursor-pointer" title="Open sidebar" />
-        <div class="sidebar-brand-details">
-          <div id="sponsor-name" class="font-bold text-lg">Sponsor</div>
-          <div id="sponsor-subtitle" class="text-xs text-gray-500">Individual sponsor</div>
-        </div>
-      </div>
-      <nav class="py-3">
-        <button class="sidebar-item active" data-tab="overview"><span><i class="fa-solid fa-chart-pie"></i> <span class="sidebar-label">Overview</span></span></button>
-        <button class="sidebar-item" data-tab="students"><span><i class="fa-solid fa-user-graduate"></i> <span class="sidebar-label">Students</span></span></button>
-        <button class="sidebar-item" data-tab="billing"><span><i class="fa-solid fa-file-invoice-dollar"></i> <span class="sidebar-label">Billing</span></span></button>
-        <button class="sidebar-item" data-tab="wallet"><span><i class="fa-solid fa-wallet"></i> <span class="sidebar-label">Wallet</span></span></button>
-        <button class="sidebar-item" data-tab="messages"><span><i class="fa-solid fa-message"></i> <span class="sidebar-label">Message</span></span></button>
-        <button class="sidebar-item" data-href="/library"><span><i class="fa-solid fa-magnifying-glass"></i> <span class="sidebar-label">Search Mozart Techniques</span></span></button>
-        <button class="sidebar-item" data-tab="codes"><span><i class="fa-solid fa-key"></i> <span class="sidebar-label">Access Codes</span></span></button>
-        <button class="sidebar-item" data-tab="settings"><span><i class="fa-solid fa-gear"></i> <span class="sidebar-label">Settings</span></span></button>
-      </nav>
-    </aside>
-
-    <main class="main-panel px-6 py-8">
-
-      <div id="tab-overview" class="tab-panel active space-y-6">
-        <div>
-          <h2 class="text-3xl font-bold mb-1">Sponsor Overview</h2>
-          <p class="muted">Live snapshot of your sponsorship, wallet and subscription.</p>
-        </div>
-
-        <div class="stats-grid">
-          <div class="card">
-            <div class="muted text-xs font-bold uppercase tracking-wide">Sponsored Students</div>
-            <div class="text-4xl font-bold text-red-600 mt-3" id="stat-students">0</div>
-          </div>
-          <div class="card">
-            <button type="button" id="overview-wallet-trigger" class="overview-wallet-trigger">
-              <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Wallet Balance</div><i class="fa-solid fa-wallet text-red-600"></i></div>
-              <div id="overview-wallet-amount" class="money">$0.00</div>
-              <p class="muted text-sm mt-2">Tap to load money</p>
-            </button>
-          </div>
-          <div class="card">
-            <button type="button" id="payment-history-trigger" class="overview-payment-trigger">
-              <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Subscription</div><span id="overview-payment-status" class="badge pending">Pending</span></div>
-              <div id="overview-payment-amount" class="money">$0 USD</div>
-              <p class="muted text-sm mt-2">Monthly subscription</p>
-            </button>
-          </div>
-          <div class="card">
-            <div class="row mb-3"><div class="muted text-xs font-bold uppercase tracking-wide">Profile</div><span class="badge approved">Updated</span></div>
-            <p class="muted text-sm mb-3">Your sponsor profile and settings</p>
-            <button class="btn-primary w-full mb-2" data-action="open-settings"> <i class="fa-solid fa-pen-to-square"></i> Edit</button>
-            <button class="btn-secondary w-full" data-action="check-orientation"><i class="fa-solid fa-route"></i> Check Orientation</button>
-          </div>
-        </div>
-
-        <div class="status-grid">
-          <div class="card">
-            <h3 class="text-2xl font-bold mb-4">Recent Activities</h3>
-            <div id="activity-list" class="space-y-3">
-              <div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>No student activity yet</span><strong>Awaiting first code redemption</strong></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <h3 class="text-2xl font-bold mb-4">Subscription Status</h3>
-            <div class="space-y-4">
-              <div class="row"><span class="muted">Status:</span><span id="subscription-status" class="badge pending">Inactive</span></div>
-              <div class="row"><span class="muted">Monthly Amount:</span><strong id="subscription-amount">$0 USD</strong></div>
-              <div class="row"><span class="muted">Expiration Date:</span><strong id="subscription-expiry">Not active yet</strong></div>
-              <div class="pt-4 border-t border-gray-200">
-                <p class="muted mb-3">Activate subscription:</p>
-                <div class="flex gap-3">
-                  <button class="btn-primary flex-1" data-action="pay-monthly"><i class="fa-solid fa-wallet"></i> Pay Monthly</button>
-                  <button class="btn-primary flex-1" data-action="pay-yearly"><i class="fa-solid fa-calendar-check"></i> Pay Yearly</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="payment-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
-        <div class="modal-panel">
-          <div class="row mb-4">
-            <div>
-              <p class="text-xs uppercase tracking-wide text-red-600 font-bold">Payments</p>
-              <h3 class="text-2xl font-bold">Subscription payment history & checkout</h3>
-            </div>
-            <button id="close-payment-modal" type="button" class="btn-secondary" aria-label="Close payment history"><i class="fa-solid fa-xmark"></i></button>
-          </div>
-          <div id="checkout-url-section" class="hidden mb-6 p-4 rounded-xl border-2 border-green-200 bg-green-50">
-            <h4 class="font-bold text-green-800 mb-2">Checkout URL Ready</h4>
-            <p class="text-sm text-gray-700 mb-3">Copy and paste this URL in your browser to complete payment:</p>
-            <div class="flex gap-2">
-              <input id="checkout-url-display" type="text" readonly class="flex-1 px-3 py-2 border border-green-300 rounded-lg bg-white text-sm font-mono">
-              <button id="copy-checkout-url" type="button" class="btn-primary"><i class="fa-solid fa-copy"></i> Copy</button>
-              <a id="open-checkout-url" href="#" target="_blank" rel="noopener" class="btn-primary"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open</a>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="modal-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody id="payment-history-body">
-                <tr><td colspan="3" class="text-gray-400 py-6">No payments recorded yet.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-students" class="tab-panel">
-        <div class="card">
-          <h2 class="text-3xl font-bold mb-3">Sponsored Students</h2>
-          <p class="muted mb-5">Students who redeemed one of your access codes. Assign a tutor or unlink a student here.</p>
-          <div class="table-card">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Joined</th>
-                  <th>Assign tutor</th>
-                  <th>Remove</th>
-                </tr>
-              </thead>
-              <tbody id="students-tbody">
-                <tr><td colspan="5" class="text-center text-gray-400 py-8">No students yet</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-billing" class="tab-panel">
-        <div class="card">
-          <div class="row mb-1"><h2 class="text-3xl font-bold">Lesson Bills</h2><div id="bills-total" class="money hidden"></div></div>
-          <p class="muted mb-5">Sponsored lessons your students have completed. Pay each bill, or keep your wallet loaded so lessons auto-draw from it instead.</p>
-          <div id="bills-list" class="space-y-3">
-            <p class="text-gray-400 text-center py-8">Loading bills...</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-wallet" class="tab-panel">
-        <div class="card">
-          <h2 class="text-3xl font-bold mb-1">Wallet</h2>
-          <p class="muted mb-5">Load money into your wallet - covered lessons draw from it automatically the instant they're logged, no per-lesson checkout needed while it lasts.</p>
-          <div class="grid md:grid-cols-2 gap-5">
-            <div class="border border-red-100 rounded-2xl bg-red-50 p-5">
-              <p class="text-sm uppercase tracking-wide text-gray-500 mb-2">Current balance</p>
-              <div id="wallet-balance" class="money mb-5">$0.00</div>
-              <p class="text-sm uppercase tracking-wide text-gray-500 mb-2">Load money</p>
-              <div class="grid grid-cols-4 gap-2 mb-3">
-                <button type="button" class="topup-chip" data-amount="25">$25</button>
-                <button type="button" class="topup-chip" data-amount="50">$50</button>
-                <button type="button" class="topup-chip" data-amount="100">$100</button>
-                <button type="button" class="topup-chip" data-amount="250">$250</button>
-              </div>
-              <div class="flex gap-2">
-                <input id="wallet-custom-amount" type="number" min="5" step="1" placeholder="Custom amount (min $5)" class="flex-1 border border-gray-300 rounded-lg px-3 py-2">
-              </div>
-              <button id="wallet-topup-btn" type="button" class="btn-primary w-full mt-3"><i class="fa-solid fa-credit-card"></i> Load money</button>
-            </div>
-            <div class="border border-red-100 rounded-2xl bg-white p-5">
-              <h3 class="font-bold text-lg mb-3">How it works</h3>
-              <ul class="space-y-3 text-sm text-gray-600">
-                <li><i class="fa-solid fa-circle-check text-emerald-600 mr-2"></i>Every completed lesson for one of your sponsored students draws its cost from this balance automatically.</li>
-                <li><i class="fa-solid fa-circle-check text-emerald-600 mr-2"></i>If your balance runs low, the lesson bill lands in the Billing tab for a one-off payment instead.</li>
-                <li><i class="fa-solid fa-circle-check text-emerald-600 mr-2"></i>This is separate from your platform subscription, which is what unlocks generating access codes.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-messages" class="tab-panel">
-        <div class="card">
-          <div class="mb-5">
-            <h2 class="text-3xl font-bold mb-1">Messages</h2>
-            <p class="muted">Message your sponsored students directly.</p>
-          </div>
-
-          <div class="grid xl:grid-cols-[320px_minmax(0,1fr)] gap-5">
-            <div class="border border-red-100 rounded-2xl bg-red-50 p-4">
-              <h3 class="font-bold text-lg mb-3">Students</h3>
-              <div id="message-roster" class="space-y-3"></div>
-            </div>
-            <div class="border border-red-100 rounded-2xl bg-white p-4">
-              <div id="message-chat-panel" class="hidden h-[30rem] flex flex-col">
-                <div class="flex items-center justify-between gap-3 border-b border-red-100 pb-3 mb-3">
-                  <div>
-                    <h3 id="message-chat-title" class="font-bold text-lg">Conversation</h3>
-                    <p id="message-chat-meta" class="text-xs text-gray-500">Direct message</p>
-                  </div>
-                  <button id="close-message-chat-btn" class="btn-secondary text-sm"><i class="fa-solid fa-xmark"></i> Close</button>
-                </div>
-                <div id="chat-kit-mount" class="flex min-h-0 flex-1 flex-col"></div>
-              </div>
-              <div id="message-empty-state" class="h-[30rem] flex items-center justify-center text-center text-gray-400">
-                <div>
-                  <i class="fa-solid fa-comments text-4xl mb-4 block"></i>
-                  <p>Select a student to start messaging.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-codes" class="tab-panel">
-        <div class="card">
-          <h2 class="text-3xl font-bold mb-3">Access Codes</h2>
-          <p class="muted mb-5">Generate one unique code for each student you sponsor.</p>
-          <div class="grid md:grid-cols-2 gap-5">
-            <div class="border border-red-100 rounded-2xl bg-red-50 p-5">
-              <p class="text-sm uppercase tracking-wide text-gray-500 mb-2">Create a code</p>
-              <div class="space-y-2"><select id="code-role" class="w-full border border-gray-300 rounded-lg px-3 py-2"><option value="student">Student</option></select><input id="code-recipient-name" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Student's name"><input id="code-recipient-email" type="email" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Student's email (optional)"><button id="generate-code-btn" class="btn-primary w-full"><i class="fa-solid fa-plus"></i> Generate unique code</button><button id="invite-user-btn" type="button" class="btn-secondary w-full"><i class="fa-solid fa-envelope"></i> Invite by Gmail</button></div>
-              <p id="new-code-value" class="mt-4 text-xl font-black text-red-700 tracking-[0.16em] break-all">MZT-</p>
-              <button id="copy-code-btn" class="btn-secondary mt-3"><i class="fa-solid fa-copy"></i> Copy new code</button>
-            </div>
-            <div class="border border-red-100 rounded-2xl bg-white p-5">
-              <h3 class="font-bold text-lg mb-4">Issued codes</h3>
-              <div class="grid grid-cols-3 gap-2 border-b border-gray-100 pb-2 text-xs font-bold uppercase text-gray-500"><span>Code</span><span>Person</span><span>Status</span></div>
-              <div id="issued-codes" class="space-y-3 text-sm"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-settings" class="tab-panel">
-        <div class="card">
-          <div class="row mb-4"><h2 class="text-3xl font-bold">Settings</h2></div>
-          <div class="grid grid-cols-1 gap-4">
-            <div class="flex items-center gap-4"><img id="settings-logo-preview" src="/mozartLogo.jpg" alt="Sponsor profile" class="h-16 w-16 rounded-full object-cover"><label class="btn-secondary cursor-pointer"><i class="fa-solid fa-camera mr-2"></i>Upload profile image<input id="settings-logo-input" type="file" accept="image/*" class="hidden"></label></div>
-            <div>
-              <label class="block text-sm font-semibold mb-2">Your Name</label>
-              <input id="settings-name" type="text" value="" class="w-full border border-gray-300 rounded-lg p-3" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold mb-2">Title (optional)</label>
-              <input id="settings-title" type="text" placeholder="e.g. Dr., Alhaji, Barrister" class="w-full border border-gray-300 rounded-lg p-3" />
-              <p class="muted text-xs mt-1">Shown to your sponsored students alongside your name.</p>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold mb-2">Gmail</label>
-              <input id="settings-email" type="email" value="" class="w-full border border-gray-300 rounded-lg p-3" disabled />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold mb-2">Phone</label>
-              <input id="settings-phone" type="text" value="" class="w-full border border-gray-300 rounded-lg p-3" />
-            </div>
-          </div>
-          <div class="mt-6 flex gap-3 flex-wrap">
-            <button class="btn-primary" data-action="save-settings"><i class="fa-solid fa-floppy-disk"></i> Save all changes</button>
-          </div>
-        </div>
-      </div>
-
-    </main>
+    <div class="sd-header-right">
+      <a href="/notifications" class="sd-icon-btn" id="sd-notif-btn" title="Notifications"><i class="fa-solid fa-bell"></i><span class="sd-badge-dot" id="sd-notif-dot" hidden></span></a>
+      <a href="/profile" class="sd-avatar-link" id="sd-my-avatar" title="Profile"></a>
+    </div>
   </div>
+</header>
 
-  <script src="/assets/teaching-tools-launcher.js"></script>
-  <script src="/assets/chat-kit.js"></script>
-  <script src="/assets/nav-auth.js"></script>
-  <script>
-    const sidebarItems = document.querySelectorAll('.sidebar-item');
-    const tabs = document.querySelectorAll('.tab-panel');
-    const state = { organization: null, students: [] };
-    const alertBox = document.getElementById('alert-box');
-    const alertMessage = document.getElementById('alert-message');
+<main class="sd-main">
+  <div id="sd-loading" class="sd-centered"><i class="fa-solid fa-circle-notch fa-spin text-2xl text-primary-red"></i></div>
+  <div id="sd-error" class="sd-centered" hidden></div>
 
-    function showAlert(message, type = 'info') {
-      if (!alertMessage || !alertBox) { window.alert(message); return; }
-      alertMessage.textContent = message;
-      alertBox.style.backgroundColor = type === 'error' ? '#b91c1c' : type === 'success' ? '#059669' : '#1f2937';
-      alertBox.style.opacity = '1';
-      setTimeout(() => { alertBox.style.opacity = '0'; }, 4200);
-    }
-
-    function activateDashboardTab(tabName) {
-      if (!tabName) return;
-      sidebarItems.forEach((button) => button.classList.toggle('active', button.dataset.tab === tabName));
-      tabs.forEach((panel) => panel.classList.toggle('active', panel.id === 'tab-' + tabName));
-      const sidebar = document.querySelector('.sidebar');
-      if (sidebar) sidebar.classList.remove('open');
-      history.replaceState(null, '', '#' + encodeURIComponent(tabName));
-    }
-
-    function escapeHtml(value = '') {
-      return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-
-    function renderPaymentHistory(payments = []) {
-      const tbody = document.getElementById('payment-history-body');
-      if (!tbody) return;
-      if (!Array.isArray(payments) || !payments.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-gray-400 py-6">No payments recorded yet.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = payments.map((entry) => {
-        const typeName = entry.type === 'yearly' ? 'Yearly' : 'Monthly';
-        const amount = Number(entry.amount || 0);
-        return `<tr><td>${new Date(entry.date || Date.now()).toLocaleDateString()}</td><td>${escapeHtml(typeName)}</td><td>$${amount.toLocaleString()} USD</td></tr>`;
-      }).join('');
-    }
-
-    function setOrgData(org = {}) {
-      state.organization = org;
-      const name = org.contactName || org.name || 'Sponsor';
-      document.getElementById('sponsor-name').textContent = name;
-      document.getElementById('sponsor-subtitle').textContent = org.sponsorTitle ? org.sponsorTitle : 'Individual sponsor';
-      document.title = 'Sponsor Dashboard';
-      document.getElementById('sponsor-profile-name').textContent = name;
-      document.getElementById('sponsor-profile-email').textContent = org.email || '';
-      const profileButton = document.getElementById('sponsor-profile-btn');
-      if (profileButton) {
-        profileButton.textContent = '';
-        profileButton.style.backgroundImage = `url('${org.logoUrl || '/mozartLogo.jpg'}')`;
-        profileButton.style.backgroundSize = 'cover';
-        profileButton.style.backgroundPosition = 'center';
-        profileButton.style.color = 'transparent';
-      }
-      const sponsorLogo = document.getElementById('sponsor-logo');
-      if (sponsorLogo && org.logoUrl) sponsorLogo.src = org.logoUrl;
-      const settingsLogo = document.getElementById('settings-logo-preview');
-      if (settingsLogo) settingsLogo.src = org.logoUrl || '/mozartLogo.jpg';
-
-      document.getElementById('stat-students').textContent = Array.isArray(org.members) ? org.members.length : 0;
-
-      const walletUsd = Number(org.walletBalanceUsd || 0);
-      const walletLocal = Number(org.walletBalanceLocal || walletUsd);
-      const localSymbol = org.localSymbol || '$';
-      const walletDisplay = org.localCurrency && org.localCurrency !== 'USD'
-        ? `${localSymbol}${walletLocal.toLocaleString()} (${walletUsd.toLocaleString()} USD)`
-        : `$${walletUsd.toFixed(2)}`;
-      document.getElementById('overview-wallet-amount').textContent = walletDisplay;
-      document.getElementById('wallet-balance').textContent = `$${walletUsd.toFixed(2)}`;
-
-      const amountUsd = Number(org.monthlyAmount || 0);
-      const amountLocal = Number(org.monthlyAmountLocal || amountUsd);
-      const localDisplay = org.localCurrency && org.localCurrency !== 'USD'
-        ? `${localSymbol}${amountLocal.toLocaleString()} (${amountUsd.toLocaleString()} USD)`
-        : `$${amountUsd.toLocaleString()} USD`;
-      document.getElementById('overview-payment-amount').textContent = localDisplay;
-      document.getElementById('subscription-amount').textContent = localDisplay;
-      const active = org.subscriptionStatus === 'active';
-      const statusNode = document.getElementById('subscription-status');
-      statusNode.textContent = active ? 'Active' : 'Inactive';
-      statusNode.className = 'badge ' + (active ? 'active' : 'pending');
-      const paymentStatus = document.getElementById('overview-payment-status');
-      paymentStatus.textContent = active ? 'Active' : 'Pending';
-      paymentStatus.className = 'badge ' + (active ? 'active' : 'pending');
-      document.getElementById('subscription-expiry').textContent = org.subscriptionEndAt ? new Date(org.subscriptionEndAt).toLocaleDateString() : 'Not active yet';
-      renderPaymentHistory(org.paymentHistory || []);
-
-      const activityList = document.getElementById('activity-list');
-      const members = Array.isArray(org.members) ? org.members : [];
-      const codes = (Array.isArray(org.studentCodes) ? org.studentCodes : []).map((code) => ({ ...code, label: 'Student code' }));
-      const activities = [
-        ...members.map((member) => ({ text: `${member.studentName || 'A student'} joined your sponsorship`, date: member.redeemedAt || member.createdAt })),
-        ...codes.map((code) => ({ text: `Student code ${code.redeemedAt ? 'redeemed by ' + (code.redeemedName || code.studentName || 'a student') : 'created'}`, date: code.redeemedAt || code.createdAt })),
-      ].filter((item) => item.date).sort((a, b) => new Date(b.date) - new Date(a.date));
-      activityList.innerHTML = activities.length
-        ? activities.slice(0, 5).map((activity) => `<div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>${escapeHtml(activity.text)}</span><strong>${new Date(activity.date).toLocaleDateString()}</strong></div>`).join('')
-        : '<div class="row rounded-xl bg-red-50 p-3 border border-red-100"><span>No student activity yet</span><strong>Awaiting first code redemption</strong></div>';
-
-      const settingsName = document.getElementById('settings-name');
-      const settingsTitle = document.getElementById('settings-title');
-      const settingsEmail = document.getElementById('settings-email');
-      const settingsPhone = document.getElementById('settings-phone');
-      if (settingsName) settingsName.value = org.contactName || '';
-      if (settingsTitle) settingsTitle.value = org.sponsorTitle || '';
-      if (settingsEmail) settingsEmail.value = org.email || '';
-      if (settingsPhone) settingsPhone.value = org.phone || '';
-    }
-
-    async function loadIssuedCodes() {
-      const list = document.getElementById('issued-codes');
-      if (!list) return;
-      const response = await fetch('/api/organizations/me/codes');
-      const data = await response.json();
-      const codes = (data.students || []).map((item) => ({ ...item, label: 'Student' }));
-      list.innerHTML = codes.length ? codes.map((item) => `<div class="grid grid-cols-3 gap-2 items-center border-b border-gray-100 py-2"><code class="font-bold tracking-wide">${escapeHtml(item.code)}</code><span class="text-xs text-gray-600">${escapeHtml(item.redeemedName || item.issuedToName || 'Not used')}</span><span class="flex items-center justify-between gap-2"><span class="badge ${item.redeemedAt ? 'approved' : 'pending'}">${item.redeemedAt ? 'Used' : 'Unused'}</span><button type="button" class="delete-access-code text-xs font-bold text-red-600 hover:text-red-800" data-code="${escapeHtml(item.code)}" title="Delete access code"><i class="fa-solid fa-trash"></i></button></span></div>`).join('') : '<p class="text-gray-400">No codes generated yet.</p>';
-      list.querySelectorAll('.delete-access-code').forEach((button) => button.addEventListener('click', async () => {
-        if (!window.confirm('Delete this access code?')) return;
-        const response = await fetch(`/api/organizations/me/codes/${encodeURIComponent(button.dataset.code)}`, { method: 'DELETE' });
-        const data = await response.json();
-        if (!data.success) return showAlert(data.error || 'Could not delete code.', 'error');
-        showAlert('Access code deleted.', 'success');
-        loadIssuedCodes();
-      }));
-    }
-
-    async function initiatePayment(billingPeriod) {
-      if (!state.organization) { showAlert('Sponsor data not loaded. Please refresh.', 'error'); return; }
-      if (Number(state.organization.monthlyAmount || 0) <= 0) { showAlert('Monthly amount not set. Contact an administrator.', 'error'); return; }
-      try {
-        const button = document.querySelector(`[data-action="pay-${billingPeriod}"]`);
-        if (button) { button.disabled = true; button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...'; }
-        const res = await fetch('/api/organizations/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billingPeriod }) });
-        const data = await res.json();
-        if (!data.success) {
-          showAlert(data.error || 'Failed to initiate payment.', 'error');
-          if (button) { button.disabled = false; button.innerHTML = billingPeriod === 'monthly' ? '<i class="fa-solid fa-wallet"></i> Pay Monthly' : '<i class="fa-solid fa-calendar-check"></i> Pay Yearly'; }
-          return;
-        }
-        if (data.url) {
-          document.getElementById('checkout-url-section').classList.remove('hidden');
-          document.getElementById('checkout-url-display').value = data.url;
-          document.getElementById('open-checkout-url').href = data.url;
-          document.getElementById('payment-modal').classList.remove('hidden');
-          window.location.assign(data.url);
-        } else {
-          showAlert('Could not generate checkout link.', 'error');
-        }
-      } catch (error) {
-        showAlert('Payment processing error: ' + (error.message || error), 'error');
-      }
-    }
-
-    // --- Students ---
-    function renderStudents(students = []) {
-      const tbody = document.getElementById('students-tbody');
-      if (!tbody) return;
-      if (!students.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">No students yet</td></tr>';
-        return;
-      }
-      tbody.innerHTML = students.map((student) => `
-        <tr>
-          <td>${escapeHtml(student.name || 'Student')}</td>
-          <td>${escapeHtml(student.email || '—')}</td>
-          <td>${student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}</td>
-          <td><button type="button" class="assign-tutor-btn btn-secondary text-xs px-3 py-2" data-student-id="${student.id}" data-student-name="${escapeHtml(student.name || 'Student')}"><i class="fa-solid fa-user-plus"></i> Assign</button></td>
-          <td><button type="button" class="remove-student-btn btn-secondary text-xs px-3 py-2" data-student-id="${student.id}"><i class="fa-solid fa-user-slash"></i> Remove</button></td>
-        </tr>
-      `).join('');
-
-      tbody.querySelectorAll('.assign-tutor-btn').forEach((button) => button.addEventListener('click', () => {
-        const params = new URLSearchParams({ assignStudentId: button.dataset.studentId, assignStudentName: button.dataset.studentName });
-        window.location.href = `/find-tutor?${params}`;
-      }));
-
-      tbody.querySelectorAll('.remove-student-btn').forEach((button) => button.addEventListener('click', async () => {
-        if (!window.confirm('Remove this student from your sponsorship?')) return;
-        try {
-          const res = await fetch(`/api/organizations/members/${button.dataset.studentId}`, { method: 'DELETE' });
-          const data = await res.json();
-          if (!data.success) return showAlert(data.error || 'Unable to remove student.', 'error');
-          showAlert('Student removed.', 'success');
-          loadSponsorData();
-        } catch (error) {
-          showAlert('Could not remove student.', 'error');
-        }
-      }));
-    }
-
-    // --- Billing (lesson bills) ---
-    async function loadBills() {
-      const list = document.getElementById('bills-list');
-      const totalNode = document.getElementById('bills-total');
-      if (!list) return;
-      try {
-        const res = await fetch('/api/organizations/lesson-bills');
-        const data = await res.json();
-        const bills = data.success ? (data.bills || []) : [];
-        if (!bills.length) {
-          list.innerHTML = '<p class="text-gray-400 text-center py-8">No lesson bills due right now - every sponsored lesson has been paid.</p>';
-          totalNode.classList.add('hidden');
-          return;
-        }
-        const total = bills.reduce((sum, bill) => sum + Number(bill.totalUsd || 0), 0);
-        totalNode.textContent = `$${total.toFixed(2)} due`;
-        totalNode.classList.remove('hidden');
-        list.innerHTML = bills.map((bill) => `
-          <div class="bill-row">
-            <div>
-              <strong>${escapeHtml(bill.studentName)} completed ${escapeHtml(bill.category)} class</strong>
-              <div class="muted text-sm">${Number(bill.durationMinutes || 0)} min with ${escapeHtml(bill.tutorName || 'tutor')} · ${bill.loggedAt ? new Date(bill.loggedAt).toLocaleDateString() : ''}</div>
-            </div>
-            <div class="flex items-center gap-3">
-              <strong>$${Number(bill.totalUsd || 0).toFixed(2)}</strong>
-              <button type="button" class="pay-bill-btn btn-primary" data-assignment-id="${bill.assignmentId}" data-session-id="${bill.sessionId}">Pay</button>
-            </div>
-          </div>
-        `).join('');
-        list.querySelectorAll('.pay-bill-btn').forEach((button) => button.addEventListener('click', async () => {
-          button.disabled = true;
-          button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-          try {
-            const res = await fetch(`/api/organizations/lesson-bills/${button.dataset.assignmentId}/${button.dataset.sessionId}/checkout`, { method: 'POST' });
-            const data = await res.json();
-            if (!data.success || !data.url) { showAlert(data.error || 'Could not start checkout.', 'error'); button.disabled = false; button.textContent = 'Pay'; return; }
-            window.location.assign(data.url);
-          } catch (error) {
-            showAlert('Could not start checkout.', 'error');
-            button.disabled = false; button.textContent = 'Pay';
-          }
-        }));
-      } catch (error) {
-        list.innerHTML = '<p class="text-gray-400 text-center py-8">Could not load bills.</p>';
-      }
-    }
-
-    // --- Wallet top-up ---
-    let selectedTopupAmount = null;
-    document.querySelectorAll('.topup-chip').forEach((chip) => chip.addEventListener('click', () => {
-      document.querySelectorAll('.topup-chip').forEach((other) => other.classList.remove('active'));
-      chip.classList.add('active');
-      selectedTopupAmount = Number(chip.dataset.amount);
-      document.getElementById('wallet-custom-amount').value = '';
-    }));
-    document.getElementById('wallet-custom-amount')?.addEventListener('input', (event) => {
-      document.querySelectorAll('.topup-chip').forEach((other) => other.classList.remove('active'));
-      selectedTopupAmount = Number(event.target.value) || null;
-    });
-    document.getElementById('wallet-topup-btn')?.addEventListener('click', async () => {
-      const amount = selectedTopupAmount || Number(document.getElementById('wallet-custom-amount').value);
-      if (!amount || amount < 5) return showAlert('Enter an amount of at least $5.', 'error');
-      const button = document.getElementById('wallet-topup-btn');
-      button.disabled = true;
-      try {
-        const res = await fetch('/api/organizations/wallet/topup-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amountUsd: amount }) });
-        const data = await res.json();
-        if (!data.success || !data.url) { showAlert(data.error || 'Could not start checkout.', 'error'); button.disabled = false; return; }
-        window.location.assign(data.url);
-      } catch (error) {
-        showAlert('Could not start checkout.', 'error');
-        button.disabled = false;
-      }
-    });
-
-    // --- Messages (student-only, direct message via ChatKit) ---
-    let chatKitController = null;
-    let chatKitConversationId = null;
-    let chatKitTargetType = null;
-    let chatKitTargetId = null;
-
-    function orgChatMessageActionUrls(getConvId) {
-      return {
-        edit: async (id, text) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).then((r) => r.json()),
-        del: async (id, mode) => mode === 'me'
-          ? fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/delete-for-me`, { method: 'POST' }).then((r) => r.json())
-          : fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}`, { method: 'DELETE' }).then((r) => r.json()),
-        react: async (id, emoji) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) }).then((r) => r.json()),
-        pin: async (id) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/pin`, { method: 'POST' }).then((r) => r.json()),
-        vote: async (id, optionId) => fetch(`/api/org-chat/conversations/${getConvId()}/messages/${id}/poll-vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionId }) }).then((r) => r.json()),
-      };
-    }
-
-    function mountOrgChat() {
-      if (chatKitController) { chatKitController.destroy(); chatKitController = null; }
-      const actions = orgChatMessageActionUrls(() => chatKitConversationId);
-      chatKitController = ChatKit.mount(document.getElementById('chat-kit-mount'), {
-        me: { id: state.organization && state.organization.userId, role: 'org' },
-        isGroup: false,
-        onAlert: showAlert,
-        api: {
-          list: async () => {
-            if (!chatKitConversationId) return { success: true, messages: [] };
-            const d = await fetch(`/api/organizations/conversations/${chatKitConversationId}/messages`).then((r) => r.json());
-            return { success: d.success, messages: d.messages || [] };
-          },
-          send: async (payload) => {
-            let result;
-            if (chatKitConversationId) {
-              result = await fetch(`/api/organizations/conversations/${chatKitConversationId}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
-            } else {
-              result = await fetch(`/api/organizations/conversations/${chatKitTargetId}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, type: 'student', targetType: 'student' }) }).then((r) => r.json());
-              if (result.success && result.conversation) chatKitConversationId = result.conversation.id;
-            }
-            if (result.success) loadMessageRoster();
-            return result;
-          },
-          ...actions,
-        },
-      });
-    }
-
-    function setMessagePanel(contact, conversationId) {
-      const panel = document.getElementById('message-chat-panel');
-      const empty = document.getElementById('message-empty-state');
-      if (!panel || !empty) return;
-      if (!contact) {
-        panel.classList.add('hidden'); empty.classList.remove('hidden');
-        if (chatKitController) { chatKitController.destroy(); chatKitController = null; }
-        return;
-      }
-      document.getElementById('message-chat-title').textContent = contact.name || 'Conversation';
-      document.getElementById('message-chat-meta').textContent = 'Student message';
-      panel.classList.remove('hidden'); empty.classList.add('hidden');
-      chatKitConversationId = conversationId || null;
-      chatKitTargetType = 'student';
-      chatKitTargetId = contact.id;
-      mountOrgChat();
-    }
-
-    function renderMessageRoster(conversations = []) {
-      const list = document.getElementById('message-roster');
-      if (!list) return;
-      if (!conversations.length) { list.innerHTML = '<p class="text-gray-400 text-sm text-center py-6">No sponsored students yet.</p>'; return; }
-      list.innerHTML = conversations.map((contact) => `
-        <button type="button" class="message-roster-item w-full rounded-xl border border-red-100 bg-white p-3 text-left hover:bg-red-50 transition" data-contact-id="${contact.id}" data-contact-conversation-id="${contact.conversationId || ''}" data-contact-name="${escapeHtml(contact.name)}">
-          <strong>${escapeHtml(contact.name)}</strong>
-          <div class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(contact.lastMessage || 'Start a message')}</div>
+  <div id="sd-content" hidden>
+    <div class="sd-greeting-row">
+      <div class="min-w-0">
+        <button type="button" class="sd-name-touch" id="sd-title-btn">
+          <span class="sd-greeting" id="sd-greeting"></span>
+          <i class="fa-solid fa-pen"></i>
         </button>
-      `).join('');
-      list.querySelectorAll('.message-roster-item').forEach((button) => button.addEventListener('click', () => {
-        const id = Number(button.dataset.contactId);
-        const conversationId = button.dataset.contactConversationId ? Number(button.dataset.contactConversationId) : null;
-        setMessagePanel({ id, name: button.dataset.contactName }, conversationId);
-      }));
-    }
+        <div id="sd-gold-badge" class="sd-gold-badge" hidden><i class="fa-solid fa-award"></i><span id="sd-gold-badge-text"></span></div>
+      </div>
+      <div class="sd-clock" id="sd-clock"></div>
+    </div>
 
-    async function loadMessageRoster() {
-      try {
-        const [conversationRes, membersRes] = await Promise.all([
-          fetch('/api/organizations/conversations?audience=student'),
-          fetch('/api/organizations/members'),
-        ]);
-        const conversationData = await conversationRes.json();
-        const membersData = await membersRes.json();
-        const conversations = conversationData.success ? (conversationData.conversations || []) : [];
-        const students = membersData.success ? (membersData.students || []) : [];
+    <div class="sd-billing-row" id="sd-billing-row" hidden>
+      <button type="button" class="sd-billing-card" id="sd-billing-card">
+        <div class="sd-billing-icon" style="background:#fff0ec;color:#cc0000;"><i class="fa-solid fa-receipt"></i></div>
+        <div class="sd-billing-label">Billing</div>
+        <div class="sd-billing-value" style="color:#cc0000;" id="sd-billing-total">$0.00</div>
+        <div class="sd-billing-hint" id="sd-billing-hint">All caught up</div>
+      </button>
+      <button type="button" class="sd-billing-card" id="sd-subscription-card">
+        <div class="sd-billing-icon" style="background:#d1fae5;color:#059669;"><i class="fa-solid fa-wallet"></i></div>
+        <div class="sd-billing-label">Subscription</div>
+        <div class="sd-billing-value" style="color:#059669;" id="sd-wallet-amount">$0.00</div>
+        <div class="sd-billing-hint">Tap to load money</div>
+      </button>
+    </div>
 
-        const known = new Map();
-        conversations.forEach((conv) => {
-          const participant = (conv.participants || []).find((p) => p.type === 'student');
-          if (!participant) return;
-          known.set(String(participant.id), { id: participant.id, name: conv.title || participant.name, lastMessage: conv.lastMessage || 'No messages yet', conversationId: conv.id });
-        });
-        students.forEach((student) => {
-          if (!known.has(String(student.id))) known.set(String(student.id), { id: student.id, name: student.name || 'Student', lastMessage: 'Start a message', conversationId: null });
-        });
-        renderMessageRoster(Array.from(known.values()));
-      } catch (error) {
-        console.warn('Could not load message roster', error);
-      }
-    }
+    <p class="sd-status-text" id="sd-status-text"></p>
+    <a href="/become-sponsor" class="sd-reapply-btn" id="sd-reapply-btn" hidden>Reapply</a>
 
-    // --- Load everything ---
-    async function loadSponsorData() {
-      try {
-        const res = await fetch('/api/organizations/me');
-        if (!res.ok) {
-          if (res.status === 401) window.location.href = '/login?redirect=' + encodeURIComponent('/sponsor-dashboard');
-          return;
-        }
-        const data = await res.json();
-        if (!data || !data.success || !data.organization) return;
-        const org = data.organization;
-        setOrgData(org);
-        renderStudents(org.students || org.members || []);
-        loadMessageRoster();
-        loadBills();
-      } catch (error) {
-        console.warn('Could not load sponsor data', error);
-      }
-    }
+    <div class="sd-notice" id="sd-notice" hidden>
+      <i class="fa-solid fa-circle-info" style="color:#8a6200;margin-top:2px;"></i>
+      <p>Your application is approved. Reach out to the Mozart Techniques team to arrange your annual subscription payment - an admin activates it on your account once payment is confirmed, and you'll be able to generate student access codes right away.</p>
+    </div>
 
-    async function refreshSponsorNotifications() {
-      try {
-        const data = await fetch('/api/notifications').then((response) => response.json());
-        const unread = (data.notifications || []).filter((item) => !item.read).length;
-        const badge = document.getElementById('sponsor-notification-badge');
-        badge.textContent = unread > 99 ? '99+' : String(unread);
-        badge.classList.toggle('hidden', unread === 0);
-      } catch (error) { console.warn('Could not load notifications', error); }
-    }
+    <div id="sd-actions" hidden>
+      <h2 class="sd-section-title">Quick actions</h2>
+      <div class="sd-actions-grid">
+        <button type="button" class="sd-action-card" id="sd-generate-code-btn">
+          <div class="sd-action-icon"><i class="fa-solid fa-key"></i></div>
+          <div class="sd-action-title">Generate Code</div>
+          <div class="sd-action-subtitle">New student access code</div>
+        </button>
+        <button type="button" class="sd-action-card" id="sd-view-codes-btn">
+          <div class="sd-action-icon"><i class="fa-solid fa-list"></i></div>
+          <div class="sd-action-title">View All Codes</div>
+          <div class="sd-action-subtitle">Status &amp; delete</div>
+        </button>
+        <button type="button" class="sd-action-card" id="sd-assign-tutor-btn">
+          <div class="sd-action-icon"><i class="fa-solid fa-people-arrows"></i></div>
+          <div class="sd-action-title">Assign a Tutor</div>
+          <div class="sd-action-subtitle">Match a student</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</main>
 
-    sidebarItems.forEach((button) => button.addEventListener('click', () => {
-      if (button.dataset.href) return window.location.href = button.dataset.href;
-      activateDashboardTab(button.dataset.tab);
-    }));
+<!-- Title picker sheet -->
+<div class="sd-sheet-backdrop hidden" id="sheet-title">
+  <div class="sd-sheet">
+    <div class="sd-sheet-handle"></div>
+    <h3 class="sd-sheet-title">Choose your title</h3>
+    <div class="sd-chip-wrap" id="title-chip-wrap"></div>
+    <p class="sd-billing-label" style="margin-bottom:8px;">Or enter your own</p>
+    <div class="sd-custom-row">
+      <input id="title-custom-input" class="sd-custom-input" placeholder="e.g. Alhaji, Barrister...">
+      <button type="button" class="sd-custom-btn" id="title-save-btn">Save</button>
+    </div>
+    <button type="button" id="title-clear-btn" class="sd-empty-text" style="cursor:pointer;background:none;border:none;width:100%;color:#cc0000;font-weight:700;" hidden>Remove title</button>
+  </div>
+</div>
 
-    document.getElementById('mobile-menu-btn')?.addEventListener('click', () => document.querySelector('.sidebar')?.classList.toggle('open'));
-    document.getElementById('sidebarToggle')?.addEventListener('click', () => document.querySelector('.sidebar')?.classList.toggle('collapsed'));
-    document.getElementById('sponsor-logo')?.addEventListener('click', () => { document.querySelector('.sidebar')?.classList.remove('collapsed'); document.querySelector('.sidebar')?.classList.add('open'); });
-    document.addEventListener('click', (event) => {
-      const sidebar = document.querySelector('.sidebar');
-      const mobileButton = document.getElementById('mobile-menu-btn');
-      if (window.innerWidth <= 700 && sidebar?.classList.contains('open') && !sidebar.contains(event.target) && !mobileButton?.contains(event.target)) sidebar.classList.remove('open');
-    });
-    document.getElementById('sponsor-profile-btn')?.addEventListener('click', (event) => { event.stopPropagation(); document.getElementById('sponsor-profile-menu')?.classList.toggle('hidden'); });
-    document.addEventListener('click', (event) => { if (!event.target.closest('#sponsor-profile-menu, #sponsor-profile-btn')) document.getElementById('sponsor-profile-menu')?.classList.add('hidden'); });
-    document.getElementById('switch-account-btn')?.addEventListener('click', () => { window.location.href = '/dashboard'; });
-    document.getElementById('sponsor-signout-btn')?.addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/home'; });
-    document.getElementById('sponsor-notifications-btn')?.addEventListener('click', () => { window.location.href = '/notifications'; });
-    document.getElementById('back-btn')?.addEventListener('click', () => window.history.back());
+<!-- Bills sheet -->
+<div class="sd-sheet-backdrop hidden" id="sheet-bills">
+  <div class="sd-sheet">
+    <div class="sd-sheet-handle"></div>
+    <h3 class="sd-sheet-title">Billing</h3>
+    <div id="bills-list"></div>
+  </div>
+</div>
 
-    document.getElementById('payment-history-trigger')?.addEventListener('click', () => document.getElementById('payment-modal')?.classList.remove('hidden'));
-    document.getElementById('overview-wallet-trigger')?.addEventListener('click', () => activateDashboardTab('wallet'));
-    document.getElementById('close-payment-modal')?.addEventListener('click', () => document.getElementById('payment-modal')?.classList.add('hidden'));
-    document.getElementById('payment-modal')?.addEventListener('click', (event) => { if (event.target && event.target.id === 'payment-modal') event.target.classList.add('hidden'); });
-    document.getElementById('copy-checkout-url')?.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(document.getElementById('checkout-url-display').value); showAlert('Checkout link copied.', 'success'); } catch (error) { showAlert('Copy failed.', 'error'); }
-    });
+<!-- Subscription / wallet sheet -->
+<div class="sd-sheet-backdrop hidden" id="sheet-subscription">
+  <div class="sd-sheet">
+    <div class="sd-sheet-handle"></div>
+    <h3 class="sd-sheet-title">Your wallet</h3>
+    <div class="sd-wallet-balance" id="wallet-balance">$0.00</div>
+    <p class="sd-wallet-hint">Lesson bills for your sponsored students are paid from this balance automatically as they happen.</p>
+    <p class="sd-billing-label" style="margin-bottom:8px;">Load money</p>
+    <div class="sd-chip-wrap" id="topup-chip-wrap"></div>
+    <div class="sd-custom-row">
+      <input id="topup-custom-input" class="sd-custom-input" placeholder="Custom amount" inputmode="decimal">
+      <button type="button" class="sd-custom-btn" id="topup-load-btn">Load</button>
+    </div>
+    <button type="button" class="sd-renew-toggle" id="renew-toggle-btn">Renew platform subscription <i class="fa-solid fa-chevron-down" id="renew-chevron"></i></button>
+    <div id="renew-panel" hidden></div>
+  </div>
+</div>
 
-    document.getElementById('close-message-chat-btn')?.addEventListener('click', () => setMessagePanel(null));
+<!-- Confirm top-up -->
+<div class="sd-sheet-backdrop hidden" id="sheet-confirm-topup" style="align-items:center;">
+  <div class="sd-sheet" style="border-radius:20px;max-width:380px;">
+    <h3 class="sd-sheet-title" id="confirm-topup-title">Load $0.00?</h3>
+    <p class="sd-wallet-hint">You'll be taken to secure checkout to complete this payment. Your wallet balance updates once it's confirmed.</p>
+    <div style="display:flex;gap:10px;">
+      <button type="button" class="sd-plan-row" style="justify-content:center;" id="confirm-topup-cancel">Cancel</button>
+      <button type="button" class="sd-plan-row" style="justify-content:center;background:#cc0000;color:#fff;border-color:#cc0000;" id="confirm-topup-proceed">Proceed</button>
+    </div>
+  </div>
+</div>
 
-    document.getElementById('generate-code-btn')?.addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/organizations/me/generate-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'student', name: document.getElementById('code-recipient-name').value, email: document.getElementById('code-recipient-email').value }) });
-        const data = await res.json();
-        if (data.success && data.entry && data.entry.code) {
-          document.getElementById('new-code-value').textContent = data.entry.code;
-          loadIssuedCodes();
-          showAlert('Access code generated.', 'success');
-        } else {
-          showAlert(data.error || 'Unable to generate code.', 'error');
-        }
-      } catch (error) {
-        showAlert('Unable to generate code.', 'error');
-      }
-    });
+<!-- Codes sheet -->
+<div class="sd-sheet-backdrop hidden" id="sheet-codes">
+  <div class="sd-sheet">
+    <div class="sd-sheet-handle"></div>
+    <h3 class="sd-sheet-title">All codes</h3>
+    <div id="codes-list"></div>
+  </div>
+</div>
 
-    document.getElementById('invite-user-btn')?.addEventListener('click', async () => {
-      const email = document.getElementById('code-recipient-email').value.trim();
-      const name = document.getElementById('code-recipient-name').value.trim();
-      if (!email) return showAlert('Enter the invitee Gmail address.', 'error');
-      try {
-        const response = await fetch('/api/organizations/me/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role: 'student' }) });
-        const data = await response.json();
-        if (!data.success) return showAlert(data.error || 'Could not create invitation.', 'error');
-        const subject = encodeURIComponent(`${data.organizationName || 'Mozart Techniques'} invitation`);
-        const body = encodeURIComponent(`Hello${name ? ` ${name}` : ''},\n\nYou have been invited to join Mozart Techniques as a sponsored student.\n\nRedeem code: ${data.code}\nOpen this link to redeem: ${data.redeemLink}\n\nThank you.`);
-        const composeUrl = `https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
-        const composeWindow = window.open(composeUrl, '_blank', 'noopener');
-        if (!composeWindow) window.location.assign(composeUrl);
-        loadIssuedCodes();
-      } catch (error) { showAlert('Could not create invitation.', 'error'); }
-    });
+<!-- Assign a tutor sheet -->
+<div class="sd-sheet-backdrop hidden" id="sheet-assign">
+  <div class="sd-sheet">
+    <div class="sd-sheet-handle"></div>
+    <h3 class="sd-sheet-title">Assign a Tutor</h3>
+    <p class="sd-wallet-hint">Pick a sponsored student to match with a tutor.</p>
+    <div id="assign-students-list"></div>
+  </div>
+</div>
 
-    document.getElementById('copy-code-btn')?.addEventListener('click', async () => {
-      const code = document.getElementById('new-code-value').textContent.trim();
-      if (!code || code === 'MZT-') return showAlert('Access code not yet generated.', 'error');
-      try { await navigator.clipboard.writeText(code); showAlert('Access code copied to clipboard.', 'success'); } catch (error) { showAlert('Copy failed - code can still be selected manually.', 'error'); }
-    });
+<script>
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+const initials = (name) => String(name || '?').split(/\s+/).map((p) => p[0] || '').join('').slice(0, 2).toUpperCase();
+const STATUS_TEXT = {
+  pending: 'Your application is awaiting admin review.',
+  approved: 'Your application has been approved.',
+  rejected: 'Your application was not approved this time. Please reapply with updated information.',
+};
+const TITLE_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Chief', 'Rev.'];
+const TOPUP_AMOUNTS = [25, 50, 100, 250];
 
-    document.getElementById('settings-logo-input')?.addEventListener('change', async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const body = new FormData(); body.append('photo', file);
-      const response = await fetch('/api/organizations/me/logo', { method: 'POST', body });
-      const data = await response.json();
-      if (!data.success) return showAlert(data.error || 'Could not upload profile image.', 'error');
-      setOrgData(data.organization);
-      showAlert('Profile image updated.', 'success');
-    });
+let state = { org: null, subscriptionActive: false, bills: [] };
 
-    document.querySelectorAll('[data-action]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const action = button.dataset.action;
-        if (action === 'open-settings') activateDashboardTab('settings');
-        if (action === 'check-orientation') window.location.href = '/orientation';
-        if (action === 'save-settings') {
-          const profileResponse = await fetch('/api/organizations/me/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactName: document.getElementById('settings-name').value.trim(), sponsorTitle: document.getElementById('settings-title').value.trim(), phone: document.getElementById('settings-phone').value.trim() }) });
-          const profileData = await profileResponse.json();
-          if (!profileData.success) return showAlert(profileData.error || 'Could not save settings.', 'error');
-          setOrgData(profileData.organization);
-          showAlert('Settings saved.', 'success');
-        }
-        if (action === 'pay-monthly') initiatePayment('monthly');
-        if (action === 'pay-yearly') initiatePayment('yearly');
-      });
-    });
+function greetingForHour(hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+function tickClock() {
+  document.getElementById('sd-clock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+setInterval(tickClock, 1000 * 30);
 
-    window.activateDashboardTab = activateDashboardTab;
+function openSheet(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeSheet(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.sd-sheet-backdrop').forEach((backdrop) => {
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.classList.add('hidden'); });
+});
 
-    // A Stripe checkout (subscription/bill/top-up) redirects back here with
-    // ?payment=success|pending|error|cancelled - surface it, then drop it
-    // from the URL so a refresh doesn't re-show a stale message. A
-    // cancelled wallet top-up also carries ?topupSession= (from that
-    // checkout's cancel_url) - report it to the server so it can send a
-    // "top-up unsuccessful" email, since a plain browser redirect back here
-    // is the only signal the backend ever gets for that case.
-    const paymentQuery = new URLSearchParams(window.location.search);
-    const paymentParam = paymentQuery.get('payment');
-    if (paymentParam) {
-      showAlert(
-        paymentParam === 'success' ? 'Payment confirmed.' : paymentParam === 'pending' ? 'Payment is still processing.' : paymentParam === 'cancelled' ? 'Checkout was cancelled - nothing was charged.' : 'Payment could not be completed.',
-        paymentParam === 'success' ? 'success' : paymentParam === 'pending' ? 'info' : 'error'
-      );
-      const topupSession = paymentQuery.get('topupSession');
-      if (paymentParam === 'cancelled' && topupSession) {
-        fetch('/api/organizations/wallet/topup-cancel-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: topupSession }),
-        }).catch(() => {});
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.delete('payment');
-      url.searchParams.delete('topupSession');
-      history.replaceState(null, '', url.pathname + url.search + url.hash);
-    }
+async function loadMe() {
+  const data = await fetch('/api/session').then((r) => r.json());
+  if (data.user) {
+    document.getElementById('sd-my-avatar').innerHTML = data.user.photoUrl
+      ? `<img src="${esc(data.user.photoUrl)}" alt="">`
+      : `<div class="sd-avatar-fallback">${initials(data.user.name || data.user.email)}</div>`;
+  }
+}
 
-    const initialTab = decodeURIComponent(window.location.hash.slice(1));
-    if (initialTab && document.getElementById('tab-' + initialTab)) activateDashboardTab(initialTab);
-    loadSponsorData();
-    loadIssuedCodes();
-    refreshSponsorNotifications();
+async function loadNotifUnread() {
+  try {
+    const data = await fetch('/api/organizations/me/notifications').then((r) => r.json());
+    const unread = data.success && (data.notifications || []).some((n) => !n.read);
+    document.getElementById('sd-notif-dot').hidden = !unread;
+  } catch (e) { /* leave hidden */ }
+}
 
-    setInterval(() => {
-      if (document.hidden) return;
-      loadSponsorData();
-      loadIssuedCodes();
-    }, 20000);
-  </script>
-  <script src="/assets/scroll-reveal.js?v=1" defer></script>
+async function load() {
+  try {
+    const [orgRes, billsRes] = await Promise.all([
+      fetch('/api/organizations/me').then((r) => r.json()),
+      fetch('/api/organizations/lesson-bills').then((r) => r.json()).catch(() => ({ success: true, bills: [] })),
+    ]);
+    if (!orgRes.success) throw new Error(orgRes.error || 'Could not load your sponsorship.');
+    state.org = orgRes.organization;
+    state.subscriptionActive = orgRes.subscriptionActive;
+    state.bills = billsRes.bills || [];
+    render();
+    document.getElementById('sd-loading').hidden = true;
+    document.getElementById('sd-content').hidden = false;
+  } catch (err) {
+    document.getElementById('sd-loading').hidden = true;
+    document.getElementById('sd-error').hidden = false;
+    document.getElementById('sd-error').innerHTML = `<i class="fa-solid fa-triangle-exclamation text-2xl"></i><p>${esc(err.message || 'Could not load your sponsorship.')}</p>`;
+  }
+}
+
+function render() {
+  const org = state.org;
+  document.getElementById('sd-org-logo').innerHTML = org.logoUrl ? `<img src="${esc(org.logoUrl)}" alt="" style="width:100%;height:100%;border-radius:999px;object-fit:cover;">` : esc((org.name || 'S').trim().charAt(0).toUpperCase());
+  document.getElementById('sd-org-name').textContent = org.name || 'Sponsor';
+  document.getElementById('sd-org-subtitle').hidden = false;
+
+  const greeting = greetingForHour(new Date().getHours());
+  const fullName = [org.sponsorTitle, org.contactName].filter(Boolean).join(' ') || 'Sponsor';
+  document.getElementById('sd-greeting').textContent = `${greeting}, ${fullName}!`;
+  tickClock();
+
+  const goldBadge = document.getElementById('sd-gold-badge');
+  goldBadge.hidden = !state.subscriptionActive;
+  if (state.subscriptionActive) {
+    document.getElementById('sd-gold-badge-text').textContent = `Active${org.subscriptionEndAt ? ' · ' + new Date(org.subscriptionEndAt).toLocaleDateString() : ''}`;
+  }
+
+  const billingRow = document.getElementById('sd-billing-row');
+  billingRow.hidden = org.status !== 'approved';
+  if (org.status === 'approved') {
+    const total = state.bills.reduce((sum, b) => sum + b.totalUsd, 0);
+    document.getElementById('sd-billing-total').textContent = `$${total.toFixed(2)}`;
+    document.getElementById('sd-billing-hint').textContent = state.bills.length ? `${state.bills.length} lesson${state.bills.length === 1 ? '' : 's'} due` : 'All caught up';
+    document.getElementById('sd-wallet-amount').textContent = `$${Number(org.walletBalanceUsd || 0).toFixed(2)}`;
+  }
+
+  document.getElementById('sd-status-text').textContent = STATUS_TEXT[org.status] || '';
+  document.getElementById('sd-reapply-btn').hidden = org.status !== 'rejected';
+  document.getElementById('sd-notice').hidden = !(org.status === 'approved' && !state.subscriptionActive);
+  document.getElementById('sd-actions').hidden = !state.subscriptionActive;
+}
+
+document.getElementById('sd-billing-card').addEventListener('click', () => { renderBills(); openSheet('sheet-bills'); });
+document.getElementById('sd-subscription-card').addEventListener('click', () => { renderSubscriptionSheet(); openSheet('sheet-subscription'); });
+
+// --- Title picker ---------------------------------------------------------
+document.getElementById('title-chip-wrap').innerHTML = TITLE_OPTIONS.map((t) => `<button type="button" class="sd-chip" data-title="${esc(t)}">${esc(t)}</button>`).join('');
+document.getElementById('sd-title-btn').addEventListener('click', () => {
+  const current = (state.org && state.org.sponsorTitle) || '';
+  document.querySelectorAll('#title-chip-wrap .sd-chip').forEach((chip) => chip.classList.toggle('active', chip.dataset.title === current));
+  document.getElementById('title-custom-input').value = current;
+  document.getElementById('title-clear-btn').hidden = !current;
+  openSheet('sheet-title');
+});
+async function saveTitle(sponsorTitle) {
+  closeSheet('sheet-title');
+  if (!state.org || state.org.status !== 'approved') { alert('Your organization must be approved before you can set a title.'); return; }
+  const res = await fetch('/api/organizations/me/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactName: state.org.contactName, sponsorTitle, phone: state.org.phone || '' }) }).then((r) => r.json());
+  if (res.success) { state.org = res.organization; render(); } else alert(res.error || 'Could not save that title.');
+}
+document.getElementById('title-chip-wrap').addEventListener('click', (e) => { const chip = e.target.closest('.sd-chip'); if (chip) saveTitle(chip.dataset.title); });
+document.getElementById('title-save-btn').addEventListener('click', () => saveTitle(document.getElementById('title-custom-input').value.trim()));
+document.getElementById('title-clear-btn').addEventListener('click', () => saveTitle(''));
+
+// --- Bills sheet -----------------------------------------------------------
+function renderBills() {
+  const list = document.getElementById('bills-list');
+  if (!state.bills.length) { list.innerHTML = '<p class="sd-empty-text">No lesson bills due right now - every sponsored lesson has been paid.</p>'; return; }
+  const total = state.bills.reduce((sum, b) => sum + b.totalUsd, 0);
+  list.innerHTML = `<p class="sd-billing-label" style="text-align:center;color:#cc0000;margin-bottom:10px;">$${total.toFixed(2)} total due</p>` + state.bills.map((b) => `
+    <div class="sd-row">
+      <div class="min-w-0 flex-1">
+        <div style="font-weight:700;font-size:.85rem;">${esc(b.studentName)} completed ${esc(b.category)} class</div>
+        <div style="font-size:.72rem;color:#9c9384;margin-top:2px;">${b.durationMinutes} min with ${esc(b.tutorName)}</div>
+        <div style="font-size:.68rem;color:#9c9384;margin-top:3px;">${new Date(b.loggedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <strong style="color:#cc0000;font-size:.9rem;">$${b.totalUsd.toFixed(2)}</strong>
+        <button type="button" class="sd-custom-btn pay-bill-btn" style="padding:6px 14px;font-size:.75rem;" data-assignment-id="${b.assignmentId}" data-session-id="${b.sessionId}">Pay</button>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('.pay-bill-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = '...';
+    try {
+      const res = await fetch(`/api/organizations/lesson-bills/${btn.dataset.assignmentId}/${btn.dataset.sessionId}/checkout`, { method: 'POST' }).then((r) => r.json());
+      if (!res.success) throw new Error(res.error || 'Could not start that payment.');
+      closeSheet('sheet-bills');
+      window.location.href = res.url;
+    } catch (err) { alert(err.message || 'Could not start that payment.'); btn.disabled = false; btn.textContent = 'Pay'; }
+  }));
+}
+
+// --- Subscription / wallet sheet --------------------------------------------
+let renewOpen = false;
+function renderSubscriptionSheet() {
+  document.getElementById('wallet-balance').textContent = `$${Number(state.org.walletBalanceUsd || 0).toFixed(2)}`;
+  document.getElementById('topup-custom-input').value = '';
+  renewOpen = false;
+  document.getElementById('renew-panel').hidden = true;
+  document.getElementById('renew-chevron').className = 'fa-solid fa-chevron-down';
+}
+document.getElementById('topup-chip-wrap').innerHTML = TOPUP_AMOUNTS.map((a) => `<button type="button" class="sd-chip" data-amount="${a}">$${a}</button>`).join('');
+document.getElementById('topup-chip-wrap').addEventListener('click', (e) => { const chip = e.target.closest('.sd-chip'); if (chip) document.getElementById('topup-custom-input').value = chip.dataset.amount; });
+document.getElementById('topup-load-btn').addEventListener('click', () => {
+  const amount = Number(document.getElementById('topup-custom-input').value);
+  if (!amount) return;
+  document.getElementById('confirm-topup-title').textContent = `Load $${amount.toFixed(2)}?`;
+  document.getElementById('confirm-topup-proceed').dataset.amount = amount;
+  openSheet('sheet-confirm-topup');
+});
+document.getElementById('confirm-topup-cancel').addEventListener('click', () => closeSheet('sheet-confirm-topup'));
+document.getElementById('confirm-topup-proceed').addEventListener('click', async (e) => {
+  const amountUsd = Number(e.currentTarget.dataset.amount);
+  closeSheet('sheet-confirm-topup');
+  closeSheet('sheet-subscription');
+  try {
+    const res = await fetch('/api/organizations/wallet/topup-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amountUsd }) }).then((r) => r.json());
+    if (!res.success) throw new Error(res.error || 'Could not start checkout.');
+    window.location.href = res.url;
+  } catch (err) { alert(err.message || 'Could not start checkout.'); }
+});
+document.getElementById('renew-toggle-btn').addEventListener('click', () => {
+  renewOpen = !renewOpen;
+  document.getElementById('renew-panel').hidden = !renewOpen;
+  document.getElementById('renew-chevron').className = renewOpen ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
+  if (renewOpen) renderRenewPanel();
+});
+function renderRenewPanel() {
+  const org = state.org;
+  const amountReady = Boolean(org && org.monthlyAmountLocal > 0);
+  const panel = document.getElementById('renew-panel');
+  if (!amountReady) { panel.innerHTML = '<p class="sd-empty-text">Your subscription amount hasn\'t been set by an admin yet - check back soon.</p>'; return; }
+  const yearly = ((org.monthlyAmountLocal || 0) * 12 * 0.99).toFixed(2);
+  panel.innerHTML = `
+    <button type="button" class="sd-plan-row" data-period="monthly"><div class="flex-1"><div class="sd-plan-title">Monthly</div><div class="sd-plan-meta">${esc(org.localSymbol)}${org.monthlyAmountLocal.toFixed(2)} / month</div></div><i class="fa-solid fa-chevron-right" style="color:#9c9384;"></i></button>
+    <button type="button" class="sd-plan-row" data-period="yearly"><div class="flex-1"><div class="sd-plan-title">Yearly</div><div class="sd-plan-meta">${esc(org.localSymbol)}${yearly} / year &middot; save 1%</div></div><i class="fa-solid fa-chevron-right" style="color:#9c9384;"></i></button>
+  `;
+  panel.querySelectorAll('.sd-plan-row').forEach((btn) => btn.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/organizations/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billingPeriod: btn.dataset.period }) }).then((r) => r.json());
+      if (!res.success) throw new Error(res.error || 'Could not start checkout.');
+      closeSheet('sheet-subscription');
+      window.location.href = res.url;
+    } catch (err) { alert(err.message || 'Could not start checkout.'); }
+  }));
+}
+
+// --- Quick actions -----------------------------------------------------------
+document.getElementById('sd-generate-code-btn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/organizations/me/generate-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'student' }) }).then((r) => r.json());
+    if (!res.success) throw new Error(res.error || 'Could not generate a code.');
+    alert(`New code: ${res.entry.code}`);
+  } catch (err) { alert(err.message || 'Could not generate a code.'); }
+  finally { btn.disabled = false; }
+});
+document.getElementById('sd-view-codes-btn').addEventListener('click', () => { openSheet('sheet-codes'); loadCodes(); });
+async function loadCodes() {
+  const list = document.getElementById('codes-list');
+  list.innerHTML = '<p class="sd-empty-text"><i class="fa-solid fa-circle-notch fa-spin"></i></p>';
+  const data = await fetch('/api/organizations/me/codes').then((r) => r.json()).catch(() => ({ success: false }));
+  if (!data.success) { list.innerHTML = '<p class="sd-empty-text">Could not load your codes.</p>'; return; }
+  const codes = [...(data.students || [])].reverse();
+  if (!codes.length) { list.innerHTML = '<p class="sd-empty-text">No codes generated yet.</p>'; return; }
+  list.innerHTML = codes.map((c) => `
+    <div class="sd-row">
+      <div class="min-w-0 flex-1">
+        <div style="font-weight:700;font-size:.85rem;">${esc(c.code)}</div>
+        <div style="font-size:.72rem;color:#9c9384;margin-top:2px;">${c.redeemedAt ? esc(c.redeemedName || 'Redeemed') : 'Unused'} &middot; ${new Date(c.createdAt).toLocaleDateString()}</div>
+      </div>
+      <span class="sd-code-pill ${c.redeemedAt ? 'redeemed' : 'unused'}">${c.redeemedAt ? 'Redeemed' : 'Unused'}</span>
+      <button type="button" class="delete-code-btn" data-code="${esc(c.code)}" style="border:none;background:#fff0ec;color:#cc0000;width:30px;height:30px;border-radius:999px;cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
+    </div>
+  `).join('');
+  list.querySelectorAll('.delete-code-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const res = await fetch(`/api/organizations/me/codes/${encodeURIComponent(btn.dataset.code)}`, { method: 'DELETE' }).then((r) => r.json());
+    if (res.success) loadCodes(); else { alert(res.error || 'Could not delete that code.'); btn.disabled = false; }
+  }));
+}
+
+document.getElementById('sd-assign-tutor-btn').addEventListener('click', () => { openSheet('sheet-assign'); loadAssignStudents(); });
+async function loadAssignStudents() {
+  const list = document.getElementById('assign-students-list');
+  list.innerHTML = '<p class="sd-empty-text"><i class="fa-solid fa-circle-notch fa-spin"></i></p>';
+  const data = await fetch('/api/organizations/students-for-assignment').then((r) => r.json()).catch(() => ({ success: false }));
+  if (!data.success) { list.innerHTML = '<p class="sd-empty-text">Could not load your students.</p>'; return; }
+  const students = [...(data.students || [])].sort((a, b) => a.name.localeCompare(b.name));
+  if (!students.length) { list.innerHTML = '<p class="sd-empty-text">No one has redeemed a sponsor code yet.</p>'; return; }
+  list.innerHTML = students.map((s) => `
+    <a class="sd-row" href="/find-tutor?assignStudentId=${s.id}&assignStudentName=${encodeURIComponent(s.name)}" style="text-decoration:none;color:inherit;">
+      ${s.photoUrl ? `<img src="${esc(s.photoUrl)}" alt="" style="width:40px;height:40px;border-radius:999px;object-fit:cover;">` : `<div class="sd-avatar-fallback" style="width:40px;height:40px;">${initials(s.name)}</div>`}
+      <div class="min-w-0 flex-1">
+        <div style="font-weight:700;font-size:.85rem;">${esc(s.name)}</div>
+        <div style="font-size:.72rem;color:#9c9384;margin-top:2px;">${s.preferredCategories.length ? esc(s.preferredCategories.join(', ')) : 'No course history yet'}</div>
+      </div>
+      <i class="fa-solid fa-chevron-right" style="color:#9c9384;"></i>
+    </a>
+  `).join('');
+}
+
+loadMe();
+loadNotifUnread();
+load();
+</script>
+<script src="/assets/scroll-reveal.js?v=1" defer></script>
 </body>
 </html>

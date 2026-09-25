@@ -140,4 +140,18 @@ function cancel(id) {
   return setStatus(id, 'cancelled');
 }
 
-module.exports = { listAll, findById, listByRequester, create, setStatus, selectOffer, cancel };
+// Records the requester's rating of the booked performer on the request
+// itself (in addition to the running total on the performer's own profile
+// - see performers.js's addRating), so a requester can't rate the same
+// booking twice.
+function setPerformerRating(id, score) {
+  const db = load();
+  const request = db.requests.find((r) => r.id === Number(id));
+  if (!request) return null;
+  request.performerRating = score;
+  request.performerRatedAt = new Date().toISOString();
+  persist(db);
+  return request;
+}
+
+module.exports = { listAll, findById, listByRequester, create, setStatus, selectOffer, cancel, setPerformerRating };

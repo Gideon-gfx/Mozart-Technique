@@ -576,9 +576,11 @@ function publicUser(user) {
     // system (data/tutors.js's apply()) - that's an unrelated admin content
     // feed + quiz, not this onboarding gate.
     needsTutorOrientation: Boolean(tutorProfile && tutorProfile.status === 'approved' && !tutorProfile.tutorOrientationAcceptedAt),
+    isSuperTutor: Boolean(tutorProfile && tutors.isSuperTutor(tutorProfile)),
     hasPerformerProfile: Boolean(performerProfile),
     performerProfileId: performerProfile ? performerProfile.id : null,
     performerStatus: performerProfile ? performerProfile.status : null,
+    isSuperArtist: Boolean(performerProfile && performers.isSuperArtist(performerProfile)),
     // Mirrors needsTutorOrientation above, for the Performer Orientation modal.
     needsPerformerOrientation: Boolean(performerProfile && performerProfile.status === 'approved' && !performerProfile.performerOrientationAcceptedAt),
     sponsor: user.sponsor || null,
@@ -1041,7 +1043,7 @@ app.get('/dashboard', requireAuthPage, (req, res) => {
   if (user && user.role !== 'admin') {
     const org = organizations.findByUserId(user.id);
     if (org && org.status === 'approved') {
-      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard');
+      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : `/${organizationSlug(org.name || org.contactName)}`);
     }
   }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
@@ -1059,7 +1061,7 @@ app.get(/^\/dashboard(\/.*)?$/, requireAuthPage, (req, res) => {
   if (user && user.role !== 'admin') {
     const org = organizations.findByUserId(user.id);
     if (org && org.status === 'approved') {
-      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : '/ngo-dashboard');
+      return res.redirect(org.sponsorType === 'individual' ? '/sponsor-dashboard' : `/${organizationSlug(org.name || org.contactName)}`);
     }
   }
   res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html'));
@@ -1069,11 +1071,34 @@ app.get('/ngo-dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
 });
 
+function organizationSlug(value) {
+  return String(value || 'organization').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'organization';
+}
+
+// NGO dashboards use the organization's readable name as their URL while
+// retaining /ngo-dashboard for existing bookmarks and integrations.
+app.get(/^\/[a-z0-9]+(?:-[a-z0-9]+)*$/, requireAuthPage, (req, res, next) => {
+  const user = currentUser(req);
+  const org = user && organizations.findByUserId(user.id);
+  const requestedSlug = req.path.slice(1);
+  if (org && org.sponsorType === 'ngo' && org.status === 'approved' && organizationSlug(org.name || org.contactName) === requestedSlug) {
+    return res.sendFile(path.join(PUBLIC_DIR, 'ngo-dashboard.html'));
+  }
+  next();
+});
+
 app.get('/sponsor-dashboard', requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'sponsor-dashboard.html'));
 });
 
 app.get('/my-organization', requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'my-organization.html'));
+});
+
+// Organization student pages use the organization's readable name in the
+// URL, while the page still resolves the actual organization from the signed-in
+// student's membership. Keep the legacy route above for existing bookmarks.
+app.get(/^\/[a-z0-9]+(?:-[a-z0-9]+)*-student$/, requireAuthPage, (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'my-organization.html'));
 });
 
@@ -2422,6 +2447,7 @@ app.get('/api/tutors/slug/:slug', async (req, res) => {
   const profile = {
     id: t.id, name: t.name, categories: t.categories, city: t.city, teachesOnline: t.teachesOnline,
     photoUrl: t.photoUrl || null, bio: t.bio, hourlyRateUsd: t.hourlyRateUsd, hourlyRateLocal: t.hourlyRateUsd,
+    avgRating: tutors.avgRating(t), ratingCount: t.ratingCount || 0, isSuperTutor: tutors.isSuperTutor(t),
   };
   res.json({ success: true, profile });
 });
@@ -3465,6 +3491,7 @@ function performerPublicSummary(p) {
     id: p.id, name: p.name, performerType: p.performerType, groupSize: p.groupSize,
     categories: p.categories, city: p.city, locality: p.locality, photoUrl: p.photoUrl,
     baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, hourlyRateUsd, eventRateUsd, bio: p.bio, experienceYears: p.experienceYears,
+    avgRating: performers.avgRating(p), ratingCount: p.ratingCount || 0, isSuperArtist: performers.isSuperArtist(p),
   };
 }
 
@@ -3476,6 +3503,7 @@ function performerFullPublicView(p) {
     city: p.city, locality: p.locality, bio: p.bio, experienceYears: p.experienceYears, qualifications: p.qualifications,
     styleTags: p.styleTags, baseRateUsd: p.baseRateUsd, rateUnit: p.rateUnit, hourlyRateUsd, eventRateUsd, photoUrl: p.photoUrl,
     galleryPhotos: p.galleryPhotos, videoClips: p.videoClips, socialLinks: p.socialLinks,
+    avgRating: performers.avgRating(p), ratingCount: p.ratingCount || 0, isSuperArtist: performers.isSuperArtist(p),
   };
 }
 
@@ -4157,6 +4185,23 @@ app.get('/api/marketplace/requests/:id', requireAuthApi, (req, res) => {
   if (!request || (request.requesterId !== user.id && user.role !== 'admin')) return res.status(404).json({ success: false, error: 'Request not found.' });
   const offers = marketplaceOffers.listByRequest(request.id).map(decoratedOfferForRequester);
   res.json({ success: true, request, offers });
+});
+
+// A requester rates the performer they booked, once the request has reached
+// 'closed' (a performer was actually selected) - this feeds the same
+// avgRating/isSuperArtist eligibility performers.js already computes for
+// tutors' "SuperTutor" badge.
+app.post('/api/marketplace/requests/:id/rate-performer', requireAuthApi, (req, res) => {
+  const user = currentUser(req);
+  const request = marketplaceRequests.findById(req.params.id);
+  if (!request || request.requesterId !== user.id) return res.status(404).json({ success: false, error: 'Request not found.' });
+  if (request.status !== 'closed' || !request.selectedPerformerId) return res.status(400).json({ success: false, error: 'Select and book a performer before rating them.' });
+  if (request.performerRating) return res.status(400).json({ success: false, error: 'You already rated this booking.' });
+  const score = Number(req.body && req.body.score);
+  if (!Number.isFinite(score) || score < 1 || score > 5) return res.status(400).json({ success: false, error: 'Rating must be between 1 and 5.' });
+  performers.addRating(request.selectedPerformerId, { score });
+  const updated = marketplaceRequests.setPerformerRating(request.id, score);
+  res.json({ success: true, request: updated });
 });
 
 app.post('/api/marketplace/requests/:id/cancel', requireAuthApi, (req, res) => {
@@ -5963,6 +6008,8 @@ app.get('/api/tutors', async (req, res) => {
     avgProfessionalism: tutors.avgProfessionalism(t),
     experienceYears: t.experienceYears,
     bio: t.bio,
+    ratingCount: t.ratingCount || 0,
+    isSuperTutor: tutors.isSuperTutor(t),
   })));
   localized.sort((a, b) => a.hourlyRateUsd - b.hourlyRateUsd);
 

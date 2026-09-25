@@ -310,9 +310,37 @@ function markActivationPaid(id) {
   return performer;
 }
 
+// Records one rating (1-5) from an event requester after a booking - same
+// shape as data/tutors.js's addRating, so avgRating/SuperArtist eligibility
+// can be computed the same way for both roles.
+function addRating(id, { score }) {
+  const db = load();
+  const performer = db.performers.find((p) => p.id === Number(id));
+  if (!performer) return null;
+  performer.ratingSum = (performer.ratingSum || 0) + Number(score);
+  performer.ratingCount = (performer.ratingCount || 0) + 1;
+  persist(db);
+  return performer;
+}
+
+function avgRating(performer) {
+  return performer.ratingCount ? performer.ratingSum / performer.ratingCount : null;
+}
+
+// The "SuperArtist" badge - same bar as tutors' "SuperTutor" (see
+// tutors.js's isSuperTutor): a consistently high rating across enough
+// bookings to mean something, not a single lucky review.
+const SUPER_MIN_RATINGS = 5;
+const SUPER_MIN_AVG = 4.8;
+function isSuperArtist(performer) {
+  const avg = avgRating(performer);
+  return Boolean(avg != null && (performer.ratingCount || 0) >= SUPER_MIN_RATINGS && avg >= SUPER_MIN_AVG);
+}
+
 module.exports = {
   listAll, listApproved, findById, findByUserId, findBySlug, slugify, publicSlug, apply,
   setStatus, suspend, unsuspend, setCategories, updateAbout, setRate, setPhoto,
   addGalleryPhoto, removeGalleryPhoto, addVideo, removeVideo, setSocialLinks,
   setRealLocation, markActivationPaid, acknowledgePerformerOrientation,
+  addRating, avgRating, isSuperArtist,
 };

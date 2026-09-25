@@ -111,6 +111,12 @@ function requestCardHtml(r) {
       </div>
       ${offers.length ? offers.map((o) => offerRowHtml(o, r.id, r.status === 'open')).join('') : '<p class="market-muted market-small" style="margin-top:12px;">No responses yet.</p>'}
       ${r.status === 'open' ? `<button type="button" class="market-btn market-btn-outline market-btn-sm cancel-request-btn" data-id="${r.id}" style="margin-top:12px;">Cancel Request</button>` : ''}
+      ${r.status === 'closed' && r.selectedPerformerId && !r.performerRating ? `
+        <div class="rate-performer-row" data-request-id="${r.id}" style="margin-top:12px;display:flex;align-items:center;gap:6px;">
+          <span class="market-muted market-small">Rate this performer:</span>
+          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="rate-star-btn" data-score="${n}" data-request-id="${r.id}" style="border:none;background:none;cursor:pointer;font-size:1.15rem;line-height:1;color:#d1d5db;padding:2px;">&#9733;</button>`).join('')}
+        </div>` : ''}
+      ${r.performerRating ? `<p class="market-muted market-small" style="margin-top:8px;">You rated this performer ${r.performerRating}/5 <span style="color:#f59e0b;">&#9733;</span></p>` : ''}
     </div>
   `;
 }
@@ -134,6 +140,20 @@ async function loadRequests() {
     const res2 = await fetch(`/api/marketplace/requests/${btn.dataset.id}/cancel`, { method: 'POST' });
     const data2 = await res2.json();
     if (data2.success) { showToast('Request cancelled.', 'success'); loadRequests(); } else showToast(data2.error || 'Failed.', 'error');
+  }));
+  // Fills stars up to whichever one is hovered, same idea as a normal star
+  // picker - purely visual, the actual score is only sent on click.
+  document.querySelectorAll('.rate-performer-row').forEach((row) => {
+    const stars = [...row.querySelectorAll('.rate-star-btn')];
+    stars.forEach((star, index) => {
+      star.addEventListener('mouseenter', () => stars.forEach((s, i) => { s.style.color = i <= index ? '#f59e0b' : '#d1d5db'; }));
+    });
+    row.addEventListener('mouseleave', () => stars.forEach((s) => { s.style.color = '#d1d5db'; }));
+  });
+  document.querySelectorAll('.rate-star-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    const res2 = await fetch(`/api/marketplace/requests/${btn.dataset.requestId}/rate-performer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ score: Number(btn.dataset.score) }) });
+    const data2 = await res2.json();
+    if (data2.success) { showToast('Thanks for rating them!', 'success'); loadRequests(); } else showToast(data2.error || 'Could not submit rating.', 'error');
   }));
 }
 

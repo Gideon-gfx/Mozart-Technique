@@ -415,11 +415,22 @@ function avgProfessionalism(tutor) {
   return tutor.professionalismCount ? tutor.professionalismSum / tutor.professionalismCount : null;
 }
 
+// The "SuperTutor" badge (Airbnb Superhost-style) - a consistently high
+// rating across enough lessons to mean something, not a single lucky
+// rating. Same bar mirrored for performers as "SuperArtist" - see
+// performers.js's isSuperArtist.
+const SUPER_MIN_RATINGS = 5;
+const SUPER_MIN_AVG = 4.8;
+function isSuperTutor(tutor) {
+  const avg = avgRating(tutor);
+  return Boolean(avg != null && (tutor.ratingCount || 0) >= SUPER_MIN_RATINGS && avg >= SUPER_MIN_AVG);
+}
+
 module.exports = {
   listAll, listApproved, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
   markActivationPaid, acknowledgeTutorOrientation,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
-  incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism,
+  incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism, isSuperTutor,
   creditBalance, debitBalance, setRealLocation, setPhoto, setCategories, setHourlyRate, setProfileDetails, setIntakeQuestions, findBySlug,
   MIN_RATINGS_BEFORE_FLAG, FLAG_THRESHOLD,
 };
