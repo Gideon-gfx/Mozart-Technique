@@ -347,6 +347,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml').sendFile(path.join(PUBLIC_DIR, 'sitemap.xml'));
+});
+
 app.use(express.static(PUBLIC_DIR));
 
 // --- AUTH HELPERS ---
@@ -1229,6 +1233,10 @@ app.get('/find-performer', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'find-performer.html'));
 });
 
+app.get('/performance', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'find-performer.html'));
+});
+
 app.get('/performers/:id', (req, res) => {
   const performer = performers.findBySlug(req.params.id);
   if (!performer || performer.status !== 'approved' || performer.suspended) return res.redirect('/find-performer');
@@ -1304,6 +1312,7 @@ function maybeSendMobileReturnEmail(user, req) {
 
 // --- AUTH API ---
 app.post('/api/signup', async (req, res) => {
+  try {
   const { name, email, password } = req.body || {};
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, error: 'Name, email and password are required.' });
@@ -1331,6 +1340,10 @@ app.post('/api/signup', async (req, res) => {
   if (isMobileSignup) store.markMobileWelcomeEmailSent(user.id);
 
   res.json({ success: true, user: publicUser(user) });
+  } catch (err) {
+    console.error('Account signup failed:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not create your account. Please try again.' });
+  }
 });
 
 // The footer newsletter form on every public page (public/assets/
@@ -1350,6 +1363,7 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
+  try {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ success: false, error: 'Email and password are required.' });
@@ -1363,6 +1377,10 @@ app.post('/api/login', async (req, res) => {
   req.session.userId = user.id;
   maybeSendMobileReturnEmail(user, req);
   res.json({ success: true, user: publicUser(user) });
+  } catch (err) {
+    console.error('Account login failed:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not sign in. Please try again.' });
+  }
 });
 
 app.get('/api/config', (req, res) => {
@@ -1423,12 +1441,13 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 app.post('/api/auth/google', async (req, res) => {
+  try {
   if (!googleClient) {
     return res.status(501).json({ success: false, error: 'Google sign-in is not configured on this server.' });
   }
 
   const { credential } = req.body || {};
-  if (!credential) {
+  if (typeof credential !== 'string' || !credential.trim()) {
     return res.status(400).json({ success: false, error: 'Missing Google credential.' });
   }
 
@@ -1440,8 +1459,8 @@ app.post('/api/auth/google', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Invalid Google credential.' });
   }
 
-  if (!payload.email_verified) {
-    return res.status(401).json({ success: false, error: 'Google account email is not verified.' });
+  if (!payload || !payload.sub || !payload.email || payload.email_verified !== true) {
+    return res.status(401).json({ success: false, error: 'Google account could not be verified.' });
   }
 
   let user = store.findByGoogleId(payload.sub);
@@ -1465,6 +1484,10 @@ app.post('/api/auth/google', async (req, res) => {
   req.session.userId = user.id;
   maybeSendMobileReturnEmail(user, req);
   res.json({ success: true, user: publicUser(user) });
+  } catch (err) {
+    console.error('Google sign-in failed:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not sign in with Google. Please try again.' });
+  }
 });
 
 app.post('/api/logout', (req, res) => {

@@ -1,5 +1,5 @@
 {
-  "watch": ["server.js", "data", "public"],
+  "watch": ["server.js"],
   "ext": "js,mjs,cjs,html,css",
-  "ignore": ["data/**/*.json", "public/uploads/**", "node_modules/**"]
+  "ignore": ["data/**/*.json", "public/uploads/**", "public/assets/onboarding-videos/**", "node_modules/**"]
 }
