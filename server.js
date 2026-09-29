@@ -55,6 +55,7 @@ const marketplaceMatching = require('./data/marketplaceMatching');
 const benchmarkRates = require('./data/benchmarkRates');
 const mailer = require('./data/mailer');
 const newsletter = require('./data/newsletter');
+const accountDeletionRequests = require('./data/accountDeletionRequests');
 const stripeClient = require('./data/stripe-client');
 const stripePaymentProfile = require('./data/stripe-payment-profile');
 const cloudinaryClient = require('./data/cloudinary-client');
@@ -1024,6 +1025,48 @@ app.get('/privacy-policy', (req, res) => {
 
 app.get('/terms-of-service', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'terms-of-service.html'));
+});
+
+app.get('/delete-account', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'delete-account.html'));
+});
+
+// Public on purpose (no requireAuthApi) - the Play Store data-safety page
+// this backs has to be usable by someone who is logged out or no longer has
+// the app installed, not just an active session. If a session does exist we
+// still attach it, so the team can match the request to a real account
+// instead of just an email string.
+app.post('/api/account/delete-request', (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const reason = String(req.body?.reason || '').trim();
+  if (!name || !email) return res.status(400).json({ success: false, error: 'Name and email are required.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+
+  const sessionUser = currentUser(req);
+  const request = accountDeletionRequests.create({
+    userId: sessionUser ? sessionUser.id : null,
+    name,
+    email,
+    reason,
+  });
+
+  const adminTo = process.env.PRIMARY_ADMIN_EMAIL || 'mozarttechniques@gmail.com';
+  mailer.sendMail({
+    to: adminTo,
+    subject: `Account deletion request - ${name}`,
+    text: `${name} (${email}) requested account deletion via mozarttechniques.com/delete-account.\n\n${sessionUser ? `Signed-in account: ${sessionUser.email} (user #${sessionUser.id})\n\n` : 'Submitted while logged out - verify identity against the email above before deleting anything.\n\n'}Reason given: ${reason || '(none provided)'}\n\nRequest #${request.id}, received ${request.createdAt}.`,
+  });
+  mailer.sendMail({
+    to: email,
+    subject: 'We received your account deletion request - Mozart Techniques',
+    text: `Hi ${name},\n\nWe've received your request to delete your Mozart Techniques account and data. Our team will verify and complete it within 30 days, and we'll email this address once it's done.\n\nIf you didn't make this request, please contact us immediately at mozarttechniques@gmail.com.\n\n- Mozart Techniques`,
+  });
+  if (sessionUser) {
+    store.addNotification(sessionUser.id, { type: 'account_deletion', message: 'We received your account deletion request. Our team will process it within 30 days.' });
+  }
+
+  res.json({ success: true });
 });
 
 app.get('/login', (req, res) => {
