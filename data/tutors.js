@@ -26,8 +26,12 @@ function listAll() {
   return load().tutors;
 }
 
+function activationRequired(tutor) {
+  return Boolean(tutor && tutor.activationFeeRequired === true && tutor.activationPaid !== true);
+}
+
 function listApproved() {
-  return listAll().filter((t) => t.status === 'approved' && !t.expelled);
+  return listAll().filter((t) => t.status === 'approved' && !t.expelled && !activationRequired(t));
 }
 
 function findById(id) {
@@ -117,11 +121,9 @@ async function apply({
     flagged: false,
     flaggedAt: null,
     expelled: false,
-    // One-time $1.50 activation fee, required before an approved tutor's
-    // dashboard unlocks - see requireApprovedTutorApi in server.js.
-    // Already-approved tutors are grandfathered true by a one-off migration
-    // script (scripts/grandfather-tutor-activations.js) run before this
-    // gate ships, so this false default only ever applies to new tutors.
+    // Only applications created after the fee launches require payment.
+    // Existing tutor records lack activationFeeRequired and keep access.
+    activationFeeRequired: true,
     activationPaid: false,
     activationPaidAt: null,
     activationGrandfathered: false,
@@ -427,7 +429,7 @@ function isSuperTutor(tutor) {
 }
 
 module.exports = {
-  listAll, listApproved, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
+  listAll, listApproved, activationRequired, findById, findByUserId, apply, setStatus, setStripeConnectAccount,
   markActivationPaid, acknowledgeTutorOrientation,
   setApprovedLevel, canReevaluate, completeOrientation, clearOrientationBonus,
   incrementLessonsCompleted, addRating, clearFlag, expel, avgRating, avgProfessionalism, isSuperTutor,

@@ -101,6 +101,13 @@
 
     <div class="page-layout max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
         <main class="space-y-6">
+            <section id="tutor-activation-gate" class="hidden mx-auto max-w-xl rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg sm:p-10">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700"><i class="fa-solid fa-lock text-xl" aria-hidden="true"></i></div>
+                <h2 class="mt-5 text-2xl font-bold text-gray-900">One step before you start teaching</h2>
+                <p class="mt-3 text-sm leading-6 text-gray-600">Your tutor application is approved. Pay the one-time <strong>$1.50 USD activation fee</strong> through Stripe to unlock your Tutor Dashboard and appear in student searches.</p>
+                <button id="tutor-activation-pay" type="button" class="mt-6 w-full rounded-xl bg-primary-red px-5 py-3 text-sm font-semibold text-white hover:bg-red-700 sm:w-auto">Pay $1.50 securely with Stripe</button>
+                <p id="tutor-activation-error" class="mt-3 hidden text-sm text-red-700" role="alert"></p>
+            </section>
             <section id="public-profile-section" class="hidden bg-white rounded-3xl shadow-lg p-4 sm:p-6">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between public-profile-head">
                     <div class="flex items-center gap-4">
@@ -267,6 +274,27 @@
 
         let pageMode = 'unknown'; // 'self' | 'public' | 'unknown'
         let publicViewType = null; // 'slug' | 'id'
+        const tutorActivationDue = () => Boolean(userProfile && userProfile.status === 'approved' && userProfile.activationFeeRequired === true && userProfile.activationPaid !== true);
+
+        document.getElementById('tutor-activation-pay').addEventListener('click', async () => {
+            const button = document.getElementById('tutor-activation-pay');
+            const errorText = document.getElementById('tutor-activation-error');
+            button.disabled = true;
+            button.textContent = 'Opening Stripe Checkout…';
+            errorText.classList.add('hidden');
+            try {
+                const response = await fetch('/api/tutors/me/activation-fee/checkout', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok || !data.success || !data.url) throw new Error(data.error || 'Could not open Stripe Checkout.');
+                window.location.assign(data.url);
+            } catch (error) {
+                errorText.textContent = error.message || 'Could not open Stripe Checkout. Please try again.';
+                errorText.classList.remove('hidden');
+                button.disabled = false;
+                button.textContent = 'Pay $1.50 securely with Stripe';
+            }
+        });
+
         async function loadTutorPage() {
             try {
                 const parts = window.location.pathname.split('/').filter(Boolean);
@@ -288,6 +316,24 @@
                         return;
                     }
                     userProfile = profileData.profile || null;
+                    if (tutorActivationDue()) {
+                        const gate = document.getElementById('tutor-activation-gate');
+                        Array.from(document.querySelector('main').children).forEach((section) => {
+                            if (section !== gate) section.style.display = 'none';
+                        });
+                        gate.classList.remove('hidden');
+                        const activationState = new URLSearchParams(location.search).get('activation');
+                        if (activationState === 'cancelled' || activationState === 'pending' || activationState === 'error') {
+                            const errorText = document.getElementById('tutor-activation-error');
+                            errorText.textContent = activationState === 'cancelled'
+                                ? 'Checkout was cancelled. You can try again whenever you are ready.'
+                                : activationState === 'pending'
+                                    ? 'Stripe is still processing your payment. Refresh this page shortly before trying again.'
+                                    : 'We could not verify your payment yet. If your card was charged, contact support before paying again.';
+                            errorText.classList.remove('hidden');
+                        }
+                        return;
+                    }
                     userSponsorship = sessionData.user.sponsor || null;
                     if (userSponsorship) document.getElementById('organization-workspace-link')?.classList.remove('hidden');
                     renderSponsorshipStatus();
@@ -1254,7 +1300,8 @@
         })();
 
         loadTutorPage().then(() => {
-            if (pageMode !== 'self') return;
+            if (pageMode !== 'self' || tutorActivationDue()) return;
+            if (new URLSearchParams(location.search).get('activation') === 'success') showAlert('Your $1.50 activation payment was received. Your Tutor Dashboard is ready.', 'success');
             loadTutorDashboardData();
             loadNegotiateOffers().then(() => {
                 if (new URLSearchParams(location.search).get('tab') === 'negotiate') {

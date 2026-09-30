@@ -109,6 +109,23 @@ const GOOGLE_AUDIENCES = [
 ].filter(Boolean);
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
+// Stripe must verify the unmodified request body before JSON parsing.
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const client = stripeClient.getClient();
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!client || !secret) return res.status(503).send('Stripe webhook is not configured.');
+  let event;
+  try {
+    event = client.webhooks.constructEvent(req.body, req.headers['stripe-signature'], secret);
+  } catch (error) {
+    return res.status(400).send('Invalid Stripe webhook signature.');
+  }
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+    completeActivationCheckout(event.data.object);
+  }
+  res.json({ received: true });
+});
+
 app.use(express.json());
 
 app.use(cookieSession({
@@ -460,6 +477,9 @@ function requireApprovedTutorApi(req, res, next) {
   const profile = tutors.findByUserId(user.id);
   if (!profile || profile.status !== 'approved') {
     return res.status(403).json({ success: false, error: 'Approved tutor access required.' });
+  }
+  if (tutors.activationRequired(profile)) {
+    return res.status(402).json({ success: false, error: 'Pay the one-time $1.50 activation fee to use your Tutor Dashboard.', code: 'activation_required' });
   }
   req.tutorProfile = profile;
   next();
@@ -1238,7 +1258,7 @@ app.get('/certificate/:code', (req, res) => {
 // still requires an account.
 app.get('/tutors/:id', (req, res) => {
   const tutor = tutors.findById(req.params.id);
-  if (!tutor || tutor.status !== 'approved' || tutor.expelled) return res.redirect('/find-tutor');
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled || tutors.activationRequired(tutor)) return res.redirect('/find-tutor');
   // Serve the unified tutor page (same as the dashboard) but client-side
   // will render it read-only for public viewers. This lets /tutors/:id and
   // /tutor/:slug share the same layout and styling.
@@ -1249,7 +1269,7 @@ app.get(/^\/tutors\/[0-9]+(\/.*)?$/, (req, res) => {
   const match = req.path.match(/^\/tutors\/([0-9]+)(?:\/.*)?$/);
   const id = match && match[1];
   const tutor = tutors.findById(id);
-  if (!tutor || tutor.status !== 'approved' || tutor.expelled) return res.redirect('/find-tutor');
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled || tutors.activationRequired(tutor)) return res.redirect('/find-tutor');
   res.sendFile(path.join(PUBLIC_DIR, 'tutor.html'));
 });
 
@@ -2495,7 +2515,7 @@ app.post('/api/tutors/me/intake-form', requireTutorProfileApi, async (req, res) 
 app.get('/api/tutors/:id/intake-form', requireAuthApi, async (req, res) => {
   const tutor = tutors.findById(req.params.id);
   const geoInfo = await getGeoInfo(req);
-  if (!tutor || tutor.status !== 'approved' || tutor.expelled || !inViewerCountry(tutor, geoInfo.name)) {
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled || tutors.activationRequired(tutor) || !inViewerCountry(tutor, geoInfo.name)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   res.json({ success: true, questions: tutor.studentIntakeQuestions || [] });
@@ -2506,7 +2526,7 @@ app.get('/api/tutors/slug/:slug', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
   const t = tutors.findBySlug(slug);
   const geoInfo = await getGeoInfo(req);
-  if (!t || t.status !== 'approved' || t.expelled || !inViewerCountry(t, geoInfo.name)) {
+  if (!t || t.status !== 'approved' || t.expelled || tutors.activationRequired(t) || !inViewerCountry(t, geoInfo.name)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   // expose a safe public shape
@@ -4159,7 +4179,7 @@ app.post('/api/tutors/me/activation-fee/checkout', requireTutorProfileApi, async
   if (!client) return res.status(503).json({ success: false, error: 'Payments are not configured yet.' });
   const profile = req.tutorProfile;
   if (profile.status !== 'approved') return res.status(400).json({ success: false, error: 'Your tutor application is not approved yet.' });
-  if (profile.activationPaid) return res.status(400).json({ success: false, error: 'Activation fee already paid.' });
+  if (!tutors.activationRequired(profile)) return res.status(400).json({ success: false, error: 'No activation fee is due for this tutor profile.' });
   const user = currentUser(req);
   try {
     const session = await client.checkout.sessions.create({
@@ -4168,14 +4188,41 @@ app.post('/api/tutors/me/activation-fee/checkout', requireTutorProfileApi, async
       line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Mozart Techniques - Tutor Activation Fee' }, unit_amount: Math.round(ACTIVATION_FEE_USD * 100) }, quantity: 1 }],
       customer_email: user.email,
       success_url: `${publicAppUrl(req)}/api/activation-fee/checkout/success?sessionId={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicAppUrl(req)}/tutor`,
+      cancel_url: `${publicAppUrl(req)}/tutor?activation=cancelled`,
       metadata: { type: 'activation-fee', role: 'tutor', profileId: String(profile.id) },
     });
     res.json({ success: true, url: session.url });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message || 'Could not start checkout.' });
+    console.error('Tutor activation checkout error:', err.message);
+    res.status(502).json({ success: false, error: 'Could not open Stripe Checkout. Please try again.' });
   }
 });
+
+function completeActivationCheckout(session) {
+  if (!session || session.metadata?.type !== 'activation-fee' || session.mode !== 'payment'
+    || session.payment_status !== 'paid' || session.currency?.toLowerCase() !== 'usd'
+    || session.amount_total !== Math.round(ACTIVATION_FEE_USD * 100)) return false;
+  const { role, profileId } = session.metadata;
+  if (role === 'performer') {
+    const profile = performers.findById(profileId);
+    if (!profile || profile.status !== 'approved') return false;
+    if (!profile.activationPaid) {
+      performers.markActivationPaid(profile.id);
+      store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Performer Dashboard is now unlocked.', href: '/performer' });
+    }
+    return true;
+  }
+  if (role === 'tutor') {
+    const profile = tutors.findById(profileId);
+    if (!profile || profile.status !== 'approved' || !profile.activationFeeRequired) return false;
+    if (!profile.activationPaid) {
+      tutors.markActivationPaid(profile.id);
+      store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Tutor Dashboard is now unlocked.', href: '/tutor' });
+    }
+    return true;
+  }
+  return false;
+}
 
 app.get('/api/activation-fee/checkout/success', async (req, res) => {
   const client = stripeClient.getClient();
@@ -4185,23 +4232,13 @@ app.get('/api/activation-fee/checkout/success', async (req, res) => {
   try {
     const session = await client.checkout.sessions.retrieve(sessionId);
     if (!session.metadata || session.metadata.type !== 'activation-fee') return res.redirect('/dashboard?activation=error');
-    if (session.payment_status !== 'paid') return res.redirect('/dashboard?activation=pending');
-    const { role, profileId } = session.metadata;
+    const { role } = session.metadata;
+    if (session.payment_status !== 'paid') return res.redirect(role === 'tutor' ? '/tutor?activation=pending' : role === 'performer' ? '/performer?activation=pending' : '/dashboard?activation=error');
     if (role === 'performer') {
-      const profile = performers.findById(profileId);
-      if (profile && !profile.activationPaid) {
-        performers.markActivationPaid(profile.id);
-        store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Performer Dashboard is now unlocked.', href: '/performer' });
-      }
-      return res.redirect('/performer?activation=success');
+      return res.redirect(completeActivationCheckout(session) ? '/performer?activation=success' : '/performer?activation=error');
     }
     if (role === 'tutor') {
-      const profile = tutors.findById(profileId);
-      if (profile && !profile.activationPaid) {
-        tutors.markActivationPaid(profile.id);
-        store.addNotification(profile.userId, { type: 'marketplace_activation_paid', message: 'Activation fee received - your Tutor Dashboard is now unlocked.', href: '/tutor' });
-      }
-      return res.redirect('/tutor?activation=success');
+      return res.redirect(completeActivationCheckout(session) ? '/tutor?activation=success' : '/tutor?activation=error');
     }
     res.redirect('/dashboard?activation=error');
   } catch (err) {
@@ -6144,7 +6181,7 @@ function studentHasStudioRequestWith(studentId, tutorId) {
 
 app.get('/api/tutors/:id/public', async (req, res) => {
   const tutor = tutors.findById(req.params.id);
-  if (!tutor || tutor.status !== 'approved' || tutor.expelled) {
+  if (!tutor || tutor.status !== 'approved' || tutor.expelled || tutors.activationRequired(tutor)) {
     return res.status(404).json({ success: false, error: 'Tutor not found.' });
   }
   const viewer = currentUser(req);
@@ -6289,6 +6326,9 @@ app.post('/api/tutor-requests', requireAuthApi, async (req, res) => {
     return res.status(403).json({ success: false, error: 'Tutors can only be requested within your country.' });
   }
   const selectedTutors = requestTutorIds.map((id) => tutors.findById(id)).filter(Boolean);
+  if (selectedTutors.some((tutor) => tutors.activationRequired(tutor))) {
+    return res.status(400).json({ success: false, error: 'That tutor is not available for requests yet.' });
+  }
   if (selectedTutors.length && requestedCategories.some((selectedCategory) => selectedTutors.some((tutor) => !(tutor.categories || []).includes(selectedCategory)))) {
     return res.status(400).json({ success: false, error: 'Each selected course must be taught by the chosen tutor.' });
   }
@@ -8087,7 +8127,10 @@ app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
   if (!updated) return res.status(404).json({ success: false, error: 'Application not found.' });
 
   if (status === 'approved') {
-    const message = 'Your tutor application has been approved! Set up your Stripe payout account from the Tutor Dashboard so paid classes can be paid automatically.';
+    const activationStep = tutors.activationRequired(updated)
+      ? ' Pay the one-time $1.50 activation fee securely through Stripe on your Tutor Dashboard to start receiving student requests.'
+      : '';
+    const message = `Your tutor application has been approved!${activationStep} Set up your Stripe payout account from the Tutor Dashboard so paid classes can be paid automatically.`;
     store.addNotification(updated.userId, { type: 'tutor', message });
     // The in-app notification above stays a one-line bell alert on purpose
     // (that surface has no room for more) - the email is the detailed
@@ -8099,7 +8142,8 @@ app.post('/api/admin/tutors/:id/status', requireAdminApi, (req, res) => {
       heading: "You're approved!",
       approved: true,
       message: [
-        `Congratulations - you're approved to teach ${(updated.categories || []).join(', ') || 'on Mozart Techniques'}. Students can now find and book you.`,
+        `Congratulations - you're approved to teach ${(updated.categories || []).join(', ') || 'on Mozart Techniques'}.${tutors.activationRequired(updated) ? ' Your profile will become bookable after the one-time activation payment.' : ' Students can now find and book you.'}`,
+        ...(tutors.activationRequired(updated) ? ['Pay the one-time $1.50 USD activation fee through Stripe on your Tutor Dashboard. Your public tutor profile and student requests unlock after payment.'] : []),
         'Before your first lesson, set up your Stripe payout account so paid classes pay out automatically, and complete your Tutor Orientation - a short walkthrough of platform policies, safeguarding expectations, and how lessons/payouts work, which you\'ll be asked to agree to on your first visit to the Tutor Dashboard.',
         'Your dashboard has the full detail on all of this - approved subjects, payout setup, orientation, and every message tied to your account - this email is just the headline.',
       ],
