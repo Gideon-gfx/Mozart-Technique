@@ -144,6 +144,11 @@ body.market-body { font-family: 'Montserrat', 'Inter', sans-serif; }
         </div>
         <button type="button" id="save-rate-btn" class="market-btn market-btn-outline market-btn-sm">Save Rate</button>
       </div>
+      <div class="market-card" style="margin-top:16px;border-color:#fecaca;">
+        <h3 class="market-card-title" style="color:#b91c1c;">Danger Zone</h3>
+        <p class="market-muted market-small" style="margin:0 0 12px;">Permanently delete your performer profile, photos, video clips and posts. This doesn't delete your Mozart Techniques account or any other role on it. This can't be undone.</p>
+        <button type="button" id="delete-performer-profile-btn" class="market-btn market-btn-sm" style="background:#dc2626;color:#fff;border-color:#dc2626;">Delete Performer Profile</button>
+      </div>
     </div>
 
     <div class="market-tab-panel" id="tab-media" hidden>
@@ -367,6 +372,21 @@ document.getElementById('save-rate-btn').addEventListener('click', async () => {
   const res = await fetch('/api/performers/me/rate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseRateUsd, rateUnit: rateUnitVal }) });
   const data = await res.json();
   if (data.success) { myProfile = data.profile; document.getElementById('dash-rate').textContent = rateLabel(myProfile); showToast('Rate saved.', 'success'); } else showToast(data.error || 'Failed.', 'error');
+});
+document.getElementById('delete-performer-profile-btn').addEventListener('click', async () => {
+  if (!confirm('Delete your performer profile? Your photos, video clips and posts will be permanently removed. This cannot be undone.')) return;
+  if (!confirm('Are you sure? This is your last chance to cancel.')) return;
+  const btn = document.getElementById('delete-performer-profile-btn');
+  btn.disabled = true; btn.textContent = 'Deleting...';
+  try {
+    const res = await fetch('/api/performers/me', { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Could not delete your performer profile.');
+    window.location.href = '/profile';
+  } catch (err) {
+    showToast(err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Delete Performer Profile';
+  }
 });
 document.getElementById('save-social-btn').addEventListener('click', async () => {
   const links = {

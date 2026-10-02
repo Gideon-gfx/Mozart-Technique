@@ -167,6 +167,24 @@ function suspend(id, reason) {
   return performer;
 }
 
+// Permanently removes a performer profile (self-service "delete my
+// performer profile", or an admin acting on a deletion request) - unlike
+// suspend/unsuspend, which just hide it, this drops the row entirely so
+// hasPerformerProfile/find-performer listings stop seeing it immediately
+// (that flag is never stored on the user - see findByUserId - so nothing
+// else needs to be unset for it to disappear). Marketplace requests/offers
+// that reference this performer's id are intentionally left alone, same as
+// the account-deletion policy's "records needed to resolve a dispute" carve
+// out - they're historical transaction records, not this profile.
+function remove(id) {
+  const db = load();
+  const index = db.performers.findIndex((p) => p.id === Number(id));
+  if (index === -1) return false;
+  db.performers.splice(index, 1);
+  persist(db);
+  return true;
+}
+
 function unsuspend(id) {
   const db = load();
   const performer = db.performers.find((p) => p.id === Number(id));
@@ -339,7 +357,7 @@ function isSuperArtist(performer) {
 
 module.exports = {
   listAll, listApproved, findById, findByUserId, findBySlug, slugify, publicSlug, apply,
-  setStatus, suspend, unsuspend, setCategories, updateAbout, setRate, setPhoto,
+  setStatus, suspend, unsuspend, remove, setCategories, updateAbout, setRate, setPhoto,
   addGalleryPhoto, removeGalleryPhoto, addVideo, removeVideo, setSocialLinks,
   setRealLocation, markActivationPaid, acknowledgePerformerOrientation,
   addRating, avgRating, isSuperArtist,

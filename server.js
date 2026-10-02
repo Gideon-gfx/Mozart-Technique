@@ -3973,6 +3973,18 @@ app.get('/api/performers/me', requireAuthApi, async (req, res) => {
   res.json({ success: true, profile: { ...profile, ...(await performerRateForViewer(profile, geoInfo)) } });
 });
 
+// Self-service "delete my performer profile" - same policy as the
+// /delete-account page's "performer profile details" line: the profile,
+// its gallery/video clips and its own feed posts are removed outright.
+// Doesn't touch the account itself, so a tutor/sponsor/student role on the
+// same account is unaffected.
+app.delete('/api/performers/me', requirePerformerProfileApi, (req, res) => {
+  const profile = req.performerProfile;
+  performerPosts.listByPerformer(profile.id).forEach((post) => performerPosts.remove(post.id, profile.id));
+  performers.remove(profile.id);
+  res.json({ success: true });
+});
+
 app.post('/api/performers/apply', requireAuthApi, async (req, res) => {
   const user = currentUser(req);
   if (performers.findByUserId(user.id)) {
