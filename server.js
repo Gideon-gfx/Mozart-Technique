@@ -2651,8 +2651,10 @@ function publicAppUrl(req) {
 
 async function refreshTutorConnectStatus(tutor) {
   const client = stripeClient.getClient();
-  if (!client || !tutor || !tutor.stripeConnectAccountId) return tutor;
-  const account = await client.v2.core.accounts.retrieve(tutor.stripeConnectAccountId, {
+  if (!client || !tutor) return tutor;
+  const accountId = tutor.stripeConnectAccountId || store.findById(tutor.userId)?.stripeConnectAccountId;
+  if (!accountId) return tutor;
+  const account = await client.v2.core.accounts.retrieve(accountId, {
     include: ['configuration.recipient', 'requirements'],
   });
   return tutors.setStripeConnectAccount(tutor.id, account);
@@ -2660,19 +2662,30 @@ async function refreshTutorConnectStatus(tutor) {
 
 function stripeConnectError(err) {
   const messages = {
+    stripe_not_configured: 'Stripe is not configured on this server. Please contact Mozart Techniques support.',
     accounts_v2_access_blocked: 'Stripe Connect Accounts v2 is not enabled for the Mozart Techniques Stripe platform.',
     platform_registration_required: 'Stripe Connect must be activated in the Mozart Techniques Stripe Dashboard before tutors can connect.',
     connect_profile_not_submitted: 'The Mozart Techniques Stripe platform profile must be completed before tutors can connect.',
     connect_identity_not_verified: 'Stripe must verify the Mozart Techniques platform before tutors can connect.',
-    capability_not_available_in_country: 'Stripe Connect payouts are not available for this tutor country.',
-    capability_not_available_in_platform_country: 'Stripe Connect payouts are not available for this platform country.',
+    capability_not_available_in_country: 'Stripe does not support the requested Connect capability for this tutor country. Please contact Mozart Techniques support about payout options.',
+    capability_not_available_in_platform_country: 'Stripe does not support the requested Connect capability for this platform country. Please contact Mozart Techniques support about payout options.',
+    account_configuration_not_supported: 'Stripe does not support this connected-account configuration for the tutor country and platform. Please contact Mozart Techniques support.',
     cross_border_connected_account_creation_not_allowed: 'Stripe does not permit this cross-border connected-account payout route.',
+    stripe_ng_recipient_unavailable: 'Stripe-hosted payout onboarding is not available for Nigerian tutors on this platform yet. Stripe requires a requested recipient capability for onboarding, but has declined NG stripe_transfers. Please use manual withdrawal while Mozart Techniques resolves this with Stripe.',
   };
-  return messages[err && err.code] || 'Stripe could not start or update this payout setup. Please try again or contact support.';
+  if (messages[err && err.code]) return messages[err.code];
+  if (err && /^Stripe(InvalidRequest|Permission|Authentication|RateLimit|API)Error$/.test(err.type || '') && err.message) return String(err.message).slice(0, 300);
+  return 'Stripe could not start or update this payout setup. Please try again or contact support.';
 }
 
 function tutorRecipientConfiguration() {
   return { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } };
+}
+
+function unavailableNgConnectError() {
+  return Object.assign(new Error('NG recipient onboarding requires stripe_transfers, which Stripe has not enabled for this platform.'), {
+    code: 'stripe_ng_recipient_unavailable', statusCode: 409,
+  });
 }
 
 function connectAccountIncludes() {
@@ -2781,11 +2794,14 @@ app.get('/api/tutors/me/stripe-connect', requireApprovedTutorApi, async (req, re
     res.json({
       success: true,
       configured: Boolean(stripeClient.getClient()),
+      connectUnavailable: stripeConnectCountry(currentUser(req)) === 'NG' && !profile.stripeConnectAccountId,
       accountId: profile.stripeConnectAccountId || null,
       accountVersion: profile.stripeConnectAccountVersion || null,
+      onboardingComplete: Boolean(profile.stripeConnectOnboardingComplete),
       detailsSubmitted: Boolean(profile.stripeConnectDetailsSubmitted),
       payoutsEnabled: Boolean(profile.stripeConnectPayoutsEnabled),
       transfersEnabled: Boolean(profile.stripeConnectTransfersEnabled),
+      payoutEligible: Boolean(profile.stripeConnectTransfersEnabled && profile.stripeConnectPayoutsEnabled),
       requirementsDue: profile.stripeConnectRequirementsDue || [],
     });
   } catch (err) {
@@ -2798,21 +2814,31 @@ async function createTutorConnectOnboardingLink(req) {
   if (!client) throw Object.assign(new Error('Stripe is not configured on this server yet.'), { code: 'stripe_not_configured' });
 
   const user = currentUser(req);
+  const country = stripeConnectCountry(user);
   let profile = req.tutorProfile;
   let account;
-  if (profile.stripeConnectAccountId) {
-    // The stored acct_ ID is authoritative: update/reuse it, including an
-    // existing v1 account that Stripe has made available to Accounts v2.
-    account = await client.v2.core.accounts.update(profile.stripeConnectAccountId, {
-      configuration: tutorRecipientConfiguration(),
-      include: connectAccountIncludes(),
-    });
+  const existingAccountId = profile.stripeConnectAccountId || user.stripeConnectAccountId;
+  if (existingAccountId) {
+    // Reuse an existing acct_ without attempting an unsupported capability update.
+    account = await client.v2.core.accounts.retrieve(existingAccountId, { include: connectAccountIncludes() });
+    const transferCapability = account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers;
+    if (country === 'NG' && account.object === 'v2.core.account' && (!transferCapability || transferCapability.status === 'unrequested')) throw unavailableNgConnectError();
+    if (Array.isArray(account.applied_configurations) && !account.applied_configurations.includes('recipient')) {
+      account = await client.v2.core.accounts.update(existingAccountId, {
+        configuration: tutorRecipientConfiguration(),
+        include: connectAccountIncludes(),
+      });
+    }
   } else {
+    // An empty recipient account can be created, but Stripe refuses to make
+    // an onboarding link without a requested capability. Do not save an
+    // unusable acct_ or misrepresent it as an enabled payout account.
+    if (country === 'NG') throw unavailableNgConnectError();
     account = await client.v2.core.accounts.create({
       contact_email: user.email,
       display_name: profile.name || user.name || 'Mozart Techniques tutor',
       dashboard: 'express',
-      identity: { country: stripeConnectCountry(user) },
+      identity: { country },
       defaults: { responsibilities: { fees_collector: 'application', losses_collector: 'application' } },
       configuration: tutorRecipientConfiguration(),
       metadata: {
@@ -2845,21 +2871,15 @@ app.post('/api/tutors/me/stripe-connect/onboard', requireApprovedTutorApi, async
   try {
     const { profile, link } = await createTutorConnectOnboardingLink(req);
     res.json({ success: true, url: link.url, accountId: profile.stripeConnectAccountId });
-} catch (err) {
-  console.error('========== STRIPE CONNECT ERROR ==========');
-  console.error('Code:', err?.code);
-  console.error('Type:', err?.type);
-  console.error('Message:', err?.message);
-  console.error('Param:', err?.param);
-  console.error('Raw:', err);
-  console.error('==========================================');
-
-  res.status(err?.code === 'stripe_not_configured' ? 503 : 400).json({
-    success: false,
-    error: err?.message || stripeConnectError(err),
-    code: err?.code || 'stripe_connect_error'
-  });
-}
+  } catch (err) {
+    console.warn('Stripe Connect onboarding failed:', { type: err.type || null, code: err.code || null, param: err.param || null, message: err.message || null });
+    res.status(err.statusCode || (err.code === 'stripe_not_configured' ? 503 : 400)).json({
+      success: false,
+      error: stripeClient.getMode() === 'test' && /^Stripe/.test(err.type || '') ? err.message : stripeConnectError(err),
+      code: err.code || 'stripe_connect_error',
+      ...(stripeClient.getMode() === 'test' && err.param ? { param: err.param } : {}),
+    });
+  }
 });
 
 app.get('/api/tutors/me/stripe-connect/refresh', requireApprovedTutorApi, async (req, res) => {
@@ -2876,8 +2896,9 @@ app.get('/api/tutors/me/stripe-connect/return', requireApprovedTutorApi, async (
   try {
     const before = req.tutorProfile;
     const profile = await refreshTutorConnectStatus(before);
-    if (profile.stripeConnectPayoutsEnabled && !before.stripeConnectPayoutsEnabled) store.addNotification(profile.userId, { type: 'payout', message: 'Your Stripe payout account is ready. Eligible class earnings can now be paid automatically.' });
-    res.redirect(`/tutor?connect=${profile.stripeConnectPayoutsEnabled ? 'ready' : 'pending'}`);
+    const eligible = profile.stripeConnectTransfersEnabled && profile.stripeConnectPayoutsEnabled;
+    if (eligible && !(before.stripeConnectTransfersEnabled && before.stripeConnectPayoutsEnabled)) store.addNotification(profile.userId, { type: 'payout', message: 'Your Stripe payout account is ready. Eligible class earnings can now be paid automatically.' });
+    res.redirect(`/tutor?connect=${eligible ? 'ready' : 'pending'}`);
   } catch (err) { res.redirect('/tutor?connect=error'); }
 });
 

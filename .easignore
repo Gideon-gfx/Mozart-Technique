@@ -4,6 +4,26 @@ node_modules
 .map-build-check
 web-build
 
+# EAS archives this Git repository from its root. The Expo app lives in
+# mobile; the web/server assets are not inputs to its Android build.
+/public/
+/teaching-tools/
+/Redesign/
+/data/
+/scripts/
+
+# Keep mobile/android source, but regenerate all local Android caches on EAS.
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/.map-build-check/
+/mobile/web-build/
+/mobile/android/.gradle/
+/mobile/android/build/
+/mobile/android/app/build/
+/mobile/android/.cxx/
+/mobile/android/app/.cxx/
+/mobile/android/local.properties
+
 *.log
 .DS_Store
 Thumbs.db

@@ -175,17 +175,22 @@ function setStripeConnectAccount(id, account) {
     ? recipientBalance.payouts.status === 'active'
     : Boolean(account && account.payouts_enabled);
   const requirements = (account && account.requirements) || {};
-  const requirementsDue = Array.isArray(requirements.currently_due) ? requirements.currently_due : [];
+  const requirementsDue = [...new Set([
+    ...(Array.isArray(requirements.currently_due) ? requirements.currently_due : []),
+    ...(Array.isArray(requirements.past_due) ? requirements.past_due : []),
+    ...(Array.isArray(requirements.entries) ? requirements.entries.map((entry) => entry.description || entry.reference?.type || 'Stripe verification required') : []),
+  ])];
+  const isV2 = account && account.object === 'v2.core.account';
+  const recipientApplied = Boolean(isV2 && Array.isArray(account.applied_configurations) && account.applied_configurations.includes('recipient'));
+  const detailsSubmitted = isV2
+    ? Boolean(recipientApplied && account.requirements && !requirementsDue.length && !account.closed)
+    : Boolean(account && account.details_submitted);
   tutor.stripeConnectAccountId = account && account.id ? account.id : tutor.stripeConnectAccountId;
   tutor.stripeConnectAccountVersion = account && account.object === 'v2.core.account' ? 'v2' : (account && account.object ? 'v1' : tutor.stripeConnectAccountVersion);
-  tutor.stripeConnectOnboardingComplete = account && account.object === 'v2.core.account'
-    ? Boolean(transfersEnabled && payoutsEnabled && !account.closed)
-    : Boolean(account && account.details_submitted);
+  tutor.stripeConnectOnboardingComplete = detailsSubmitted;
   tutor.stripeConnectPayoutsEnabled = Boolean(payoutsEnabled);
   tutor.stripeConnectTransfersEnabled = Boolean(transfersEnabled);
-  tutor.stripeConnectDetailsSubmitted = account && account.object === 'v2.core.account'
-    ? Boolean(!requirementsDue.length && !account.closed)
-    : Boolean(account && account.details_submitted);
+  tutor.stripeConnectDetailsSubmitted = detailsSubmitted;
   tutor.stripeConnectRequirementsDue = requirementsDue;
   tutor.stripeConnectUpdatedAt = new Date().toISOString();
   persist(db);
