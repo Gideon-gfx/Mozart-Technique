@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: ['.env.local', '.env'] });
 const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
@@ -62,6 +62,7 @@ const cloudinaryClient = require('./data/cloudinary-client');
 const realtime = require('./data/realtime');
 const mongoPersistence = require('./data/mongo-persistence');
 const googleCalendar = require('./data/google-calendar');
+const appleAuth = require('./data/apple-auth');
 const { geocodeAddress, reverseGeocode, distanceKm } = require('./data/geocode');
 
 const MOZART_AI_PROMPT = `You are Mozart AI, a friendly guide for Mozart Techniques. You may answer only about Mozart Techniques features and how to use them, or music learning, instruments, practice and theory. For all other topics, politely say you can help with Mozart Techniques or music only. Never invent site features, payment status, policies or account information. Never ask for passwords, bank details, card details or private keys. Be kind with complaints and suggest the “Talk to a person” option for account-specific issues, disputes or payments.`;
@@ -1446,8 +1447,128 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+function appleWebHostMatches(req) {
+  try {
+    return appleAuth.canUseWeb() && new URL(appleAuth.config().redirectUri).hostname === req.hostname;
+  } catch {
+    return false;
+  }
+}
+
 app.get('/api/config', (req, res) => {
-  res.json({ success: true, googleClientId: GOOGLE_CLIENT_ID });
+  res.json({ success: true, googleClientId: GOOGLE_CLIENT_ID, appleWebEnabled: appleWebHostMatches(req), appleNativeEnabled: appleAuth.canUseNative() });
+});
+
+async function signInWithAppleIdentity(payload, suppliedName, req, isMobileFlow = false) {
+  let user = store.findByAppleId(payload.sub);
+  if (user) return user;
+  const email = String(payload.email || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || ![true, 'true'].includes(payload.email_verified)) {
+    throw new Error('Apple did not provide a verified email address. Please use another sign-in method.');
+  }
+  user = store.findByEmail(email);
+  if (user) {
+    const linked = store.linkAppleId(user.id, payload.sub);
+    if (!linked) throw new Error('This Apple account is already linked to another user.');
+    return linked;
+  }
+  const name = String(suppliedName || '').trim().slice(0, 120) || email.split('@')[0];
+  const countryCode = (await geo.lookupCountryByIp(req.ip)) || null;
+  user = store.createUser({ name, email, appleId: payload.sub, countryCode });
+  store.addNotification(user.id, { type: 'welcome', message: `Welcome to Mozart Techniques, ${user.name}!` });
+  const isMobileSignup = isMobileFlow || req.get('X-Mozart-Client') === 'mobile';
+  mailer.sendWelcomeEmail(user, isMobileSignup).catch((err) => console.error('Welcome email failed:', err.message));
+  if (isMobileSignup) store.markMobileWelcomeEmailSent(user.id);
+  return user;
+}
+
+// Apple posts the browser authorization result to this HTTPS callback. The
+// state is signed and short-lived, so a cross-site form POST does not depend
+// on the Lax session cookie being sent back by the browser.
+app.get('/api/auth/apple/start', (req, res) => {
+  if (!appleWebHostMatches(req)) return res.redirect('/login?apple_error=not_configured');
+  try {
+    const platform = req.query.platform === 'android' ? 'android' : 'web';
+    const state = appleAuth.createState(req.query.redirect, platform, String(req.query.challenge || ''));
+    res.cookie('apple_oauth_state', state, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000, path: '/' });
+    return res.redirect(appleAuth.authorizationUrl(state));
+  } catch (error) {
+    console.error('Apple sign-in start failed:', error.message);
+    return res.redirect('/login?apple_error=unavailable');
+  }
+});
+
+app.post(['/api/auth/apple/callback', '/auth/apple/callback'], express.urlencoded({ extended: false, limit: '16kb' }), async (req, res) => {
+  try {
+    if (req.body.error) throw new Error('Apple sign-in was cancelled or declined.');
+    const cookieValue = (req.get('cookie') || '').split(';').map((part) => part.trim()).find((part) => part.startsWith('apple_oauth_state='));
+    const cookieState = cookieValue ? decodeURIComponent(cookieValue.slice('apple_oauth_state='.length)) : '';
+    const postedState = String(req.body.state || '');
+    const expected = Buffer.from(cookieState);
+    const received = Buffer.from(postedState);
+    if (!expected.length || expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+      throw new Error('Apple sign-in state did not match this browser.');
+    }
+    res.clearCookie('apple_oauth_state', { secure: true, sameSite: 'none', path: '/' });
+    const state = appleAuth.readState(req.body.state);
+    const code = String(req.body.code || '');
+    if (!code || code.length > 4096) throw new Error('Apple did not return an authorization code.');
+    const config = appleAuth.config();
+    if (!appleAuth.canUseWeb()) throw new Error('Apple web sign-in is not configured.');
+    const token = await appleAuth.exchangeCode(code, config.serviceId, config.redirectUri);
+    const payload = await appleAuth.verifyIdentityToken(token, config.serviceId, state.nonce);
+    let name = '';
+    if (req.body.user) {
+      try {
+        const appleUser = JSON.parse(String(req.body.user));
+        name = [appleUser.name?.firstName, appleUser.name?.lastName].filter(Boolean).join(' ');
+      } catch { /* Apple only sends the name on the first authorization. */ }
+    }
+    const user = await signInWithAppleIdentity(payload, name, req, state.platform === 'android');
+    if (state.platform === 'android') {
+      const ticket = store.issueAppleMobileTicket(user.id, state.challenge);
+      if (!ticket) throw new Error('Could not finish Android Apple sign-in.');
+      return res.redirect(303, `mozarttechniques://auth/apple?ticket=${encodeURIComponent(ticket)}`);
+    }
+    req.session.userId = user.id;
+    return res.redirect(303, state.redirect);
+  } catch (error) {
+    console.error('Apple web sign-in failed:', error.message);
+    try {
+      if (appleAuth.readState(req.body?.state).platform === 'android') {
+        return res.redirect(303, 'mozarttechniques://auth/apple?error=failed');
+      }
+    } catch { /* Invalid state: return to the regular sign-in page. */ }
+    return res.redirect(303, '/login?apple_error=failed');
+  }
+});
+
+app.post('/api/auth/apple/mobile-complete', (req, res) => {
+  const user = store.consumeAppleMobileTicket(req.body?.ticket, req.body?.verifier);
+  if (!user) return res.status(401).json({ success: false, error: 'Apple sign-in has expired. Please try again.' });
+  req.session.userId = user.id;
+  maybeSendMobileReturnEmail(user, req);
+  return res.json({ success: true, user: publicUser(user) });
+});
+
+app.post('/api/auth/apple/native', async (req, res) => {
+  try {
+    if (!appleAuth.canUseNative()) {
+      return res.status(503).json({ success: false, error: 'Apple sign-in is not configured on this server.' });
+    }
+    const code = String(req.body?.authorizationCode || '');
+    if (!code || code.length > 4096) return res.status(400).json({ success: false, error: 'Missing Apple authorization code.' });
+    const config = appleAuth.config();
+    const token = await appleAuth.exchangeCode(code, config.bundleId);
+    const payload = await appleAuth.verifyIdentityToken(token, config.bundleId);
+    const user = await signInWithAppleIdentity(payload, req.body?.name, req);
+    req.session.userId = user.id;
+    maybeSendMobileReturnEmail(user, req);
+    return res.json({ success: true, user: publicUser(user) });
+  } catch (error) {
+    console.error('Apple native sign-in failed:', error.message);
+    return res.status(401).json({ success: false, error: 'Could not verify your Apple sign-in. Please try again.' });
+  }
 });
 
 // Emails a 6-digit OTP (data/store.js's createResetToken) via the same
@@ -8842,7 +8963,7 @@ function adminUserView(user) {
     adminCountryCode: user.adminCountryCode || null,
     studentProfile: user.studentProfile || null,
     createdAt: user.createdAt,
-    authMethod: user.googleId ? 'google' : 'password',
+    authMethod: user.appleId ? 'apple' : user.googleId ? 'google' : 'password',
   };
 }
 

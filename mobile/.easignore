@@ -1,0 +1,26 @@
+node_modules
+.expo
+.claude
+.map-build-check
+web-build
+
+# Keep the native Android project, but never upload machine-specific Gradle output.
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/.cxx/
+/android/app/.cxx/
+/android/local.properties
+
+*.log
+.DS_Store
+Thumbs.db
+
+.env
+.env.local
+.env.development
+.env.productione
+
+as-archive
+eas-archive-mobile
+eas-check

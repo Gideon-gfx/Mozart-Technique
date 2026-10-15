@@ -83,6 +83,34 @@
             border-radius: 0.9rem;
         }
 
+        .social-auth-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 10px;
+            align-items: center;
+        }
+        .social-auth-row > div { min-width: 0; }
+        #apple-signin-button {
+            display: flex;
+            width: 100%;
+            min-height: 44px;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid #000;
+            background: #000;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: background-color .2s ease, transform .2s ease;
+        }
+        #apple-signin-button:hover { background: #333; transform: translateY(-1px); }
+        #apple-signin-button .fa-apple { font-size: 20px; }
+        @media (max-width: 400px) {
+            .social-auth-row { grid-template-columns: 1fr; }
+        }
+
         /* Tab styling for Sign In / Create Account */
         .tab {
             font-size: 1.125rem; /* text-lg */
@@ -230,8 +258,15 @@
                     </div>
                 </div>
 
-                <!-- Real Google Identity Services button renders here once configured -->
-                <div id="google-signin-container" class="flex justify-center"></div>
+                <div class="social-auth-row">
+                    <!-- Real Google Identity Services button renders here once configured -->
+                    <div id="google-signin-container" class="flex justify-center"></div>
+                    <div id="apple-signin-container">
+                        <button id="apple-signin-button" type="button" aria-label="Continue with Apple">
+                            <i class="fa-brands fa-apple" aria-hidden="true"></i><span>Continue with Apple</span>
+                        </button>
+                    </div>
+                </div>
                 <p id="google-unavailable" class="hidden text-center text-sm text-gray-400 py-3">
                     Google sign-in is not configured yet. Use email and password.
                 </p>
@@ -366,9 +401,22 @@
         }
         window.handleGoogleCredential = handleGoogleCredential;
 
+        let appleWebEnabled = false;
+        document.getElementById('apple-signin-button').addEventListener('click', () => {
+            if (!appleWebEnabled) {
+                const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+                showAlert(local
+                    ? 'Apple sign-in needs the registered HTTPS website. Test it at mozarttechniques.com after deployment.'
+                    : 'Apple sign-in is not configured on this website yet.', 'error');
+                return;
+            }
+            window.location.assign(`/api/auth/apple/start?redirect=${encodeURIComponent(getRedirectTarget())}`);
+        });
+
         async function initGoogleSignIn() {
             const configRes = await fetch('/api/config');
             const config = await configRes.json();
+            appleWebEnabled = Boolean(config.appleWebEnabled);
 
             if (!config.googleClientId) {
                 document.getElementById('google-unavailable').classList.remove('hidden');
@@ -386,7 +434,7 @@
                 });
                 google.accounts.id.renderButton(
                     document.getElementById('google-signin-container'),
-                    { theme: 'outline', size: 'large', width: 320 }
+                    { theme: 'outline', size: 'large', width: Math.min(200, document.getElementById('google-signin-container').clientWidth) }
                 );
             };
             document.head.appendChild(script);
@@ -394,6 +442,11 @@
         initGoogleSignIn().catch(() => {
             document.getElementById('google-unavailable').classList.remove('hidden');
         });
+
+        const appleError = new URLSearchParams(window.location.search).get('apple_error');
+        if (appleError) showAlert(appleError === 'not_configured'
+            ? 'Apple sign-in is not configured yet.'
+            : 'Apple sign-in could not be completed. Please try again.', 'error');
 
         // If already signed in, skip straight to the intended destination.
         getSession().then(({ user }) => {

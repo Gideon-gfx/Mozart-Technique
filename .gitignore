@@ -1,6 +1,8 @@
 node_modules
 .env
-mobile/
+.env.local
+*.p8
+*.p8.pem
 data/*.json
 public/uploads
 

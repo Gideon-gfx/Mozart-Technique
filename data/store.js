@@ -35,7 +35,12 @@ function findByGoogleId(googleId) {
   return db.users.find((u) => u.googleId === googleId) || null;
 }
 
-function createUser({ name, email, passwordHash = null, googleId = null, role = 'user', countryCode = null }) {
+function findByAppleId(appleId) {
+  const db = load();
+  return db.users.find((u) => u.appleId === appleId) || null;
+}
+
+function createUser({ name, email, passwordHash = null, googleId = null, appleId = null, role = 'user', countryCode = null }) {
   const db = load();
   const user = {
     id: db.nextId++,
@@ -43,6 +48,7 @@ function createUser({ name, email, passwordHash = null, googleId = null, role = 
     email,
     passwordHash,
     googleId,
+    appleId,
     role,
     countryCode,
     purchasedCourses: [],
@@ -590,6 +596,41 @@ function linkGoogleId(userId, googleId) {
   return user;
 }
 
+function linkAppleId(userId, appleId) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user || db.users.some((other) => other.id !== userId && other.appleId === appleId)) return null;
+  user.appleId = appleId;
+  persist(db);
+  return user;
+}
+
+function issueAppleMobileTicket(userId, challenge) {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user || !/^[a-f0-9]{64}$/.test(challenge)) return null;
+  const ticket = crypto.randomBytes(32).toString('base64url');
+  user.appleMobileTicketHash = crypto.createHash('sha256').update(ticket).digest('hex');
+  user.appleMobileTicketChallenge = challenge;
+  user.appleMobileTicketExpiresAt = Date.now() + 5 * 60 * 1000;
+  persist(db);
+  return ticket;
+}
+
+function consumeAppleMobileTicket(ticket, verifier) {
+  if (typeof ticket !== 'string' || typeof verifier !== 'string' || ticket.length > 128 || verifier.length > 128) return null;
+  const db = load();
+  const ticketHash = crypto.createHash('sha256').update(ticket).digest('hex');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('hex');
+  const user = db.users.find((u) => u.appleMobileTicketHash === ticketHash && u.appleMobileTicketChallenge === challenge && u.appleMobileTicketExpiresAt > Date.now());
+  if (!user) return null;
+  delete user.appleMobileTicketHash;
+  delete user.appleMobileTicketChallenge;
+  delete user.appleMobileTicketExpiresAt;
+  persist(db);
+  return user;
+}
+
 function setRole(userId, role) {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
@@ -784,7 +825,7 @@ function getThreadPrefs(userId) {
 }
 
 module.exports = {
-  findByEmail, findById, findByGoogleId, createUser, linkGoogleId, setCountry, setName, setProfileDisplayRole, setPhoto,
+  findByEmail, findById, findByGoogleId, findByAppleId, createUser, linkGoogleId, linkAppleId, issueAppleMobileTicket, consumeAppleMobileTicket, setCountry, setName, setProfileDisplayRole, setPhoto,
   setCalendarTokens, clearCalendarTokens,
   markActive, markSeen, markReengagementEmailSent, getBadges, addNotification, recordRecentlyViewed, getRecentlyViewed, clearPushPending, markNotificationsRead, markNotificationRead, markOrgTutorNotificationsRead, setPushSubscription, removePushSubscription, setExpoPushToken, removeExpoPushToken, markAppOnboardingSeen, markMobileWelcomeEmailSent, markTourSeen, setRole, setCountryAdmin, setPayoutDetails, listUsers,
   createResetToken, findByResetToken, resetPassword,
