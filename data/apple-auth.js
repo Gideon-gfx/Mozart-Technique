@@ -32,7 +32,10 @@ function canUseNative() {
 
 function canUseWeb() {
   const value = config();
-  return Boolean(canUseNative() && value.serviceId && value.redirectUri && /^https:\/\//i.test(value.redirectUri));
+  // The web Service ID is independent of the iOS app's bundle ID. A web-only
+  // deployment must not be disabled just because native sign-in is unset.
+  return Boolean(value.teamId && value.keyId && value.privateKey && value.serviceId
+    && value.redirectUri && /^https:\/\//i.test(value.redirectUri));
 }
 
 function safeRedirect(value) {
