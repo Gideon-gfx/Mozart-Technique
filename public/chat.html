@@ -1432,6 +1432,7 @@
                 const data = await res.json();
                 if (!data.success) return;
                 myRole = data.role;
+                document.getElementById('clip-tools-btn').innerHTML = `<i class="fa-solid fa-chalkboard-user"></i> ${myRole === 'tutor' ? 'Teaching tools' : 'Student tools'}`;
                 if (myRole === 'tutor') document.getElementById('clip-library-btn').classList.remove('hidden');
                 // Messages the current user deleted "for me" stay on the server
                 // (the sender and anyone else still sees them) but never render
@@ -1563,7 +1564,7 @@
             if (!btn) return;
             closeClipMenu();
             const clip = btn.dataset.clip;
-            if (clip === 'teaching-tools') { window.MozartTeachingTools.open(); return; }
+            if (clip === 'teaching-tools') { window.MozartTeachingTools.open({ role: myRole === 'tutor' ? 'teacher' : 'student' }); return; }
             if (clip === 'doc') document.getElementById('doc-input').click();
             else if (clip === 'media') document.getElementById('media-input').click();
             else if (clip === 'audio') document.getElementById('audio-input').click();

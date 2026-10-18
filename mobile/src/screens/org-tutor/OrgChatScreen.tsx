@@ -685,7 +685,8 @@ export default function OrgChatScreen({ navigation, route }: Props) {
         onCamera={pickCamera}
         onAudio={pickAudio}
         onLibrary={() => { setClipMenuOpen(false); setClipPickerOpen(true); }}
-        onTeachingTools={mode === 'org-tutor' ? () => { setClipMenuOpen(false); navigation.navigate('TeachingTools'); } : undefined}
+        onTeachingTools={() => { setClipMenuOpen(false); navigation.navigate('TeachingTools', { role: mode === 'org-student' ? 'student' : 'teacher' }); }}
+        toolsLabel={mode === 'org-student' ? 'Student tools' : 'Teaching tools'}
         onPoll={() => { setClipMenuOpen(false); setPollSheetOpen(true); }}
         onLocation={shareLocation}
         colors={colors}
@@ -879,6 +880,7 @@ function ClipMenu({
   onAudio,
   onLibrary,
   onTeachingTools,
+  toolsLabel,
   onPoll,
   onLocation,
   colors,
@@ -891,6 +893,7 @@ function ClipMenu({
   onAudio: () => void;
   onLibrary: () => void;
   onTeachingTools?: () => void;
+  toolsLabel?: string;
   onPoll: () => void;
   onLocation: () => void;
   colors: ThemeColors;
@@ -901,7 +904,7 @@ function ClipMenu({
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
         <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.sheetHandle} />
-          {onTeachingTools ? <Pressable style={styles.popoverItem} onPress={onTeachingTools}><Ionicons name="musical-notes-outline" size={16} color={colors.text} /><Text style={styles.popoverItemText}>Teaching tools</Text></Pressable> : null}
+          {onTeachingTools ? <Pressable style={styles.popoverItem} onPress={onTeachingTools}><Ionicons name="musical-notes-outline" size={16} color={colors.text} /><Text style={styles.popoverItemText}>{toolsLabel || 'Teaching tools'}</Text></Pressable> : null}
           <Pressable style={styles.popoverItem} onPress={onDocument}>
             <Ionicons name="document-text-outline" size={16} color={colors.text} />
             <Text style={styles.popoverItemText}>Documents</Text>

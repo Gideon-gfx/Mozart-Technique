@@ -247,7 +247,7 @@ export type OrgStudentMoreStackParamList = {
 // not the same screen reached two ways - so it's pushed here, covering the
 // tab bar, rather than living inside MoreStack.
 export type MainStackParamList = {
-  TeachingTools: undefined;
+  TeachingTools: { role?: 'teacher' | 'student' } | undefined;
   Tabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Profile: undefined;
   Notifications: undefined;

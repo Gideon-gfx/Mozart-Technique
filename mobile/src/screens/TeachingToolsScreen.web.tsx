@@ -16,7 +16,7 @@ export default function TeachingToolsScreen({ navigation }: NativeStackScreenPro
         <Text style={{ color: colors.primaryRed, fontFamily: fonts.bodyBold, fontSize: 15 }}>‹ Back to chat</Text>
       </Pressable>
       {React.createElement('iframe', {
-        src: `${API_BASE_URL}/teaching-tools/index.html`,
+        src: `${API_BASE_URL}/teaching-tools/index.html?v=20261018-score-drawing-1`,
         title: 'Mozart teaching tools',
         allow: 'microphone; midi',
         style: { border: 0, width: '100%', flex: 1 },

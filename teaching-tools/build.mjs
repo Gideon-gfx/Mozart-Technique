@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const out = new URL("../public/teaching-tools/", import.meta.url);
 await mkdir(out, { recursive: true });
+await build({ entryPoints: ['src/live-pitch-worklet.js'], bundle: true, format: 'iife', outfile: fileURLToPath(new URL('live-pitch-worklet.js', out)), minify: true, legalComments: 'linked', target: ['es2022'] });
 await build({ entryPoints: ['src/pose-worker.js'], bundle: true, format: 'iife', outfile: fileURLToPath(new URL('pose-worker.js', out)), minify: true, legalComments: 'linked', target: ['es2022'] });
 await cp('node_modules/@mediapipe/tasks-vision/wasm', new URL('vision-wasm/', out), { recursive: true });
 await build({
@@ -16,8 +17,9 @@ await build({
   legalComments: "linked",
   target: ["es2022"],
 });
-for (const name of ["index.html", "styles.css"])
+for (const name of ["index.html", "styles.css", "studio-background.png"])
   await copyFile(new URL(`src/${name}`, import.meta.url), new URL(name, out));
+await cp(new URL('src/fonts/', import.meta.url), new URL('fonts/', out), { recursive: true });
 // Preserve the exact distributed license texts, including transitive dependencies.
 async function licenses(root, prefix = "") {
   for (const entry of await readdir(root, { withFileTypes: true })) {

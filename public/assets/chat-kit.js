@@ -213,7 +213,7 @@
           <button type="button" data-clip="media"><i class="fa-regular fa-image"></i> Photos &amp; Videos</button>
           <button type="button" data-clip="camera"><i class="fa-solid fa-camera"></i> Camera</button>
           <button type="button" data-clip="audio"><i class="fa-solid fa-music"></i> Audio</button>
-          <button type="button" data-clip="teaching-tools"><i class="fa-solid fa-chalkboard-user"></i> Teaching Tools</button>
+          <button type="button" data-clip="teaching-tools"><i class="fa-solid fa-chalkboard-user"></i> ${cfg.me?.role === 'student' ? 'Student tools' : 'Teaching tools'}</button>
           <button type="button" data-clip="library" class="${cfg.library ? '' : 'hidden'}"><i class="fa-solid fa-photo-film"></i> ${cfg.library ? escapeHtml(cfg.library.label || 'Library') : ''}</button>
           <button type="button" data-clip="poll"><i class="fa-solid fa-square-poll-vertical"></i> Poll</button>
           <button type="button" data-clip="location" class="${cfg.allowLocation ? '' : 'hidden'}"><i class="fa-solid fa-location-dot"></i> Location</button>
@@ -550,7 +550,7 @@
       if (!btn) return;
       closeClipMenu();
       const clip = btn.dataset.clip;
-      if (clip === 'teaching-tools') { if (window.MozartTeachingTools) window.MozartTeachingTools.open(); else cfg.onAlert('Teaching tools are not loaded on this page. Please refresh.', 'error'); return; }
+      if (clip === 'teaching-tools') { if (window.MozartTeachingTools) window.MozartTeachingTools.open({ role: cfg.me?.role === 'student' ? 'student' : 'teacher' }); else cfg.onAlert('Teaching tools are not loaded on this page. Please refresh.', 'error'); return; }
       if (clip === 'doc') el('[data-ck-doc-input]').click();
       else if (clip === 'media') el('[data-ck-media-input]').click();
       else if (clip === 'audio') el('[data-ck-audio-input]').click();

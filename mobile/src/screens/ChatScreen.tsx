@@ -1226,7 +1226,8 @@ export default function ChatScreen({ navigation, route }: Props) {
         onPoll={() => { setClipMenuOpen(false); setPollSheetOpen(true); }}
         onLocation={shareLocation}
         onLibrary={isTutorViewer ? () => { setClipMenuOpen(false); setLibraryPickerOpen(true); } : undefined}
-        onTeachingTools={isTutorViewer ? () => { setClipMenuOpen(false); navigation.navigate('TeachingTools'); } : undefined}
+        onTeachingTools={() => { setClipMenuOpen(false); navigation.navigate('TeachingTools', { role: isTutorViewer ? 'teacher' : 'student' }); }}
+        toolsLabel={isTutorViewer ? 'Teaching tools' : 'Student tools'}
         showLocation={record?.lessonType ? record.lessonType !== 'online' : false}
         colors={colors}
       />
@@ -1751,6 +1752,7 @@ function ClipMenu({
   onLocation,
   onLibrary,
   onTeachingTools,
+  toolsLabel,
   showLocation,
   colors,
 }: {
@@ -1764,6 +1766,7 @@ function ClipMenu({
   onLocation: () => void;
   onLibrary?: () => void;
   onTeachingTools?: () => void;
+  toolsLabel?: string;
   showLocation: boolean;
   colors: ThemeColors;
 }) {
@@ -1795,7 +1798,7 @@ function ClipMenu({
               <Text style={styles.popoverItemText}>Tutor library</Text>
             </Pressable>
           ) : null}
-          {onTeachingTools ? <Pressable style={styles.popoverItem} onPress={onTeachingTools}><Ionicons name="musical-notes-outline" size={16} color={colors.text} /><Text style={styles.popoverItemText}>Teaching tools</Text></Pressable> : null}
+          {onTeachingTools ? <Pressable style={styles.popoverItem} onPress={onTeachingTools}><Ionicons name="musical-notes-outline" size={16} color={colors.text} /><Text style={styles.popoverItemText}>{toolsLabel || 'Teaching tools'}</Text></Pressable> : null}
           <Pressable style={styles.popoverItem} onPress={onPoll}>
             <Ionicons name="bar-chart" size={16} color={colors.text} />
             <Text style={styles.popoverItemText}>Poll</Text>

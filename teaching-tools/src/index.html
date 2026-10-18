@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
-    <title>Teaching tools · Mozart Techniques</title>
+    <title>Music studio · Mozart Techniques</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -20,17 +20,18 @@
         src: url("./academico.woff2");
       }
     </style>
-    <header>
-      <div>
+    <div class="studio-art" aria-hidden="true"></div>
+    <div class="studio-topbar"><button id="studio-back" class="back-button" aria-label="Back to chat"><span aria-hidden="true">←</span><span id="back-label">Back to chat</span></button><span id="studio-context">Teaching tools</span></div>
+    <header class="studio-header">
+      <div class="studio-intro">
         <small>MOZART TECHNIQUES</small>
-        <h1>Teaching studio</h1>
-        <p>Music, Dance and Theatre tools for your lesson. Your files stay on this device.</p>
+        <h1>Music <span>Studio</span></h1>
+        <p>Music, Dance and Theatre tools for students and teachers. Your files stay on this device.</p>
       </div>
-      <button id="stop-all" class="secondary">Stop all audio</button>
     </header>
     <nav aria-label="Teaching tools" id="tabs"></nav>
     <p id="status" role="status" aria-live="polite"></p>
-    <main id="tool"></main>
+    <main id="tool" hidden tabindex="-1"></main>
     <footer>
       Use headphones to avoid feedback. Audio starts only after you tap a
       control. This studio does not transmit sound to your lesson call.

@@ -32,6 +32,7 @@ const tools = {
   tuner: "Tuner & spectrum",
   waveform: "Waveforms",
   notation: "Manuscript",
+  transcriber: "Audio to score",
   theory: "Aural practice",
   notebook: "Notebook",
   instruments: "Sampled instruments",
@@ -41,6 +42,34 @@ const tools = {
   projection: "Vocal projection",
   lighting: "Stage lighting",
 };
+const descriptions = ['Keep perfect time', 'Create and play', 'Tune with precision', 'Visualize your sound', 'Write music', 'Convert audio', 'Train your ear', 'Take lesson notes', 'Explore sounds', 'Plan performances', 'Improve movement', 'Practice together', 'Build your voice', 'Design your stage'];
+const iconPaths = [
+  '<path d="m9 3-6 18h18L15 3zM8 16h8M12 16l5-10M12 4v4"/>',
+  '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v9h3V4m6 0v9h3V4M7 13v7m5-16v16m5-7v7"/>',
+  '<path d="M2 12h3l2-7 3 14 3-17 3 19 2-9h4"/>',
+  '<path d="M2 12c4-17 6 17 10 0s6 17 10 0"/>',
+  '<path d="M14 2H5v20h14V7zM14 2v6h5M8 12h8m-8 4h8m-8 3h5"/>',
+  '<path d="M14 2H5v20h14V7zM14 2v6h5M12 11v6m0-5 4-1v5"/><ellipse cx="10" cy="17" rx="2" ry="1.5"/><ellipse cx="14" cy="16" rx="2" ry="1.5"/>',
+  '<path d="M7 10a5 5 0 1 1 9 3c-2 2-3 2-3 5a3 3 0 0 1-6 0m3-8a2 2 0 1 1 4 0c0 2-3 2-3 5"/>',
+  '<rect x="5" y="2" width="15" height="20" rx="2"/><path d="M3 6h4m-4 4h4m-4 4h4m-4 4h4M16 2v20"/>',
+  '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  '<circle cx="12" cy="7" r="3"/><path d="M6 21v-3a6 6 0 0 1 12 0v3zm-4-3v-2a4 4 0 0 1 4-4m16 6v-2a4 4 0 0 0-4-4M3 5a3 3 0 0 1 2 5m16-5a3 3 0 0 0-2 5"/>',
+  '<circle cx="12" cy="4" r="2"/><path d="m4 11 8-3 8 3m-8-3v7m0 0-4 7m4-7 4 7"/>',
+  '<circle cx="8" cy="7" r="3"/><circle cx="18" cy="8" r="2"/><path d="M2 21v-3a6 6 0 0 1 12 0v3zm14-7a5 5 0 0 1 6 5v2h-5"/>',
+  '<rect x="8" y="2" width="8" height="14" rx="4"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/>',
+  '<path d="M8 16a7 7 0 1 1 8 0l-1 4H9zm1 7h6M12 0v1M1 10h2m18 0h2M4 3l2 2m12 0 2-2"/>'
+];
+const studentView = new URLSearchParams(location.search).get('role') === 'student';
+$('studio-context').textContent = studentView ? 'Student tools' : 'Teaching tools';
+$('tabs').setAttribute('aria-label', studentView ? 'Student tools' : 'Teaching tools');
+function showMenu() {
+  stop(); active = ''; status();
+  document.body.classList.remove('tool-open');
+  $('tabs').hidden = false; $('tool').hidden = true; panel('');
+  $('back-label').textContent = 'Back to chat';
+  $('studio-back').setAttribute('aria-label', 'Back to chat');
+  document.title = 'Music Studio · Mozart Techniques';
+}
 function action(id, fn) {
   $(id).addEventListener("click", async () => {
     try {
@@ -62,14 +91,80 @@ async function audio() {
   await Tone.start();
 }
 function panel(html) {
+  $('tool').classList.remove('digital-score', 'split-tool');
   $("tool").innerHTML = html;
 }
+function separateDocumentation(name) {
+  if (name === 'transcriber' || name === 'notation') return; // Shared score workspaces have their own tabs.
+  const root = $('tool');
+  root.classList.add('split-tool');
+  const workspace = document.createElement('section');
+  workspace.id = 'tool-workspace';
+  workspace.setAttribute('role', 'tabpanel');
+  const docs = document.createElement('section');
+  docs.id = 'tool-documentation';
+  docs.setAttribute('role', 'tabpanel');
+  docs.hidden = true;
+  const title = document.createElement('h2');
+  title.textContent = tools[name];
+  docs.append(title);
+  const children = [...root.childNodes];
+  children.forEach(node => workspace.append(node));
+  // Guides sometimes contain useful preset/example controls. Keep those
+  // controls in the workspace, moving the explanatory copy instead.
+  workspace.querySelectorAll('.tool-guide').forEach(guide => {
+    [...guide.children].forEach(node => {
+      if (node.matches('button, input, select, textarea, label, [role="status"], [aria-live]') || node.querySelector('button, input, select, textarea, [role="status"], [aria-live]')) {
+        guide.before(node);
+      }
+    });
+    docs.append(guide);
+  });
+  workspace.querySelectorAll(':scope > p, :scope > .tool-description, :scope > .muted').forEach(node => {
+    if (!workspace.contains(node) || node.id || node.hasAttribute('role') || node.hasAttribute('aria-live') || node.querySelector('button,input,select,textarea')) return;
+    docs.append(node);
+  });
+  // The tool name is already visible in the workspace tab.
+  workspace.querySelectorAll(':scope > h2, :scope > small').forEach(node => node.remove());
+  const safety = document.querySelector('body > footer, .studio-footer');
+  if (safety) { const note = document.createElement('p'); note.textContent = safety.textContent.trim(); docs.append(note); }
+  const tabs = document.createElement('div');
+  tabs.className = 'score-view-tabs'; tabs.setAttribute('role', 'tablist');
+  const documentation = document.createElement('button'), working = document.createElement('button');
+  documentation.id = 'tool-doc-tab'; working.id = 'tool-workspace-tab';
+  documentation.textContent = 'Documentation'; working.textContent = tools[name];
+  for (const button of [documentation, working]) button.setAttribute('role', 'tab');
+  documentation.setAttribute('aria-controls', docs.id); working.setAttribute('aria-controls', workspace.id);
+  const switchView = guide => {
+    docs.hidden = !guide; workspace.hidden = guide;
+    documentation.setAttribute('aria-selected', String(guide)); working.setAttribute('aria-selected', String(!guide));
+    documentation.tabIndex = guide ? 0 : -1; working.tabIndex = guide ? -1 : 0;
+    if (!guide) window.dispatchEvent(new Event('resize'));
+  };
+  documentation.onclick = () => switchView(true); working.onclick = () => switchView(false);
+  tabs.onkeydown = event => {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault(); const guide = event.key === 'Home' || (event.key !== 'End' && docs.hidden);
+    switchView(guide); (guide ? documentation : working).focus();
+  };
+  tabs.append(documentation, working); root.append(tabs, workspace, docs); switchView(false);
+}
 async function saveFile(blob, name) {
+  if (window.ReactNativeWebView && ['mozart-score.png', 'mozart-transcription.musicxml'].includes(name)) {
+    const encoding = blob.type === 'image/png' ? 'base64' : 'utf8';
+    const data = encoding === 'base64'
+      ? await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Could not prepare the score image.')); reader.readAsDataURL(blob); })
+      : await blob.text();
+    if (data.length > 6 * 1024 * 1024) throw new Error('This score file is too large. Try saving MusicXML instead.');
+    window.ReactNativeWebView.postMessage(JSON.stringify({type: 'save-score', name, mimeType: blob.type, encoding, data}));
+    return;
+  }
   if (window.ReactNativeWebView && blob.type.startsWith("text/plain")) {
     window.ReactNativeWebView.postMessage(
       JSON.stringify({
         type: "share-notes",
         text: (await blob.text()).slice(0, 100000),
+        name,
       }),
     );
     return;
@@ -85,8 +180,30 @@ const noteNames = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
 
 function metronome() {
   panel(
-    '<h2>Keep the pulse</h2><label>Tempo (BPM) <input id="bpm" type="number" value="80" min="30" max="240"></label><label>Beats per bar <select id="beats"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label><div class="readout" id="beat">—</div><div class="row"><button id="start">Start</button><button id="stop" class="secondary">Stop</button></div>',
+    `<small>METRONOME</small><h2>Keep the pulse</h2><p class="tool-description">Set your tempo and time signature. Tap start to hear the beat.</p>
+    <div class="metronome-layout"><div class="metro-settings">
+    <section class="metro-control"><div class="metro-control-top"><span class="metro-symbol" aria-hidden="true">♪</span><label for="bpm">Tempo (BPM)<input id="bpm" type="number" value="80" min="30" max="240"></label></div><div class="metro-slider"><button id="bpm-minus" class="secondary" aria-label="Decrease tempo">−</button><input id="bpm-range" type="range" min="30" max="240" value="80" aria-label="Tempo slider"><button id="bpm-plus" class="secondary" aria-label="Increase tempo">+</button></div></section>
+    <section class="metro-control"><div class="metro-control-top"><span class="metro-symbol" aria-hidden="true">≋</span><label for="beats">Beats per bar<select id="beats">${Array.from({length:11},(_,i)=>`<option${i===2?' selected':''}>${i+2}</option>`).join('')}</select></label></div><div class="metro-slider"><button id="beats-minus" class="secondary" aria-label="Decrease beats">−</button><input id="beats-range" type="range" min="2" max="12" value="4" aria-label="Beats slider"><button id="beats-plus" class="secondary" aria-label="Increase beats">+</button></div></section>
+    </div><div class="metro-playback"><div><button id="start" class="metro-start" aria-label="Start" aria-pressed="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m10 5 17 11-17 11z" fill="currentColor"/></svg></button><span class="metro-caption">START</span></div><div><button id="stop" class="metro-stop secondary" aria-label="Stop"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="7" width="18" height="18" rx="3" fill="currentColor"/></svg></button><span class="metro-caption">STOP</span></div></div></div><div class="metro-beat" id="beat" aria-live="off">—</div>`,
   );
+  const syncRange = (name) => {
+    $(name + '-range').value = $(name).value;
+    const slider = $(name + '-range');
+    slider.style.setProperty('--progress', `${(Number(slider.value)-Number(slider.min))/(Number(slider.max)-Number(slider.min))*100}%`);
+  };
+  for (const name of ['bpm', 'beats']) {
+    const update = (value) => {
+      const slider = $(name + '-range');
+      $(name).value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
+      syncRange(name);
+      $(name).dispatchEvent(new Event('change'));
+    };
+    $(name + '-range').oninput = () => update(Number($(name + '-range').value));
+    action(name + '-minus', () => update(Number($(name).value) - 1));
+    action(name + '-plus', () => update(Number($(name).value) + 1));
+    $(name).addEventListener('change', () => syncRange(name));
+    syncRange(name);
+  }
   const synth = new Tone.Synth({
     oscillator: { type: "sine" },
     envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
@@ -125,12 +242,14 @@ function metronome() {
       }, time);
     }, "4n");
     Tone.getTransport().start();
+    $('start').setAttribute('aria-pressed', 'true');
   });
   action("stop", () => {
     startId++;
     Tone.getTransport().stop();
     Tone.getTransport().cancel();
     playing = false;
+    $('start').setAttribute('aria-pressed', 'false');
     $("beat").textContent = "—";
   });
   cleanup = () => {
@@ -366,55 +485,11 @@ function tuner() {
   cleanup = () => { disposed = true; release(); };
 }
 async function notation() {
-  panel('<h2>Manuscript</h2><label>Notes (1–16, separated by spaces or commas)<input id="notes" value="C4 D4 E4 G4" style="width:100%" autocomplete="off" spellcheck="false"></label><p class="muted">Examples: C D E G · c4 d4 e4 g4 · C#4 Eb4 F4 G4. Octaves 2–6; missing octave means 4. Use R for a quarter rest. Updates as you type, or press Enter / Draw notes.</p><button id="draw" disabled>Draw notes</button><p id="notation-status" role="status"></p><div id="notation"></div>');
   const ticket = generation;
-  let timer;
-  cleanup = () => clearTimeout(timer);
-  const { Renderer, Stave, StaveNote, Formatter, Voice, VexFlow, Accidental } = await import("vexflow");
-  await Promise.all([document.fonts.load("16px Bravura"), document.fonts.load("16px Academico")]);
+  const { transcriber } = await import('./live-transcriber.js');
   if (ticket !== generation) return;
-  VexFlow.setFonts("Bravura", "Academico");
-  const draw = () => {
-    const raw = $("notes").value.trim().replace(/♯/g, "#").replace(/♭/g, "b");
-    const tokens = raw.split(/[\s,|]+/).filter(Boolean);
-    if (!tokens.length || tokens.length > 16) throw new Error("Enter between 1 and 16 notes.");
-    const notes = tokens.map(token => {
-      if (/^(r|-)$/i.test(token)) return { rest: true };
-      const match = /^([a-g])([#b]?)(?:\/?([2-6]))?$/i.exec(token);
-      if (!match) throw new Error('"' + token + '" is not a note. Try C4, c#4, Eb4, or R.');
-      return { letter: match[1].toLowerCase(), accidental: match[2].toLowerCase(), octave: match[3] || "4" };
-    });
-    const output = document.createElement("div");
-    const renderer = new Renderer(output, Renderer.Backends.SVG);
-    const height = Math.ceil(notes.length / 4) * 160 + 20;
-    renderer.resize(520, height);
-    const ctx = renderer.getContext();
-    for (let start = 0; start < notes.length; start += 4) {
-      const stave = new Stave(10, 30 + (start / 4) * 160, 500).addClef("treble").setContext(ctx);
-      if (start === 0) stave.addTimeSignature("4/4");
-      stave.draw();
-      const tickables = notes.slice(start, start + 4).map(note => {
-        const item = new StaveNote({ keys: [note.rest ? "b/4" : note.letter + note.accidental + "/" + note.octave], duration: note.rest ? "qr" : "q" });
-        if (note.accidental) item.addModifier(new Accidental(note.accidental), 0);
-        return item;
-      });
-      const voice = new Voice({ numBeats: 4, beatValue: 4 }).setMode(Voice.Mode.SOFT).addTickables(tickables);
-      new Formatter().joinVoices([voice]).format([voice], 375);
-      voice.draw(ctx, stave);
-    }
-    const svg = output.querySelector("svg");
-    svg.setAttribute("viewBox", "0 0 520 " + height);
-    svg.style.width = "100%"; svg.style.height = "auto";
-    $("notation").replaceChildren(output);
-    $("notation-status").textContent = notes.length + " quarter-note entries.";
-    status();
-  };
-  const update = () => { clearTimeout(timer); try { draw(); } catch(error) { $("notation-status").textContent = error.message; } };
-  $("draw").disabled = false;
-  $("draw").onclick = update;
-  $("notes").oninput = () => { clearTimeout(timer); timer = setTimeout(update, 250); };
-  $("notes").onkeydown = event => { if (event.key === "Enter") { event.preventDefault(); update(); } };
-  draw();
+  const dispose = await transcriber({panel, action, status, saveFile, mode:'manuscript', isCurrent:()=>ticket===generation});
+  if(ticket===generation) cleanup=dispose; else dispose?.();
 }
 function theory() {
   panel(
@@ -545,6 +620,17 @@ const renderers = {
     cleanup = multitrack({ panel, action, status, saveFile });
   },
   notation,
+  transcriber: async () => {
+    const ticket = generation;
+    const { transcriber } = await import("./live-transcriber.js");
+    if (ticket !== generation) return;
+    const dispose = await transcriber({ panel, action, status, saveFile, isCurrent: () => ticket === generation,
+      onPermissionStart: () => { pendingPermissions++; },
+      onPermissionEnd: () => { pendingPermissions = Math.max(0, pendingPermissions - 1); },
+    });
+    if (ticket === generation) cleanup = dispose;
+    else dispose?.();
+  },
   theory,
   notebook,
   instruments: () => {
@@ -552,43 +638,65 @@ const renderers = {
   },
 };
 async function select(name) {
+  if (!Object.hasOwn(renderers, name)) { showMenu(); return; }
   stop();
   active = name;
   status();
-  document
-    .querySelectorAll("#tabs button")
-    .forEach((b) =>
-      b.setAttribute("aria-selected", String(b.dataset.tool === name)),
-    );
+  document.body.classList.add('tool-open');
+  $('tabs').hidden = true; $('tool').hidden = false;
+  $('back-label').textContent = 'All tools';
+  $('studio-back').setAttribute('aria-label', 'Back to all tools');
+  document.title = `${tools[name]} · Mozart Techniques`;
+  panel(`<div class="tool-loading" role="status">Opening ${tools[name]}…</div>`);
   try {
     await renderers[name]();
+    if (active === name) { separateDocumentation(name); $('tool').focus({ preventScroll: true }); }
   } catch (e) {
     status(e.message || "Could not open this tool.");
   }
 }
-for (const [id, label] of Object.entries(tools)) {
+for (const [index, [id, label]] of Object.entries(tools).entries()) {
   const b = document.createElement("button");
-  b.textContent = label;
+  b.className = 'tool-card';
+  b.setAttribute('aria-label', label);
+  b.innerHTML = `<svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg><span class="tool-card-copy"><strong>${label}</strong><span>${descriptions[index]}</span></span><span class="tool-chevron" aria-hidden="true">›</span>`;
   b.dataset.tool = id;
-  b.onclick = () => select(id);
+  b.onclick = () => { location.hash = id; };
   $("tabs").append(b);
 }
-$("stop-all").onclick = () => {
-  select(active);
-  status("Audio stopped.");
-};
 window.addEventListener("pagehide", stop);
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden && !pendingPermissions) {
+function pauseTools() {
+  if (!pendingPermissions) {
     pausedForVisibility = true;
     stop();
     status(
       "Tools paused while this screen is hidden. Select a tool to restart.",
     );
-  } else if (!document.hidden && pausedForVisibility) {
+  }
+}
+function resumeTools() {
+  if (pausedForVisibility) {
     pausedForVisibility = false;
     select(active);
     status('Tools reset after returning to this screen. Audio remains off.');
   }
-});
-select("metronome");
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseTools(); else resumeTools(); });
+document.addEventListener('mozart-tools-pause', pauseTools);
+document.addEventListener('mozart-tools-resume', resumeTools);
+function routeTool() {
+  const name = location.hash.slice(1);
+  if (Object.hasOwn(tools, name)) select(name); else showMenu();
+}
+$('studio-back').onclick = () => {
+  if (active) { location.hash = ''; return; }
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'close-tools' }));
+  } else if (window.parent !== window) {
+    window.parent.postMessage({ type: 'mozart-close-tools' }, location.origin);
+  } else if (document.referrer && new URL(document.referrer).origin === location.origin) {
+    history.back();
+  } else { location.assign('/messages'); }
+};
+window.addEventListener('hashchange', routeTool);
+routeTool();
