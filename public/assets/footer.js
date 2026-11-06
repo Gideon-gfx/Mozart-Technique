@@ -48,6 +48,8 @@ function mountMozartFooter() {
       .mt-footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .55rem; }
       .mt-footer a { color: #555555; text-decoration: none; transition: color .2s ease; }
       .mt-footer a:hover { color: #cc0000; }
+      .mt-footer-app-store { display: inline-block; margin-top: .9rem; }
+      .mt-footer-app-store img { display: block; width: 176px; max-width: 100%; height: auto; }
       .mt-footer-social { display: flex; gap: .75rem; flex-wrap: wrap; }
       .mt-footer-social a {
         width: 2.5rem; height: 2.5rem; border-radius: 999px;
@@ -90,6 +92,9 @@ function mountMozartFooter() {
       <div>
         <h4>Mozart Techniques</h4>
         <p>Unlock your creative potential and master your chosen craft.</p>
+        <a class="mt-footer-app-store" href="https://apps.apple.com/ng/app/mozart-techniques/id6824240257" target="_blank" rel="noopener noreferrer" aria-label="Download Mozart Techniques on the App Store">
+          <img src="/assets/apple-appstore-badge.svg" alt="Download on the App Store" width="176" height="52">
+        </a>
       </div>
       <div>
         <h4>Quick Links</h4>
